@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "pgscatalog_utils"
+version = "0.1.0"
+description = ""
+authors = ["Benjamin Wingfield <bwingfield@ebi.ac.uk>"]
+
+[tool.poetry.scripts]
+combine_scorefiles = "pgscatalog_utils.scorefile.combine_scorefiles:combine_scorefiles"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pandas = "^1.4.3"
+pyliftover = "^0.4"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+

@@ -60,3 +60,7 @@ def _read_and_melt(path):
     return (load_scorefile(path)
             .pipe(melt_effect_weights)
             .pipe(set_effect_type))
+
+
+if __name__ == "__main__":
+    combine_scorefiles()

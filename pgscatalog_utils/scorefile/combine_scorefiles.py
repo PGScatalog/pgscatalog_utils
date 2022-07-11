@@ -45,6 +45,7 @@ def combine_scorefiles():
                             format=log_fmt,
                             datefmt='%Y-%m-%d %H:%M:%S')
 
+    logger.debug(f"Input scorefiles: {args.scorefiles}")
     scorefiles: pd.DataFrame = pd.concat([_read_and_melt(x) for x in args.scorefiles])
 
     if args.liftover:

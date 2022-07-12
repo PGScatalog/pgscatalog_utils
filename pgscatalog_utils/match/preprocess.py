@@ -8,7 +8,7 @@ def ugly_complement(df: pl.DataFrame) -> pl.DataFrame:
     """ Complementing alleles with a pile of regexes seems weird, but polars string functions are currently limited
     (i.e. no str.translate). This is fast, and I stole the regex idea from Scott.
     """
-    logger.debug("Complementing alleles")
+    logger.debug("Complementing target alleles")
     return df.with_columns([
         (pl.col("REF").str.replace_all("A", "V")
          .str.replace_all("T", "X")

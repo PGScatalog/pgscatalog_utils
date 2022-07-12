@@ -2,6 +2,8 @@ import argparse
 import sys
 import logging
 import pandas as pd
+
+from pgscatalog_utils.logs import set_logging_level
 from pgscatalog_utils.scorefile.read import load_scorefile
 from pgscatalog_utils.scorefile.effect_type import set_effect_type
 from pgscatalog_utils.scorefile.effect_weight import melt_effect_weights
@@ -34,16 +36,7 @@ def combine_scorefiles():
     args = parse_args()
 
     logger = logging.getLogger(__name__)
-    log_fmt = "%(name)s: %(asctime)s %(levelname)-8s %(message)s"
-
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG,
-                            format=log_fmt,
-                            datefmt='%Y-%m-%d %H:%M:%S')
-    else:
-        logging.basicConfig(level=logging.WARNING,
-                            format=log_fmt,
-                            datefmt='%Y-%m-%d %H:%M:%S')
+    set_logging_level(args.verbose)
 
     logger.debug(f"Input scorefiles: {args.scorefiles}")
     scorefiles: pd.DataFrame = pd.concat([_read_and_melt(x) for x in args.scorefiles])

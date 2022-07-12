@@ -12,6 +12,7 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame) -> pl.DataFra
     matches: list[pl.DataFrame] = []
 
     if scorefile_oa:
+        logger.debug("Getting matches for scores with effect allele and other allele")
         matches.append(_match_variants(scorefile_cat, target_cat, effect_allele='REF', other_allele='ALT',
                                        match_type="refalt"))
         matches.append(_match_variants(scorefile_cat, target_cat, effect_allele='ALT', other_allele='REF',
@@ -24,6 +25,7 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame) -> pl.DataFra
                                        match_type="altref_flip"))
 
     if scorefile_no_oa:
+        logger.debug("Getting matches for scores with effect allele only")
         matches.append(_match_variants(scorefile_no_oa, target_cat, effect_allele='REF', other_allele=None,
                                        match_type="no_oa_ref"))
         matches.append(_match_variants(scorefile_no_oa, target_cat, effect_allele='ALT', other_allele=None,
@@ -41,6 +43,7 @@ def _match_variants(scorefile: pl.DataFrame,
                     effect_allele: str,
                     other_allele: str | None,
                     match_type: str) -> pl.DataFrame:
+    logger.debug(f"Matching strategy: {match_type}")
     return (scorefile.join(target,
                            left_on=_scorefile_keys(other_allele),
                            right_on=_target_keys(effect_allele, other_allele),

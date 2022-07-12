@@ -1,10 +1,21 @@
 import polars as pl
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 
-def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool) -> None:
+def write_out(df: pl.DataFrame, split: bool, outdir: str) -> None:
+    logger.debug("Splitting by effect type")
+    effect_types: dict[str, pl.DataFrame] = _split_effect_type(df)
+    logger.debug("Deduplicating variants")
+    deduplicated: dict[str, pl.DataFrame] = {k: _deduplicate_variants(v) for k, v in effect_types.items()}
+    ea_dict: dict[str, str] = {'is_dominant': 'dominant', 'is_recessive': 'recessive', 'additive': 'additive'}
+    logger.debug("Writing out scorefiles")
+    [_write_scorefile(ea_dict.get(k), v, split, outdir) for k, v in deduplicated.items()]
+
+
+def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, outdir: str) -> None:
     """ Write a list of scorefiles with the same effect type """
     fout: str = '{chr}_{et}_{split}.scorefile'
 
@@ -14,8 +25,9 @@ def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool) ->
         df_dict: dict[str, pl.DataFrame] = _format_scorefile(scorefile, split)  # may be split by chrom
 
         for k, v in df_dict.items():
-            path: str = fout.format(chr=k, et=effect_type, split=i)
-            v.write_csv(path, sep="\t")
+            path: str = os.path.join(outdir, f"{k}_{effect_type}_{i}.scorefile")
+            logger.debug(f"Writing matched scorefile to {path}")
+            v.to_csv(path, sep="\t")
 
 
 def _format_scorefile(df: pl.DataFrame, split: bool) -> dict[str, pl.DataFrame]:
@@ -25,15 +37,19 @@ def _format_scorefile(df: pl.DataFrame, split: bool) -> dict[str, pl.DataFrame]:
     Multiple scores are OK too:
     ID | effect_allele | weight_1 | ... | weight_n
     """
+    logger.debug("Formatting scorefile to plink2 standard")
     if split:
+        logger.debug("Split output requested")
         chroms: list[int] = df["chr_name"].unique().to_list()
         return {x: (df.filter(pl.col("chr_name") == x)
                     .pivot(index=["ID", "effect_allele"], values="effect_weight", columns="accession")
-                    .fill_null(pl.lit(0)))
+                    .pipe(_fill_null))
                 for x in chroms}
     else:
-        return {'false': (df.pivot(index=["ID", "effect_allele"], values="effect_weight", columns="accession")
-                          .fill_null(pl.lit(0)))}
+        logger.debug("Split output not requested")
+        formatted: pl.DataFrame = (df.pivot(index=["ID", "effect_allele"], values="effect_weight", columns="accession")
+                                   .pipe(_fill_null))
+        return {'false': formatted}
 
 
 def _split_effect_type(df: pl.DataFrame) -> dict[str, pl.DataFrame]:
@@ -42,7 +58,7 @@ def _split_effect_type(df: pl.DataFrame) -> dict[str, pl.DataFrame]:
     return {x: df.filter(pl.col("effect_type") == x) for x in effect_types}
 
 
-def _unduplicate_variants(df: pl.DataFrame) -> list[pl.DataFrame]:
+def _deduplicate_variants(df: pl.DataFrame) -> list[pl.DataFrame]:
     """ Find variant matches that have duplicate identifiers
     When merging a lot of scoring files, sometimes a variant might be duplicated
     this can happen when the effect allele differs at the same position, e.g.:
@@ -60,10 +76,12 @@ def _unduplicate_variants(df: pl.DataFrame) -> list[pl.DataFrame]:
     #   handled by pivoting, and it's pointless to split them unnecessarily
     # 2. use cumcount to number duplicate IDs
     # 3. join cumcount data on original DF, use this data for splitting
-    ea_count: pl.DataFrame = df.select(["ID", "effect_allele"]).unique().with_columns([
+    ea_count: pl.DataFrame = (df.select(["ID", "effect_allele"])
+        .distinct()
+        .with_columns([
         pl.col("ID").cumcount().over(["ID"]).alias("cumcount"),
         pl.col("ID").count().over(["ID"]).alias("count")
-    ])
+    ]))
 
     dup_label: pl.DataFrame = df.join(ea_count, on=["ID", "effect_allele"], how="left")
 
@@ -85,3 +103,15 @@ def _unduplicate_variants(df: pl.DataFrame) -> list[pl.DataFrame]:
     assert n_var == df.shape[0]
 
     return df_lst
+
+
+def _fill_null(df):
+    # fill_null with no nulls in dataframe caused a weird error
+    # nulls are created when pivoting wider
+    null_count: pl.DataFrame = df.null_count().filter(pl.col('*') > 0)
+    if null_count.is_empty:
+        logger.info("No nulls weights detected")
+        return df
+    else:
+        logger.info("Filling null weights with zero")
+        return df.fill_null(0)

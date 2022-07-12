@@ -1,14 +1,9 @@
 import polars as pl
 import logging
 from typing import NamedTuple
-
 from pgscatalog_utils.match.preprocess import ugly_complement, handle_multiallelic, check_weights
 
 logger = logging.getLogger(__name__)
-log_fmt = "%(name)s: %(asctime)s %(levelname)-8s %(message)s"
-logging.basicConfig(level=logging.DEBUG,
-                            format=log_fmt,
-                            datefmt='%Y-%m-%d %H:%M:%S')
 
 
 def read_target(path: str, n_threads: int, remove_multiallelic: bool) -> pl.DataFrame:
@@ -49,12 +44,12 @@ def _detect_target_format(path: str) -> Target:
     with open(path, 'rt') as f:
         for line in f:
             if line.startswith('#'):
-                logging.debug("pvar format detected")
+                logger.debug("pvar format detected")
                 file_format = 'pvar'
                 header = _pvar_header(path)
                 break
             else:
-                logging.debug("bim format detected")
+                logger.debug("bim format detected")
                 file_format = 'bim'
                 header = _bim_header()
                 break

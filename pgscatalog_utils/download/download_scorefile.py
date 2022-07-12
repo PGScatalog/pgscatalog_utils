@@ -5,9 +5,7 @@ import shutil
 from contextlib import closing
 from urllib import request as request
 from pgscatalog_utils.download.api import pgscatalog_result
-
-logger = logging.getLogger(__name__)
-log_fmt = "%(name)s: %(asctime)s %(levelname)-8s %(message)s"
+from pgscatalog_utils.logs import set_logging_level
 
 
 def parse_args(args=None) -> argparse.Namespace:
@@ -25,14 +23,8 @@ def parse_args(args=None) -> argparse.Namespace:
 def download_scorefile() -> None:
     args = parse_args()
 
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG,
-                            format=log_fmt,
-                            datefmt='%Y-%m-%d %H:%M:%S')
-    else:
-        logging.basicConfig(level=logging.WARNING,
-                            format=log_fmt,
-                            datefmt='%Y-%m-%d %H:%M:%S')
+    logger = logging.getLogger(__name__)
+    set_logging_level(args.verbose)
 
     _mkdir(args.outdir)
 

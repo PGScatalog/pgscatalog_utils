@@ -1,6 +1,7 @@
 import requests
 import jq
 import logging
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -8,9 +9,13 @@ logger = logging.getLogger(__name__)
 def pgscatalog_result(pgs: list[str]) -> dict[str, str]:
     result = _parse_json_query(_api_query(pgs))
 
-    if len(pgs) > len(result):
-        missing_pgs: set[str] = set(pgs).difference(set(result.keys()))
-        logger.warning(f"Some queries missing in PGS Catalog response: {missing_pgs}")
+    try:
+        if len(pgs) > len(result):
+            missing_pgs: set[str] = set(pgs).difference(set(result.keys()))
+            logger.warning(f"Some queries missing in PGS Catalog response: {missing_pgs}")
+    except TypeError:
+        logger.error(f"Bad response from PGS Catalog API. Is {pgs} a valid ID?")
+        sys.exit(1)
 
     return result
 

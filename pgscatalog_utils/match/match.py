@@ -38,6 +38,33 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame) -> pl.DataFra
     return pl.concat(matches)
 
 
+def check_match_rate(scorefile: pl.DataFrame, matches: pl.DataFrame, min_overlap: float) -> None:
+    scorefile: pl.DataFrame = scorefile.with_columns([
+        pl.col('effect_type').cast(pl.Categorical),
+        pl.col('accession').cast(pl.Categorical)])  # same dtypes for join
+    match_log: pl.DataFrame = _join_matches(matches, scorefile)
+    fail_rates: pl.DataFrame = (match_log.groupby('accession')
+                                .agg([pl.count(), (pl.col('match_type') == None).sum().alias('no_match')])
+                                .with_column((pl.col('no_match') / pl.col('count')).alias('fail_rate'))
+                                )
+
+    for accession, rate in zip(fail_rates['accession'].to_list(), fail_rates['fail_rate'].to_list()):
+        if rate < (1 - min_overlap):
+            logger.debug(f"Score {accession} passes minimum matching threshold ({1-rate:.2%}  variants match)")
+        else:
+            logger.error(f"Score {accession} fails minimum matching threshold ({1-rate:.2%} variants match)")
+            raise Exception
+
+
+def _match_keys():
+    return ['chr_name', 'chr_position', 'effect_allele', 'other_allele',
+            'accession', 'effect_type', 'effect_weight']
+
+
+def _join_matches(matches, scorefile):
+    return scorefile.join(matches, on=_match_keys(), how='left')
+
+
 def _match_variants(scorefile: pl.DataFrame,
                     target: pl.DataFrame,
                     effect_allele: str,
@@ -64,18 +91,20 @@ def _post_match(df: pl.DataFrame,
 
 def _cast_categorical(scorefile, target) -> tuple[pl.DataFrame, pl.DataFrame]:
     """ Casting important columns to categorical makes polars fast """
-    scorefile = scorefile.with_columns([
-        pl.col("effect_allele").cast(pl.Categorical),
-        pl.col("other_allele").cast(pl.Categorical),
-        pl.col("effect_type").cast(pl.Categorical),
-        pl.col("accession").cast(pl.Categorical)
-    ])
-    target = target.with_columns([
-        pl.col("REF").cast(pl.Categorical),
-        pl.col("ALT").cast(pl.Categorical),
-        pl.col("ALT_FLIP").cast(pl.Categorical),
-        pl.col("REF_FLIP").cast(pl.Categorical)
-    ])
+    if scorefile:
+        scorefile = scorefile.with_columns([
+            pl.col("effect_allele").cast(pl.Categorical),
+            pl.col("other_allele").cast(pl.Categorical),
+            pl.col("effect_type").cast(pl.Categorical),
+            pl.col("accession").cast(pl.Categorical)
+        ])
+    if target:
+        target = target.with_columns([
+            pl.col("REF").cast(pl.Categorical),
+            pl.col("ALT").cast(pl.Categorical),
+            pl.col("ALT_FLIP").cast(pl.Categorical),
+            pl.col("REF_FLIP").cast(pl.Categorical)
+        ])
 
     return scorefile, target
 

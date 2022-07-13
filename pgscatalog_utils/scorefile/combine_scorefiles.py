@@ -3,7 +3,7 @@ import sys
 import logging
 import pandas as pd
 
-from pgscatalog_utils.logs import set_logging_level
+from pgscatalog_utils.log_config import set_logging_level
 from pgscatalog_utils.scorefile.read import load_scorefile
 from pgscatalog_utils.scorefile.effect_type import set_effect_type
 from pgscatalog_utils.scorefile.effect_weight import melt_effect_weights
@@ -38,8 +38,9 @@ def combine_scorefiles():
     logger = logging.getLogger(__name__)
     set_logging_level(args.verbose)
 
-    logger.debug(f"Input scorefiles: {args.scorefiles}")
-    scorefiles: pd.DataFrame = pd.concat([_read_and_melt(x) for x in args.scorefiles])
+    paths: list[str] = list(set(args.scorefiles))  # unique paths only
+    logger.debug(f"Input scorefiles: {paths}")
+    scorefiles: pd.DataFrame = pd.concat([_read_and_melt(x) for x in paths])
 
     if args.liftover:
         logger.debug("Annotating scorefiles with liftover parameters")

@@ -15,14 +15,14 @@ def set_effect_type(df: pd.DataFrame) -> pd.DataFrame:
 
 def _check_effect_types(df: pd.DataFrame):
     """ Check that only one effect type is set per variant """
-    bad_rows: pd.DataFrame = df[['is_dominant', 'is_recessive']].all(axis=1)
+    bad_rows: pd.DataFrame = df[['is_dominant', 'is_recessive']].all(axis=1).any()
 
     error = ''' ERROR: Bad variants in scorefile
     is_recessive and is_dominant columns are both TRUE for a variant
     These columns are mutually exclusive (both can't be true)
     However, both can be FALSE for additive variant scores
     '''
-    if not bad_rows.empty:
+    if bad_rows:
         logger.error(error)
         logger.error(bad_rows)
         raise Exception

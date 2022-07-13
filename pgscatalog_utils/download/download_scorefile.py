@@ -5,7 +5,9 @@ import shutil
 from contextlib import closing
 from urllib import request as request
 from pgscatalog_utils.download.api import pgscatalog_result
-from pgscatalog_utils.logs import set_logging_level
+from pgscatalog_utils.log_config import set_logging_level
+
+logger = logging.getLogger(__name__)
 
 
 def parse_args(args=None) -> argparse.Namespace:
@@ -23,7 +25,6 @@ def parse_args(args=None) -> argparse.Namespace:
 def download_scorefile() -> None:
     args = parse_args()
 
-    logger = logging.getLogger(__name__)
     set_logging_level(args.verbose)
 
     _mkdir(args.outdir)
@@ -36,13 +37,13 @@ def download_scorefile() -> None:
         _download_ftp(url, path)
 
 
-def _mkdir(outdir):
+def _mkdir(outdir: str) -> None:
     if not os.path.exists(outdir):
         logger.debug("Creating output directory")
         os.makedirs(outdir)
 
 
-def _download_ftp(url: str, path: str):
+def _download_ftp(url: str, path: str) -> None:
     if os.path.exists(path):
         logger.warning(f"File already exists at {path}, skipping download")
         return

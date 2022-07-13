@@ -1,9 +1,10 @@
 import argparse
 import logging
 import polars as pl
+from pgscatalog_utils.match.postprocess import postprocess_matches
 
-from pgscatalog_utils.logs import set_logging_level
-from pgscatalog_utils.match.match import get_all_matches
+from pgscatalog_utils.log_config import set_logging_level
+from pgscatalog_utils.match.match import get_all_matches, check_match_rate
 from pgscatalog_utils.match.read import read_target, read_scorefile
 from pgscatalog_utils.match.write import write_out
 
@@ -19,9 +20,10 @@ def match_variants():
                                        remove_multiallelic=args.remove_multiallelic)
 
     with pl.StringCache():
-        matches: pl.DataFrame = get_all_matches(scorefile, target)
+        matches: pl.DataFrame = get_all_matches(scorefile, target).pipe(postprocess_matches, args.remove_ambiguous)
+        check_match_rate(scorefile, matches, args.min_overlap)
 
-    if matches.shape[0] == 0:
+    if matches.shape[0] == 0:  # this can happen if args.min_overlap = 0
         logger.error("Error: no target variants match any variants in scoring files")
         raise Exception
 
@@ -56,3 +58,8 @@ def _parse_args(args=None):
 
 if __name__ == "__main__":
     match_variants()
+
+
+# join matches and scorefile with keys depending on liftover
+# count match type column
+# matches.groupby('accession').agg([pl.count(), (pl.col('match_type') == None).sum().alias('no_match')])

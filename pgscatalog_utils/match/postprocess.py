@@ -44,7 +44,7 @@ def _get_distinct_weights(df: pl.DataFrame) -> pl.DataFrame:
     # TODO: prioritise unambiguous -> ref -> alt -> ref_flip -> alt_flip
     dups: pl.DataFrame = (count.filter(pl.col('count') > 1)[:, "accession":"effect_allele"]
                           .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left')
-                          .unique(subset=['accession', 'chr_name', 'chr_position', 'effect_allele']))
+                          .distinct(subset=['accession', 'chr_name', 'chr_position', 'effect_allele']))
     distinct: pl.DataFrame = pl.concat([singletons, dups])
 
     assert all((distinct.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele']).count()['count']) == 1), \

@@ -180,7 +180,7 @@ diagrams = ["railroad-diagrams", "jinja2"]
 name = "pysqlar"
 version = "0.1.2"
 description = "Pure Python library for working with SQLite Archives."
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=3"
 
@@ -289,7 +289,7 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "4f4fb4c087479b1dbe98ecc7ccfbdff360e0c97b704d58770d66c45411ee09cf"
+content-hash = "a4c0d8891e318ff8f5f19c9cd801cb21e30409649faeb0a56df90e5b59b167bc"
 
 [metadata.files]
 atomicwrites = []

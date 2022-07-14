@@ -1,5 +1,6 @@
 import polars as pl
 import logging
+import glob
 from typing import NamedTuple
 from pgscatalog_utils.match.preprocess import ugly_complement, handle_multiallelic, check_weights
 
@@ -41,6 +42,11 @@ class Target(NamedTuple):
 def _detect_target_format(path: str) -> Target:
     file_format: str
     header: list[str]
+
+    if "*" in path:
+        logger.debug("Wildcard detected in target path, guessing format from first match")
+        path = glob.glob(path)[0]  # guess format from first file in directory
+
     with open(path, 'rt') as f:
         for line in f:
             if line.startswith('#'):

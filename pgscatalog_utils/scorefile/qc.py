@@ -29,9 +29,10 @@ def _drop_multiple_oa(df: pd.DataFrame) -> pd.DataFrame:
 
 def _drop_missing_variants(df: pd.DataFrame) -> pd.DataFrame:
     no_na: pd.DataFrame = df.dropna(subset=['chr_name', 'chr_position', 'effect_weight'])
+    n_dropped = df.shape[0] - no_na.shape[0]
 
-    if df.shape[0] > no_na.shape[0]:
-        logger.warning("Variants with missing values detected and dropped from scoring file")
+    if n_dropped > 0:
+        logger.warning(f"{n_dropped} variants with missing values detected and dropped from scoring file")
 
     return no_na
 

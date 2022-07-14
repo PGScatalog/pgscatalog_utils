@@ -7,9 +7,9 @@ from .genome_build import annotate_build
 logger = logging.getLogger(__name__)
 
 
-def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float = 0.9) -> pd.DataFrame:
+def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float, target_build: str) -> pd.DataFrame:
     """ Liftover genomic coordinates to a different genome build """
-    df = annotate_build(df)  # grab build from scoring file headers
+    df = annotate_build(df, target_build)  # grab build from scoring file headers
 
     mapped, unmapped = pd.DataFrame(), pd.DataFrame()
     no_liftover: pd.DataFrame = df.query('target_build == genome_build')
@@ -19,6 +19,8 @@ def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float = 0.9) -> pd.Data
         logger.debug("Skipping liftover for scorefiles with same build as target genome")
         no_liftover[['lifted_chr', 'lifted_pos']] = no_liftover[['chr_name', 'chr_position']]  # assume col structure
         no_liftover.assign(liftover=None)
+    else:
+        logger.debug("Liftover required for all variants")
 
     if not to_liftover.empty:
         logger.debug("Lifting over scoring files")
@@ -31,6 +33,8 @@ def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float = 0.9) -> pd.Data
         unmapped: pd.DataFrame = (to_liftover[to_liftover[['lifted_chr', 'lifted_pos']].isnull().any(axis=1)]\
                                   .assign(liftover=False))
         _check_min_liftover(mapped, unmapped, min_lift)
+    else:
+        logger.debug("Liftover skipped because no variants required it")
 
     return pd.concat([mapped, unmapped, no_liftover])
 
@@ -59,7 +63,7 @@ def _check_min_liftover(mapped: pd.DataFrame, unmapped: pd.DataFrame, min_lift: 
 def _convert_coordinates(df: pd.DataFrame, lo_dict: dict[str, pyliftover.LiftOver]) -> pd.Series:
     """ Convert genomic coordinates to different build """
 
-    lo = lo_dict[df['genome_build'] + df['target_build']]  # extract lo object from dict
+    lo = lo_dict[df['genome_build'] + df['genome_build']]  # extract lo object from dict
     chrom: str = 'chr' + str(df['chr_name'])
     pos: int = int(df['chr_position']) - 1  # liftOver is 0 indexed, VCF is 1 indexed
     # converted example: [('chr22', 15460378, '+', 3320966530)] or None

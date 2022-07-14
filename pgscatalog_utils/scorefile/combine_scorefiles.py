@@ -44,8 +44,7 @@ def combine_scorefiles():
 
     if args.liftover:
         logger.debug("Annotating scorefiles with liftover parameters")
-        scorefiles['target_build'] = args.target_build
-        scorefiles = liftover(scorefiles, args.chain_dir, args.min_lift)
+        scorefiles = liftover(scorefiles, args.chain_dir, args.min_lift, args.target_build)
 
     write_scorefile(scorefiles, args.outfile)
 

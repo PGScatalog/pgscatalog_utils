@@ -8,23 +8,27 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def annotate_build(df: pd.DataFrame) -> pd.DataFrame:
+def annotate_build(df: pd.DataFrame, target_build: str) -> pd.DataFrame:
     """ Annotate the dataframe with genome build data """
+    logger.debug(f"Annotating target build: {target_build}")
+    build_dict: dict = {'GRCh37': 'hg19', 'GRCh38': 'hg38', 'hg19': 'hg19', 'hg38': 'hg38'}  # standardise build names
+    df['target_build'] = build_dict[target_build]
+
     builds: pd.DataFrame = _get_builds(df['filename'].drop_duplicates())
+    builds['genome_build'] = builds.apply(lambda x: build_dict[x.genome_build], axis=1)
     return df.merge(builds, how="left", on="filename")
 
 
 def _read_header(f: TextIO) -> str:
     """ Extract genome build of scorefile from PGS Catalog header format """
-    build_dict = {'GRCh37': 'hg19', 'GRCh38': 'hg38', 'hg19': 'hg19', 'hg38': 'hg38'}
     for line in f:
         if re.search("^#genome_build", line):
             # get #genome_build=GRCh37 from header
             header = line.replace('\n', '').replace('#', '').split('=')
             # and remap to liftover style
             try:
-                build: str = build_dict[header[-1]]
-                logger.debug("Valid genome build detected")
+                build: str = header[-1]
+                logger.debug(f"Valid genome build detected: {build}")
                 return build
             except KeyError:
                 raise Exception("Bad genome build detected in header")

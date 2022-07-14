@@ -1,9 +1,18 @@
-FROM python:3.10
+FROM python:3.10 as builder
 WORKDIR /app
 COPY . /app/
 
-RUN pip install poetry
-RUN poetry config virtualenvs.in-project true
-RUN poetry install --no-ansi
+RUN pip install poetry && poetry config virtualenvs.in-project true && \
+    poetry install --no-ansi --no-dev
+  
 RUN poetry build
-RUN pip install dist/pgscatalog_utils-0.1.0-py3-none-any.whl
+
+FROM python:3.10
+
+WORKDIR /opt/
+
+COPY --from=builder /app/dist/pgscatalog_utils-0.1.0-py3-none-any.whl .
+
+RUN pip install pgscatalog_utils-0.1.0-py3-none-any.whl
+
+RUN apt-get update && apt-get install -y sqlite3

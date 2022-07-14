@@ -21,7 +21,7 @@ def match_variants():
 
     with pl.StringCache():
         matches: pl.DataFrame = get_all_matches(scorefile, target).pipe(postprocess_matches, args.remove_ambiguous)
-        check_match_rate(scorefile, matches, args.min_overlap)
+        check_match_rate(scorefile, matches, args.min_overlap, args.dataset)
 
     if matches.shape[0] == 0:  # this can happen if args.min_overlap = 0
         logger.error("Error: no target variants match any variants in scoring files")
@@ -32,6 +32,8 @@ def match_variants():
 
 def _parse_args(args=None):
     parser = argparse.ArgumentParser(description='Read and format scoring files')
+    parser.add_argument('-d', '--dataset', dest='dataset', required=True,
+                        help='<Required> Label for target genomic dataset (e.g. "-d thousand_genomes")')
     parser.add_argument('-s', '--scorefiles', dest='scorefile', required=True,
                         help='<Required> Combined scorefile path (output of read_scorefiles.py)')
     parser.add_argument('-t', '--target', dest='target', required=True,

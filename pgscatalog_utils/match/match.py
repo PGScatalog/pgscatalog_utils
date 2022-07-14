@@ -1,6 +1,8 @@
 import polars as pl
 import logging
 
+from pgscatalog_utils.match.write import write_log
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,11 +40,12 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame) -> pl.DataFra
     return pl.concat(matches)
 
 
-def check_match_rate(scorefile: pl.DataFrame, matches: pl.DataFrame, min_overlap: float) -> None:
+def check_match_rate(scorefile: pl.DataFrame, matches: pl.DataFrame, min_overlap: float, dataset: str) -> None:
     scorefile: pl.DataFrame = scorefile.with_columns([
         pl.col('effect_type').cast(pl.Categorical),
         pl.col('accession').cast(pl.Categorical)])  # same dtypes for join
-    match_log: pl.DataFrame = _join_matches(matches, scorefile)
+    match_log: pl.DataFrame = _join_matches(matches, scorefile, dataset)
+    write_log(match_log)
     fail_rates: pl.DataFrame = (match_log.groupby('accession')
                                 .agg([pl.count(), (pl.col('match_type') == None).sum().alias('no_match')])
                                 .with_column((pl.col('no_match') / pl.col('count')).alias('fail_rate'))
@@ -61,8 +64,8 @@ def _match_keys():
             'accession', 'effect_type', 'effect_weight']
 
 
-def _join_matches(matches, scorefile):
-    return scorefile.join(matches, on=_match_keys(), how='left')
+def _join_matches(matches: pl.DataFrame, scorefile: pl.DataFrame, dataset: str):
+    return scorefile.join(matches, on=_match_keys(), how='left').with_column(pl.lit(dataset).alias('dataset'))
 
 
 def _match_variants(scorefile: pl.DataFrame,

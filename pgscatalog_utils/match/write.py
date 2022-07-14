@@ -15,6 +15,10 @@ def write_out(df: pl.DataFrame, split: bool, outdir: str) -> None:
     [_write_scorefile(ea_dict.get(k), v, split, outdir) for k, v in deduplicated.items()]
 
 
+def write_log(df: pl.DataFrame) -> None:
+    df.to_csv('log.csv')
+
+
 def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, outdir: str) -> None:
     """ Write a list of scorefiles with the same effect type """
     fout: str = '{chr}_{et}_{split}.scorefile'

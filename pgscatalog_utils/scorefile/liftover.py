@@ -15,14 +15,16 @@ def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float, target_build: st
     no_liftover: pd.DataFrame = df.query('target_build == genome_build')
     to_liftover: pd.DataFrame = df.query('target_build != genome_build')
 
-    if not no_liftover.empty:
+    if no_liftover.empty:
+        logger.debug("Liftover required for all scorefile variants")
+    else:
         logger.debug("Skipping liftover for scorefiles with same build as target genome")
         no_liftover[['lifted_chr', 'lifted_pos']] = no_liftover[['chr_name', 'chr_position']]  # assume col structure
         no_liftover.assign(liftover=None)
-    else:
-        logger.debug("Liftover required for all variants")
 
-    if not to_liftover.empty:
+    if to_liftover.empty:
+        logger.debug("Liftover skipped because no variants required it")
+    else:
         logger.debug("Lifting over scoring files")
         lo: dict[str, pyliftover.LiftOver] = _create_liftover(chain_dir)
         to_liftover[['lifted_chr', 'lifted_pos']] = to_liftover.apply(lambda x: _convert_coordinates(x, lo), axis=1)
@@ -33,8 +35,6 @@ def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float, target_build: st
         unmapped: pd.DataFrame = (to_liftover[to_liftover[['lifted_chr', 'lifted_pos']].isnull().any(axis=1)]\
                                   .assign(liftover=False))
         _check_min_liftover(mapped, unmapped, min_lift)
-    else:
-        logger.debug("Liftover skipped because no variants required it")
 
     return pd.concat([mapped, unmapped, no_liftover])
 
@@ -60,10 +60,10 @@ def _check_min_liftover(mapped: pd.DataFrame, unmapped: pd.DataFrame, min_lift: 
             logger.debug(f'Minimum liftover threshold passed for scorefile {row.accession}')
 
 
-def _convert_coordinates(df: pd.DataFrame, lo_dict: dict[str, pyliftover.LiftOver]) -> pd.Series:
+def _convert_coordinates(df: pd.Series, lo_dict: dict[str, pyliftover.LiftOver]) -> pd.Series:
     """ Convert genomic coordinates to different build """
 
-    lo = lo_dict[df['genome_build'] + df['genome_build']]  # extract lo object from dict
+    lo = lo_dict[df['genome_build'] + df['target_build']]  # extract lo object from dict
     chrom: str = 'chr' + str(df['chr_name'])
     pos: int = int(df['chr_position']) - 1  # liftOver is 0 indexed, VCF is 1 indexed
     # converted example: [('chr22', 15460378, '+', 3320966530)] or None
@@ -88,7 +88,7 @@ def _parse_lifted_chrom(i: str) -> str:
 
 def _create_liftover(chain_dir: str) -> dict['str': pyliftover.LiftOver]:
     """ Create LiftOver objects that can remap genomic coordinates """
-    builds: list[str] = ["hg19hg38", "hg38Hg19"]
+    builds: list[str] = ["hg19hg38", "hg38hg19"]
     chains: list[str] = [os.path.join(chain_dir, x) for x in ["hg19ToHg38.over.chain.gz",  "hg38ToHg19.over.chain.gz"]]
     lo: list[pyliftover.LiftOver] = [pyliftover.LiftOver(x) for x in chains]
     logger.debug("Chain files loaded for liftover")

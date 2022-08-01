@@ -17,6 +17,11 @@ def write_scorefile(df: pd.DataFrame, path: str) -> None:
         out_df: pd.DataFrame = (df.drop('accession', axis=1)
                                 .rename({'filename_prefix': 'accession'}, axis=1)
                                 .pipe(_filter_failed_liftover))
+
+        if 'other_allele' not in out_df:
+            logger.warning("No other allele information detected, writing out as missing data")
+            out_df['other_allele'] = None
+
         _write_log(out_df)
         out_df[cols].to_csv(path, index=False, sep="\t")
 

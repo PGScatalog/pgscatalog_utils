@@ -20,11 +20,17 @@ def _drop_multiple_oa(df: pd.DataFrame) -> pd.DataFrame:
 
     e.g. A / C / T -> None; A -> A; A / C -> None
     """
-    if df['other_allele'].str.contains('/').any():
-        logger.debug("Multiple inferred other alleles detected, dropping other alleles for ambiguous variants")
-
-    df['other_allele'] = df['other_allele'].replace(regex='.+\\/.+', value=None)
-    return df
+    if 'other_allele' in df:
+        if df['other_allele'].str.contains('/').any():
+            logger.debug("Multiple inferred other alleles detected, dropping other alleles for ambiguous variants")
+            df['other_allele'] = df['other_allele'].replace(regex='.+\\/.+', value=None)
+            return df
+        else:
+            logger.debug("Only single other alleles detected.")
+            return df
+    else:
+        logger.warning("No other allele data detected, skipping QC of other allele")
+        return df
 
 
 def _drop_missing_variants(df: pd.DataFrame) -> pd.DataFrame:
@@ -49,7 +55,14 @@ def _drop_hla(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _check_duplicate_identifiers(df: pd.DataFrame) -> pd.DataFrame:
-    unique: pd.Series = df.groupby(['chr_name', 'chr_position', 'effect_allele', 'other_allele']).size() == 1
+    if 'other_allele' in df:
+        logger.debug("Other allele column detected, including other_allele in variant identifier")
+        group_cols = ['chr_name', 'chr_position', 'effect_allele', 'other_allele']
+    else:
+        logger.warning("Other allele column not detected, dropping other_allele from variant identifier.")
+        group_cols = ['chr_name', 'chr_position', 'effect_allele']
+
+    unique: pd.Series = df.groupby(group_cols).size() == 1
 
     if unique.all():
         return df

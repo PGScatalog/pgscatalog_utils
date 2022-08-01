@@ -114,8 +114,7 @@ def _fill_null(df):
     # nulls are created when pivoting wider
     null_count: pl.DataFrame = df.null_count().filter(pl.col('*') > 0)
     if null_count.is_empty:
-        logger.info("No nulls weights detected")
         return df
     else:
-        logger.info("Filling null weights with zero")
+        logger.debug("Filling null weights with zero")
         return df.fill_null(0)

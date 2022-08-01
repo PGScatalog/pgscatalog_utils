@@ -85,6 +85,10 @@ def _post_match(df: pl.DataFrame,
                 other_allele: str,
                 match_type: str) -> pl.DataFrame:
     """ Annotate matches with parameters """
+    if other_allele is None:
+        logger.debug("Dropping missing other_allele during annotation")
+        other_allele = 'dummy'  # prevent trying to alias a column to None
+
     return df.with_columns([pl.col("*"),
                             pl.col("effect_allele").alias(effect_allele),
                             pl.col("other_allele").alias(other_allele),

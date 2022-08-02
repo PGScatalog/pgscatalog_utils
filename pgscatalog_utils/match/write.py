@@ -110,11 +110,10 @@ def _deduplicate_variants(df: pl.DataFrame) -> list[pl.DataFrame]:
 
 
 def _fill_null(df):
-    # fill_null with no nulls in dataframe caused a weird error
     # nulls are created when pivoting wider
-    null_count: pl.DataFrame = df.null_count().filter(pl.col('*') > 0)
-    if null_count.is_empty:
-        return df
-    else:
-        logger.debug("Filling null weights with zero")
+    if any(df.null_count() > 0):
+        logger.debug("Filling null weights with zero after pivoting wide")
         return df.fill_null(0)
+    else:
+        logger.debug("No null weights detected")
+        return df

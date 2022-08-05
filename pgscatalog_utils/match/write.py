@@ -16,7 +16,7 @@ def write_out(df: pl.DataFrame, split: bool, outdir: str) -> None:
 
 
 def write_log(df: pl.DataFrame) -> None:
-    df.to_csv('log.csv')
+    df.write_csv('log.csv')
 
 
 def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, outdir: str) -> None:
@@ -31,7 +31,7 @@ def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, ou
         for k, v in df_dict.items():
             path: str = os.path.join(outdir, f"{k}_{effect_type}_{i}.scorefile")
             logger.debug(f"Writing matched scorefile to {path}")
-            v.to_csv(path, sep="\t")
+            v.write_csv(path, sep="\t")
 
 
 def _format_scorefile(df: pl.DataFrame, split: bool) -> dict[str, pl.DataFrame]:

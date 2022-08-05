@@ -1,5 +1,7 @@
 # PGS Catalog utilities
 
+[![CI](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml/badge.svg)](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml)
+
 This repository is a collection of useful tools for working with data from the
 PGS Catalog. This is mostly used internally by the PGS Catalog calculator, but
 other users might find some of these tools helpful.
@@ -14,4 +16,4 @@ of `combine_scorefile` to produce scoring files for plink 2
 
 ## Installation
 
-TODO
+TODO:

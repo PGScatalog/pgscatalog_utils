@@ -1,8 +1,11 @@
 [tool.poetry]
 name = "pgscatalog_utils"
 version = "0.1.0"
-description = ""
+description = "Some useful utilities for working with PGS Catalog data"
+homepage = "https://github.com/PGScatalog/pgscatalog_utils"
 authors = ["Benjamin Wingfield <bwingfield@ebi.ac.uk>"]
+license = "Apache-2.0"
+readme = "README.md"
 
 [tool.poetry.scripts]
 combine_scorefiles = "pgscatalog_utils.scorefile.combine_scorefiles:combine_scorefiles"

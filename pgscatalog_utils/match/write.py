@@ -5,23 +5,23 @@ import os
 logger = logging.getLogger(__name__)
 
 
-def write_out(df: pl.DataFrame, split: bool, outdir: str) -> None:
+def write_out(df: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
     logger.debug("Splitting by effect type")
     effect_types: dict[str, pl.DataFrame] = _split_effect_type(df)
     logger.debug("Deduplicating variants")
     deduplicated: dict[str, pl.DataFrame] = {k: _deduplicate_variants(v) for k, v in effect_types.items()}
     ea_dict: dict[str, str] = {'is_dominant': 'dominant', 'is_recessive': 'recessive', 'additive': 'additive'}
     logger.debug("Writing out scorefiles")
-    [_write_scorefile(ea_dict.get(k), v, split, outdir) for k, v in deduplicated.items()]
+    [_write_scorefile(ea_dict.get(k), v, split, outdir, dataset) for k, v in deduplicated.items()]
 
 
-def write_log(df: pl.DataFrame) -> None:
-    df.write_csv('log.csv')
+def write_log(df: pl.DataFrame, dataset: str) -> None:
+    df.write_csv(f"{dataset}_log.csv")
 
 
-def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, outdir: str) -> None:
+def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
     """ Write a list of scorefiles with the same effect type """
-    fout: str = '{chr}_{et}_{split}.scorefile'
+    fout: str = '{dataset}_{chr}_{et}_{split}.scorefile'
 
     # each list element contains a dataframe of variants
     # lists are split to ensure variants have unique ID - effect alleles
@@ -29,7 +29,8 @@ def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, ou
         df_dict: dict[str, pl.DataFrame] = _format_scorefile(scorefile, split)  # may be split by chrom
 
         for k, v in df_dict.items():
-            path: str = os.path.join(outdir, f"{k}_{effect_type}_{i}.scorefile")
+            chr = k.replace("false", "ALL")
+            path: str = os.path.join(outdir, f"{dataset}_{chr}_{effect_type}_{i}.scorefile")
             logger.debug(f"Writing matched scorefile to {path}")
             v.write_csv(path, sep="\t")
 

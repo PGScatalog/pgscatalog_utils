@@ -45,7 +45,7 @@ def check_match_rate(scorefile: pl.DataFrame, matches: pl.DataFrame, min_overlap
         pl.col('effect_type').cast(pl.Categorical),
         pl.col('accession').cast(pl.Categorical)])  # same dtypes for join
     match_log: pl.DataFrame = _join_matches(matches, scorefile, dataset)
-    write_log(match_log)
+    write_log(match_log, dataset)
     fail_rates: pl.DataFrame = (match_log.groupby('accession')
                                 .agg([pl.count(), (pl.col('match_type') == None).sum().alias('no_match')])
                                 .with_column((pl.col('no_match') / pl.col('count')).alias('fail_rate'))

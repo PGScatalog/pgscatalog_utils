@@ -16,4 +16,20 @@ of `combine_scorefile` to produce scoring files for plink 2
 
 ## Installation
 
-TODO:
+```
+$ pip install pgscatalog-utils
+```
+
+Or clone the repo:
+
+```
+$ git clone https://github.com/PGScatalog/pgscatalog_utils.git
+```
+
+## Quickstart
+
+```
+$ download_scorefiles -i PGS000922 PGS001229 -o .
+$ combine_scorefiles -s PGS*.txt.gz -o combined.txt
+$ match_variants -s combined.txt -t <example.pvar> --min_overlap 0.75 --outdir .
+```

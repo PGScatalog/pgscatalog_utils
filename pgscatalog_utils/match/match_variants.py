@@ -19,15 +19,17 @@ def match_variants():
     target: pl.DataFrame = read_target(path=args.target, n_threads=args.n_threads,
                                        remove_multiallelic=args.remove_multiallelic)
 
+    dataset = args.dataset.replace('_', '-')  # underscores are delimiters in pgs catalog calculator
+
     with pl.StringCache():
         matches: pl.DataFrame = get_all_matches(scorefile, target).pipe(postprocess_matches, args.remove_ambiguous)
-        check_match_rate(scorefile, matches, args.min_overlap, args.dataset)
+        check_match_rate(scorefile, matches, args.min_overlap, dataset)
 
     if matches.shape[0] == 0:  # this can happen if args.min_overlap = 0
         logger.error("Error: no target variants match any variants in scoring files")
         raise Exception
 
-    write_out(matches, args.split, args.outdir)
+    write_out(matches, args.split, args.outdir, dataset)
 
 
 def _parse_args(args=None):

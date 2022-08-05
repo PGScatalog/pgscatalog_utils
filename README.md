@@ -8,7 +8,7 @@ other users might find some of these tools helpful.
 
 ## Overview
 
-* `download_scorefiles`: Download scoring files by PGS ID (accession)
+* `download_scorefiles`: Download scoring files by PGS ID (accession) in genome builds GRCh37 or GRCh38
 * `combine_scorefile`: Combine multiple scoring files into a single scoring file
 in 'long' format
 * `match_variants`: Match target variants (bim or pvar files) against the output
@@ -29,7 +29,7 @@ $ git clone https://github.com/PGScatalog/pgscatalog_utils.git
 ## Quickstart
 
 ```
-$ download_scorefiles -i PGS000922 PGS001229 -o .
-$ combine_scorefiles -s PGS*.txt.gz -o combined.txt
+$ download_scorefiles -i PGS000922 PGS001229 -o . -b GRCh37
+$ combine_scorefiles -s PGS*.txt.gz -o combined.txt 
 $ match_variants -s combined.txt -t <example.pvar> --min_overlap 0.75 --outdir .
 ```

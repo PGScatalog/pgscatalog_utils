@@ -14,6 +14,8 @@ def parse_args(args=None) -> argparse.Namespace:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description='Download scoring files')
     parser.add_argument('-i', '--id', nargs='+', dest='pgs',
                         help='<Required> PGS Catalog ID', required=True)
+    parser.add_argument('-b', '--build', dest='build', required=True,
+                        help='<Required> Genome build: GRCh37 or GRCh38')
     parser.add_argument('-o', '--outdir', dest='outdir', required=True,
                         default='scores/',
                         help='<Required> Output directory to store downloaded files')
@@ -29,7 +31,10 @@ def download_scorefile() -> None:
 
     _mkdir(args.outdir)
 
-    urls: dict[str, str] = pgscatalog_result(args.pgs)
+    if args.build not in ['GRCh37', 'GRCh38']:
+        raise Exception(f'Invalid genome build specified: {args.build}. Only -b GRCh37 and -b GRCh38 are supported')
+
+    urls: dict[str, str] = pgscatalog_result(args.pgs, args.build)
 
     for pgsid, url in urls.items():
         logger.debug(f"Downloading {pgsid} from {url}")

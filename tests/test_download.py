@@ -7,7 +7,7 @@ from pgscatalog_utils.download.download_scorefile import download_scorefile
 
 @pytest.fixture(params=[["PGS000001"], ["PGS000001", "PGS000802"]])
 def pgscatalog_api(request):
-    return pgscatalog_result(request.param)
+    return pgscatalog_result(request.param, "GRCh37")
 
 
 def test_pgscatalog_result(pgscatalog_api):
@@ -23,7 +23,7 @@ def test_pgscatalog_result(pgscatalog_api):
 
 def test_download_scorefile(tmp_path):
     out_dir = str(tmp_path.resolve())
-    args: list[str] = ['download_scorefiles', '-i', 'PGS000001', '-o', out_dir]
+    args: list[str] = ['download_scorefiles', '-i', 'PGS000001', '-b', 'GRCh38', '-o', out_dir]
 
     with patch('sys.argv', args):
         download_scorefile()

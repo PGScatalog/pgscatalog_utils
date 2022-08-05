@@ -16,7 +16,7 @@ def pgs_accessions():
 @pytest.fixture(scope="session")
 def scorefiles(tmp_path_factory, pgs_accessions):
     fn = tmp_path_factory.mktemp("scorefiles")
-    args: list[str] = ['download_scorefiles', '-o', str(fn.resolve()), '-i'] + pgs_accessions
+    args: list[str] = ['download_scorefiles', '-b', 'GRCh37', '-o', str(fn.resolve()), '-i'] + pgs_accessions
 
     with patch('sys.argv', args):
         download_scorefile()

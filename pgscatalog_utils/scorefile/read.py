@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def load_scorefile(path: str, use_harmonised: bool = True) -> pd.DataFrame:
     logger.debug(f'Reading scorefile {path}')
-    return (pd.read_table(path, dtype=_scorefile_dtypes(), comment='#', na_values=['None'])
+    return (pd.read_table(path, dtype=_scorefile_dtypes(), comment='#', na_values=['None'], low_memory=False)
             .pipe(remap_harmonised, use_harmonised=use_harmonised)
             .assign(filename_prefix=_get_basename(path),
                     filename=path)

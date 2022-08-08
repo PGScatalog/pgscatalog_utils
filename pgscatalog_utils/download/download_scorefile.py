@@ -3,8 +3,13 @@ import argparse
 import os
 import shutil
 from contextlib import closing
+from functools import reduce
 from urllib import request as request
-from pgscatalog_utils.download.api import pgscatalog_result
+import sys
+
+from pgscatalog_utils.download.publication import query_publication
+from pgscatalog_utils.download.score import get_url
+from pgscatalog_utils.download.trait import query_trait
 from pgscatalog_utils.log_config import set_logging_level
 
 logger = logging.getLogger(__name__)
@@ -12,29 +17,47 @@ logger = logging.getLogger(__name__)
 
 def parse_args(args=None) -> argparse.Namespace:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description='Download scoring files')
-    parser.add_argument('-i', '--id', nargs='+', dest='pgs',
-                        help='<Required> PGS Catalog ID', required=True)
+    parser.add_argument('-i', '--id', nargs='+', dest='pgs', help='PGS Catalog ID')
+    parser.add_argument('-t', '--trait', dest='efo', nargs='+',
+                        help='Traits described by an EFO term')
+    parser.add_argument('-p', '--pgp', dest='pgp', help='PGP publication IDs', nargs='+')
     parser.add_argument('-b', '--build', dest='build', required=True,
                         help='<Required> Genome build: GRCh37 or GRCh38')
     parser.add_argument('-o', '--outdir', dest='outdir', required=True,
                         default='scores/',
                         help='<Required> Output directory to store downloaded files')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
-                        help='<Optional> Extra logging information')
+                        help='Extra logging information')
     return parser.parse_args(args)
 
 
 def download_scorefile() -> None:
     args = parse_args()
-
     set_logging_level(args.verbose)
-
+    _check_args(args)
     _mkdir(args.outdir)
 
     if args.build not in ['GRCh37', 'GRCh38']:
-        raise Exception(f'Invalid genome build specified: {args.build}. Only -b GRCh37 and -b GRCh38 are supported')
+        logger.critical(f'Invalid genome build specified: {args.build}. Only -b GRCh37 and -b GRCh38 are supported')
+        raise Exception
 
-    urls: dict[str, str] = pgscatalog_result(args.pgs, args.build)
+    pgs_lst: list[list[str]] = []
+
+    if args.efo:
+        logger.debug("--trait set, querying traits")
+        pgs_lst = pgs_lst + [query_trait(x) for x in args.efo]
+
+    if args.pgp:
+        logger.debug("--pgp set, querying publications")
+        pgs_lst = pgs_lst + [query_publication(x) for x in args.pgp]
+
+    if args.pgs:
+        logger.debug("--id set, querying scores")
+        pgs_lst.append(args.pgs)  # pgs_lst: a list containing up to three flat lists
+
+    pgs_id: list[str] = list(set(reduce(lambda x, y: x + y, pgs_lst)))
+
+    urls: dict[str, str] = get_url(pgs_id, args.build)
 
     for pgsid, url in urls.items():
         logger.debug(f"Downloading {pgsid} from {url}")
@@ -56,6 +79,14 @@ def _download_ftp(url: str, path: str) -> None:
         with closing(request.urlopen(url)) as r:
             with open(path, 'wb') as f:
                 shutil.copyfileobj(r, f)
+
+
+def _check_args(args):
+    if not args.efo:
+        if not args.pgp:
+            if not args.pgs:
+                logger.critical("One of --trait, --pgp, or --id is required to download scorefiles")
+                raise Exception
 
 
 if __name__ == "__main__":

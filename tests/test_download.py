@@ -1,13 +1,16 @@
 import os
 import pytest
 from unittest.mock import patch
-from pgscatalog_utils.download.api import pgscatalog_result
+
+from pgscatalog_utils.download.trait import query_trait
+from pgscatalog_utils.download.publication import query_publication
+from pgscatalog_utils.download.score import get_url
 from pgscatalog_utils.download.download_scorefile import download_scorefile
 
 
 @pytest.fixture(params=[["PGS000001"], ["PGS000001", "PGS000802"]])
 def pgscatalog_api(request):
-    return pgscatalog_result(request.param, "GRCh37")
+    return get_url(request.param, "GRCh37")
 
 
 def test_pgscatalog_result(pgscatalog_api):
@@ -29,3 +32,12 @@ def test_download_scorefile(tmp_path):
         download_scorefile()
         assert os.listdir(out_dir) == ['PGS000001.txt.gz']
 
+
+def test_query_publication():
+    # publications are relatively static
+    assert not set(query_publication("PGP000001")).difference(['PGS000001', 'PGS000002', 'PGS000003'])
+
+
+def test_query_trait():
+    # new scores may be added to traits in the future
+    assert {'PGS001901', 'PGS002115'}.issubset(set(query_trait("EFO_0004329")))

@@ -16,13 +16,19 @@ def match_variants():
     set_logging_level(args.verbose)
 
     scorefile: pl.DataFrame = read_scorefile(path=args.scorefile)
-    target: pl.DataFrame = read_target(path=args.target, n_threads=args.n_threads,
-                                       remove_multiallelic=args.remove_multiallelic)
 
-    dataset = args.dataset.replace('_', '-')  # underscores are delimiters in pgs catalog calculator
+    match_lst: list[pl.DataFrame] = []
 
     with pl.StringCache():
-        matches: pl.DataFrame = get_all_matches(scorefile, target).pipe(postprocess_matches, args.remove_ambiguous)
+        for chrom in scorefile['chr_name'].unique().to_list():
+            logger.debug(f'Matching chromosome {chrom} against target')
+            target: pl.DataFrame = read_target(path=args.target, chrom=chrom, n_threads=args.n_threads,
+                                               remove_multiallelic=args.remove_multiallelic)
+            matches: pl.DataFrame = get_all_matches(scorefile, target).pipe(postprocess_matches, args.remove_ambiguous)
+            match_lst.append(matches)
+
+        matches: pl.DataFrame = pl.concat(match_lst)
+        dataset = args.dataset.replace('_', '-')  # underscores are delimiters in pgs catalog calculator
         check_match_rate(scorefile, matches, args.min_overlap, dataset)
 
     if matches.shape[0] == 0:  # this can happen if args.min_overlap = 0

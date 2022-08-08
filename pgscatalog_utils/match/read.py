@@ -7,10 +7,12 @@ from pgscatalog_utils.match.preprocess import ugly_complement, handle_multiallel
 logger = logging.getLogger(__name__)
 
 
-def read_target(path: str, n_threads: int, remove_multiallelic: bool) -> pl.DataFrame:
+def read_target(path: str, chrom: str, n_threads: int, remove_multiallelic: bool) -> pl.DataFrame:
     target: Target = _detect_target_format(path)
     d = {'column_1': str}  # column_1 is always CHROM. CHROM must always be a string
-    df: pl.DataFrame = pl.read_csv(path, sep='\t', has_header=False, comment_char='#', dtype=d, n_threads=n_threads)
+    df: pl.DataFrame = (pl.scan_csv(path, sep='\t', has_header=False, comment_char='#', dtype=d, n_threads=n_threads)
+                        .filter(pl.col('column_1') == chrom)
+                        .collect())
     df.columns = target.header
 
     match target.file_format:
@@ -44,7 +46,7 @@ def _detect_target_format(path: str) -> Target:
     header: list[str]
 
     if "*" in path:
-        logger.debug("Wildcard detected in target path, guessing format from first match")
+        logger.debug("Detecting target file format")
         path = glob.glob(path)[0]  # guess format from first file in directory
 
     with open(path, 'rt') as f:

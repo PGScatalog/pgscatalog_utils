@@ -16,10 +16,11 @@ def read_target(path: str, n_threads: int, remove_multiallelic: bool) -> pl.Data
     match target.file_format:
         case 'bim':
             return (df[_default_cols()]
+                    .pipe(handle_multiallelic, remove_multiallelic=remove_multiallelic, pvar=False)
                     .pipe(ugly_complement))
         case 'pvar':
             return (df[_default_cols()]
-                    .pipe(handle_multiallelic, remove_multiallelic=remove_multiallelic)
+                    .pipe(handle_multiallelic, remove_multiallelic=remove_multiallelic, pvar=True)
                     .pipe(ugly_complement))
         case _:
             logger.error("Invalid file format detected")
@@ -79,5 +80,3 @@ def _pvar_header(path: str) -> list[str]:
 
 def _bim_header() -> list[str]:
     return ['#CHROM', 'ID', 'CM', 'POS', 'REF', 'ALT']
-
-

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args(args=None) -> argparse.Namespace:
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description='Download scoring files')
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description='Download scoring files from the PGS Catalog')
     parser.add_argument('-i', '--pgs', nargs='+', dest='pgs', help='PGS Catalog ID(s) (e.g. PGS000001)')
     parser.add_argument('-t', '--efo', dest='efo', nargs='+',
                         help='Traits described by an EFO term(s) (e.g. EFO_0004611)')

@@ -6,6 +6,7 @@ import requests as req
 from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
 from pysqlar import SQLiteArchive
 import pandas as pd
+import glob
 
 
 @pytest.fixture(scope="session")
@@ -21,11 +22,7 @@ def scorefiles(tmp_path_factory, pgs_accessions):
     with patch('sys.argv', args):
         download_scorefile()
 
-    paths: list[str] = [os.path.join(fn.resolve(), x + '.txt.gz') for x in pgs_accessions]
-
-    assert all([os.path.exists(x) for x in paths])
-
-    return paths
+    return glob.glob(os.path.join(fn.resolve(), "*.txt.gz"))
 
 
 @pytest.fixture(scope="session")

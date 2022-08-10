@@ -1,6 +1,7 @@
 import argparse
 import logging
 import polars as pl
+from glob import glob
 from pgscatalog_utils.match.postprocess import postprocess_matches
 
 from pgscatalog_utils.log_config import set_logging_level
@@ -17,17 +18,16 @@ def match_variants():
 
     scorefile: pl.DataFrame = read_scorefile(path=args.scorefile)
 
-    match_lst: list[pl.DataFrame] = []
-
     with pl.StringCache():
-        for chrom in scorefile['chr_name'].unique().to_list():
-            logger.debug(f'Matching chromosome {chrom} against target')
-            target: pl.DataFrame = read_target(path=args.target, chrom=chrom, n_threads=args.n_threads,
+        for i, loc_target_current in enumerate(glob(args.target)):
+            logger.debug(f'Matching scorefile(s) against target: {loc_target_current}')
+            target: pl.DataFrame = read_target(path=loc_target_current, n_threads=args.n_threads,
                                                remove_multiallelic=args.remove_multiallelic)
-            matches: pl.DataFrame = get_all_matches(scorefile, target).pipe(postprocess_matches, args.remove_ambiguous)
-            match_lst.append(matches)
+            if i == 0:
+                matches: pl.DataFrame = get_all_matches(scorefile, target).pipe(postprocess_matches, args.remove_ambiguous)
+            else:
+                matches: pl.DataFrame = pl.concat([matches, get_all_matches(scorefile, target).pipe(postprocess_matches, args.remove_ambiguous)])
 
-        matches: pl.DataFrame = pl.concat(match_lst)
         dataset = args.dataset.replace('_', '-')  # underscores are delimiters in pgs catalog calculator
         check_match_rate(scorefile, matches, args.min_overlap, dataset)
 

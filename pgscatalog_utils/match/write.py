@@ -6,6 +6,8 @@ logger = logging.getLogger(__name__)
 
 
 def write_out(df: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
+    if os.path.isdir(outdir) is False:
+        os.mkdir(outdir)
     logger.debug("Splitting by effect type")
     effect_types: dict[str, pl.DataFrame] = _split_effect_type(df)
     logger.debug("Deduplicating variants")

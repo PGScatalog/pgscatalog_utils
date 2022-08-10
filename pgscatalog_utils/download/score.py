@@ -39,7 +39,7 @@ def _query_score(pgs_id: list[str]) -> dict:
     return r.json()
 
 
-def _parse_json_query(json: dict, build: str) -> dict[str, str]:
+def _parse_json_query(json: dict, build: str | None) -> dict[str, str]:
     result = jq.compile(".results").input(json).first()
     if not result:
         logger.warning("No results in response from PGS Catalog API. Please check the PGS IDs.")
@@ -47,7 +47,11 @@ def _parse_json_query(json: dict, build: str) -> dict[str, str]:
         return _extract_ftp_url(json, build)
 
 
-def _extract_ftp_url(json: list[dict], build: str) -> dict[str, str]:
+def _extract_ftp_url(json: list[dict], build: str | None) -> dict[str, str]:
     id: list[str] = jq.compile('[.results][][].id').input(json).all()
-    result: list[str] = jq.compile(f'[.results][][].ftp_harmonized_scoring_files.{build}.positions').input(json).all()
+    if build is None:
+        result: list[str] = jq.compile(f'[.results][][].ftp_scoring_file').input(
+            json).all()
+    else:
+        result: list[str] = jq.compile(f'[.results][][].ftp_harmonized_scoring_files.{build}.positions').input(json).all()
     return dict(zip(id, [x.replace('https', 'ftp') for x in result]))

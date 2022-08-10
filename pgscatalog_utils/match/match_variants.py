@@ -39,7 +39,7 @@ def match_variants():
 
 
 def _parse_args(args=None):
-    parser = argparse.ArgumentParser(description='Read and format scoring files')
+    parser = argparse.ArgumentParser(description='Match variants from a combined scoring file against target variants')
     parser.add_argument('-d', '--dataset', dest='dataset', required=True,
                         help='<Required> Label for target genomic dataset (e.g. "-d thousand_genomes")')
     parser.add_argument('-s', '--scorefiles', dest='scorefile', required=True,

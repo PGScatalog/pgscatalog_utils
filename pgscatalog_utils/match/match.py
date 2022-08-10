@@ -92,7 +92,7 @@ def _post_match(df: pl.DataFrame,
     return df.with_columns([pl.col("*"),
                             pl.col("effect_allele").alias(effect_allele),
                             pl.col("other_allele").alias(other_allele),
-                            pl.lit(match_type).alias("match_type")
+                            pl.lit(match_type).alias("match_type"),
                             ])[_matched_colnames()]
 
 
@@ -132,4 +132,4 @@ def _target_keys(effect_allele: str, other_allele: str) -> list[str]:
 
 def _matched_colnames() -> list[str]:
     return ['chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type', 'accession',
-            'ID', 'REF', 'ALT', 'REF_FLIP', 'ALT_FLIP', 'match_type']
+            'ID', 'REF', 'ALT', 'REF_FLIP', 'ALT_FLIP', 'match_type', 'is_multiallelic']

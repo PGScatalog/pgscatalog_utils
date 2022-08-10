@@ -31,13 +31,22 @@ def ugly_complement(df: pl.DataFrame) -> pl.DataFrame:
     ])
 
 
-def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool) -> pl.DataFrame:
-    is_ma: pl.Series = df['ALT'].str.contains(',')  # plink2 pvar multi-alleles are comma-separated
-    if is_ma.sum() > 0:
+def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, pvar: bool) -> pl.DataFrame:
+    # plink2 pvar multi-alleles are comma-separated
+    df: pl.DataFrame = (df.with_column(
+        pl.when(pl.col("ALT").str.contains(','))
+        .then(pl.lit(True))
+        .otherwise(pl.lit(False))
+        .alias('is_multiallelic')))
+
+    if df['is_multiallelic'].sum() > 0:
         logger.debug("Multiallelic variants detected")
         if remove_multiallelic:
+            if not pvar:
+                logger.warning("--remove_multiallelic requested for bim format, which already contains biallelic "
+                               "variant representations only")
             logger.debug('Dropping multiallelic variants')
-            return df[~is_ma]
+            return df[~df['is_multiallelic']]
         else:
             logger.debug("Exploding dataframe to handle multiallelic variants")
             df.replace('ALT', df['ALT'].str.split(by=','))  # turn ALT to list of variants
@@ -53,3 +62,7 @@ def check_weights(df: pl.DataFrame) -> None:
     if any(weight_count > 1):
         logger.error("Multiple effect weights per variant per accession detected")
         raise Exception
+
+
+def _annotate_multiallelic(df: pl.DataFrame) -> pl.DataFrame:
+    df.with_column(pl.when(pl.col("ALT").str.contains(',')).then(pl.lit(True)).otherwise(pl.lit(False)).alias('is_multiallelic'))

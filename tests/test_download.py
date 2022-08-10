@@ -24,13 +24,21 @@ def test_pgscatalog_result(pgscatalog_api):
         assert v.endswith(".txt.gz")
 
 
-def test_download_scorefile(tmp_path):
+def test_download_scorefile_author(tmp_path):
+    out_dir = str(tmp_path.resolve())
+    args: list[str] = ['download_scorefiles', '-i', 'PGS000001', '-o', out_dir]
+
+    with patch('sys.argv', args):
+        download_scorefile()
+        assert os.listdir(out_dir) == ['PGS000001.txt.gz']
+
+def test_download_scorefile_hmPOS(tmp_path):
     out_dir = str(tmp_path.resolve())
     args: list[str] = ['download_scorefiles', '-i', 'PGS000001', '-b', 'GRCh38', '-o', out_dir]
 
     with patch('sys.argv', args):
         download_scorefile()
-        assert os.listdir(out_dir) == ['PGS000001.txt.gz']
+        assert os.listdir(out_dir) == ['PGS000001_hmPOS_GRCh38.txt.gz']
 
 
 def test_query_publication():

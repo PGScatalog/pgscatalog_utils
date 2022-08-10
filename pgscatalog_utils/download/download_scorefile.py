@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 def parse_args(args=None) -> argparse.Namespace:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description='Download scoring files from the PGS Catalog')
-    parser.add_argument('-i', '--id', nargs='+', dest='pgs', help='PGS Catalog ID')
-    parser.add_argument('-t', '--trait', dest='efo', nargs='+',
-                        help='Traits described by an EFO term')
-    parser.add_argument('-p', '--pgp', dest='pgp', help='PGP publication IDs', nargs='+')
-    parser.add_argument('-b', '--build', dest='build', required=True,
-                        help='<Required> Genome build: GRCh37 or GRCh38')
+    parser.add_argument('-i', '--pgs', nargs='+', dest='pgs', help='PGS Catalog ID(s) (e.g. PGS000001)')
+    parser.add_argument('-t', '--efo', dest='efo', nargs='+',
+                        help='Traits described by an EFO term(s) (e.g. EFO_0004611)')
+    parser.add_argument('-p', '--pgp', dest='pgp', help='PGP publication ID(s) (e.g. PGP000007)', nargs='+')
+    parser.add_argument('-b', '--build', dest='build',
+                        help='Download Harmonized Scores with Positions in Genome build: GRCh37 or GRCh38')
     parser.add_argument('-o', '--outdir', dest='outdir', required=True,
                         default='scores/',
                         help='<Required> Output directory to store downloaded files')
@@ -37,7 +37,11 @@ def download_scorefile() -> None:
     _check_args(args)
     _mkdir(args.outdir)
 
-    if args.build not in ['GRCh37', 'GRCh38']:
+    if args.build is None:
+        logger.critical(f'Downloading scoring file(s) in the author-reported genome build')
+    elif args.build in ['GRCh37', 'GRCh38']:
+        logger.critical(f'Downloading harmonized scoring file(s) in build: {args.build}.')
+    else:
         logger.critical(f'Invalid genome build specified: {args.build}. Only -b GRCh37 and -b GRCh38 are supported')
         raise Exception
 
@@ -61,7 +65,10 @@ def download_scorefile() -> None:
 
     for pgsid, url in urls.items():
         logger.debug(f"Downloading {pgsid} from {url}")
-        path: str = os.path.join(args.outdir, pgsid + '.txt.gz')
+        if args.build is None:
+            path: str = os.path.join(args.outdir, pgsid + '.txt.gz')
+        else:
+            path: str = os.path.join(args.outdir, pgsid + f'_hmPOS_{args.build}.txt.gz')
         _download_ftp(url, path)
 
 

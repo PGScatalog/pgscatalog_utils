@@ -1,7 +1,8 @@
 import argparse
 import logging
-import polars as pl
 from glob import glob
+
+import polars as pl
 
 from pgscatalog_utils.log_config import set_logging_level
 from pgscatalog_utils.match.match import get_all_matches, check_match_rate
@@ -16,11 +17,12 @@ def match_variants():
 
     set_logging_level(args.verbose)
 
+    logger.debug(f"n_threads: {pl.threadpool_size()}")
     scorefile: pl.DataFrame = read_scorefile(path=args.scorefile)
 
     with pl.StringCache():
         n_target_files = len(glob(args.target))
-        matches: list[pl.DataFrame] = []
+        matches: pl.DataFrame
 
         if n_target_files == 1:
             logger.debug("Single target variant file detected")
@@ -39,29 +41,33 @@ def match_variants():
     write_out(matches, args.split, args.outdir, dataset)
 
 
-def _match_multiple_targets(target_path, scorefile, remove_multiallelic, remove_ambiguous):
+def _match_multiple_targets(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
+                            remove_ambiguous: bool) -> pl.DataFrame:
     matches = []
     for i, loc_target_current in enumerate(glob(target_path)):
         logger.debug(f'Matching scorefile(s) against target: {loc_target_current}')
         target: pl.DataFrame = read_target(path=loc_target_current,
-                                           remove_multiallelic=remove_multiallelic)
+                                           remove_multiallelic=remove_multiallelic) #
         _check_target_chroms(target)
         matches.append(get_all_matches(scorefile, target, remove_ambiguous))
     return pl.concat(matches)
 
 
-def _check_target_chroms(target) -> int:
+def _check_target_chroms(target) -> None:
     n_chrom: int = len(target['#CHROM'].unique().to_list())
     if n_chrom > 1:
-        logger.critical(f"Multiple chromosomes detected in split file")
+        logger.critical("Multiple chromosomes detected in split file. Check input data.")
         raise Exception
+    else:
+        logger.debug("Split target genome contains one chromosome (good)")
 
 
-def _match_single_target(target_path, scorefile, remove_multiallelic, remove_ambiguous):
+def _match_single_target(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
+                         remove_ambiguous: bool) -> pl.DataFrame:
     matches = []
     for chrom in scorefile['chr_name'].unique().to_list():
         target = read_target(target_path, remove_multiallelic=remove_multiallelic,
-                             singie_file=True, chrom=chrom)
+                             singie_file=True, chrom=chrom)  # scans and filters
         if target:
             logger.debug(f"Matching chromosome {chrom}")
             matches.append(get_all_matches(scorefile, target, remove_ambiguous))

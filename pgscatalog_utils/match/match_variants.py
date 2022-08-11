@@ -38,6 +38,11 @@ def match_variants():
     write_out(matches, args.split, args.outdir, dataset)
 
 
+def _check_target_chroms(target) -> int:
+    n_chrom: int = len(target['#CHROM'].unique().to_list())
+    if n_chrom > 1:
+        logger.critical(f"Multiple chromosomes detected in split file")
+        raise Exception
 def _parse_args(args=None):
     parser = argparse.ArgumentParser(description='Match variants from a combined scoring file against target variants')
     parser.add_argument('-d', '--dataset', dest='dataset', required=True,

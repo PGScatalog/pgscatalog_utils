@@ -1,16 +1,34 @@
-import polars as pl
-import logging
 import glob
+import logging
 from typing import NamedTuple
+
+import polars as pl
+
 from pgscatalog_utils.match.preprocess import ugly_complement, handle_multiallelic, check_weights
 
 logger = logging.getLogger(__name__)
 
 
-def read_target(path: str, n_threads: int, remove_multiallelic: bool) -> pl.DataFrame:
+def read_target(path: str, remove_multiallelic: bool, singie_file: bool = False,
+                chrom: str = "") -> pl.DataFrame:
     target: Target = _detect_target_format(path)
     d = {'column_1': str}  # column_1 is always CHROM. CHROM must always be a string
-    df: pl.DataFrame = pl.read_csv(path, sep='\t', has_header=False, comment_char='#', dtype=d, n_threads=n_threads)
+    logger.debug(f"Reading target {path}")
+
+    if singie_file:
+        logger.debug(f"Scanning target genome for chromosome {chrom}")
+        # scan target and filter to reduce memory usage on big files
+        df: pl.DataFrame = (
+            pl.scan_csv(path, sep='\t', has_header=False, comment_char='#', dtype=d)
+            .filter(pl.col('column_1') == chrom)
+            .collect())
+
+        if df.is_empty():
+            logger.warning(f"Chromosome missing from target genome: {chrom}")
+            return df
+    else:
+        df: pl.DataFrame = pl.read_csv(path, sep='\t', has_header=False, comment_char='#', dtype=d)
+
     df.columns = target.header
 
     match target.file_format:

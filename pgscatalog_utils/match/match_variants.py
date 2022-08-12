@@ -10,24 +10,29 @@ from pgscatalog_utils.match.read import read_target, read_scorefile
 from pgscatalog_utils.match.write import write_out
 
 
+logger = logging.getLogger(__name__)
+
+
 def match_variants():
     args = _parse_args()
 
-    logger = logging.getLogger(__name__)
     set_logging_level(args.verbose)
 
     scorefile: pl.DataFrame = read_scorefile(path=args.scorefile)
 
     with pl.StringCache():
+        match_lst = []
+
         for i, loc_target_current in enumerate(glob(args.target)):
             logger.debug(f'Matching scorefile(s) against target: {loc_target_current}')
             target: pl.DataFrame = read_target(path=loc_target_current, n_threads=args.n_threads,
                                                remove_multiallelic=args.remove_multiallelic)
-            if i == 0:
-                matches: pl.DataFrame = get_all_matches(scorefile, target).pipe(postprocess_matches, args.remove_ambiguous)
-            else:
-                matches: pl.DataFrame = pl.concat([matches, get_all_matches(scorefile, target).pipe(postprocess_matches, args.remove_ambiguous)])
+            match_lst.append(get_all_matches(scorefile, target, args.remove_ambiguous))
 
+            if len(glob(args.target)) > 1:
+                _check_target_chroms(target)
+
+        matches: pl.DataFrame = pl.concat(match_lst)
         dataset = args.dataset.replace('_', '-')  # underscores are delimiters in pgs catalog calculator
         check_match_rate(scorefile, matches, args.min_overlap, dataset)
 
@@ -43,6 +48,8 @@ def _check_target_chroms(target) -> int:
     if n_chrom > 1:
         logger.critical(f"Multiple chromosomes detected in split file")
         raise Exception
+
+
 def _parse_args(args=None):
     parser = argparse.ArgumentParser(description='Match variants from a combined scoring file against target variants')
     parser.add_argument('-d', '--dataset', dest='dataset', required=True,

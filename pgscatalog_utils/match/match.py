@@ -1,12 +1,13 @@
 import polars as pl
 import logging
 
+from pgscatalog_utils.match.postprocess import postprocess_matches
 from pgscatalog_utils.match.write import write_log
 
 logger = logging.getLogger(__name__)
 
 
-def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame) -> pl.DataFrame:
+def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, remove_ambiguous: bool) -> pl.DataFrame:
     scorefile_cat, target_cat = _cast_categorical(scorefile, target)
     scorefile_oa = scorefile_cat.filter(pl.col("other_allele") != None)
     scorefile_no_oa = scorefile_cat.filter(pl.col("other_allele") == None)
@@ -37,7 +38,7 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame) -> pl.DataFra
         matches.append(_match_variants(scorefile_no_oa, target_cat, effect_allele='ALT_FLIP',
                                        other_allele=None, match_type="no_oa_alt_flip"))
 
-    return pl.concat(matches)
+    return pl.concat(matches).pipe(postprocess_matches, remove_ambiguous)
 
 
 def check_match_rate(scorefile: pl.DataFrame, matches: pl.DataFrame, min_overlap: float, dataset: str) -> None:

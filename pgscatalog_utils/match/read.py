@@ -9,13 +9,13 @@ from pgscatalog_utils.match.preprocess import ugly_complement, handle_multiallel
 logger = logging.getLogger(__name__)
 
 
-def read_target(path: str, remove_multiallelic: bool, singie_file: bool = False,
+def read_target(path: str, remove_multiallelic: bool, single_file: bool = False,
                 chrom: str = "") -> pl.DataFrame:
     target: Target = _detect_target_format(path)
     d = {'column_1': str}  # column_1 is always CHROM. CHROM must always be a string
     logger.debug(f"Reading target {path}")
 
-    if singie_file:
+    if single_file:
         logger.debug(f"Scanning target genome for chromosome {chrom}")
         # scan target and filter to reduce memory usage on big files
         df: pl.DataFrame = (

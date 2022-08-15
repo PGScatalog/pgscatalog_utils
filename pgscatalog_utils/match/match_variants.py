@@ -98,7 +98,7 @@ def _match_single_target(target_path: str, scorefile: pl.DataFrame, remove_multi
     matches = []
     for chrom in scorefile['chr_name'].unique().to_list():
         target = read_target(target_path, remove_multiallelic=remove_multiallelic,
-                             singie_file=True, chrom=chrom)  # scans and filters
+                             single_file=True, chrom=chrom)  # scans and filters
         if target:
             logger.debug(f"Matching chromosome {chrom}")
             matches.append(get_all_matches(scorefile, target, remove_ambiguous))

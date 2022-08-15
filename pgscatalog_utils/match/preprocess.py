@@ -31,6 +31,28 @@ def ugly_complement(df: pl.DataFrame) -> pl.DataFrame:
     ])
 
 
+def complement_valid_alleles(df: pl.DataFrame, flip_cols = []) -> pl.DataFrame:
+    """ Improved function to complement alleles. Will only complement sequences that are valid DNA.
+    Uses same method ugly_complement (str.replace_all) above.
+    """
+    for col in flip_cols:
+        new_col = col + '_FLIP'
+        df = df.with_column(
+            pl.when(pl.col(col).str.contains('^[ACGT]*$'))
+                .then(pl.col(col).str.replace_all("A", "V")
+                           .str.replace_all("T", "X")
+                           .str.replace_all("C", "Y")
+                           .str.replace_all("G", "Z")
+                           .str.replace_all("V", "T")
+                           .str.replace_all("X", "A")
+                           .str.replace_all("Y", "G")
+                           .str.replace_all("Z", "C"))
+                .otherwise(pl.col(col))
+                .alias(new_col)
+        )
+    return df
+
+
 def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, pvar: bool) -> pl.DataFrame:
     # plink2 pvar multi-alleles are comma-separated
     df: pl.DataFrame = (df.with_column(

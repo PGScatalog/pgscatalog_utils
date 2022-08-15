@@ -24,6 +24,9 @@ def parse_args(args=None) -> argparse.Namespace:
     parser.add_argument('-m', '--min_lift', dest='min_lift',
                         help='If liftover, minimum proportion of variants lifted over',
                         required="--liftover" in sys.argv, default=0.95, type=float)
+    parser.add_argument('--drop_missing', dest='drop_missing', action='store_true',
+                        help='Drop variants with missing information (chr/pos) and '
+                             'non-standard alleles from the output file.')
     parser.add_argument('-o', '--outfile', dest='outfile', required=True,
                         default='combined.txt',
                         help='<Required> Output path to combined long scorefile')
@@ -40,7 +43,7 @@ def combine_scorefiles():
 
     paths: list[str] = list(set(args.scorefiles))  # unique paths only
     logger.debug(f"Input scorefiles: {paths}")
-    scorefiles: pd.DataFrame = pd.concat([_read_and_melt(x) for x in paths])
+    scorefiles: pd.DataFrame = pd.concat([_read_and_melt(x, drop_missing=args.drop_missing) for x in paths])
 
     if args.liftover:
         logger.debug("Annotating scorefiles with liftover parameters")
@@ -49,9 +52,9 @@ def combine_scorefiles():
     write_scorefile(scorefiles, args.outfile)
 
 
-def _read_and_melt(path):
+def _read_and_melt(path, drop_missing: bool = False):
     """ Load a scorefile, melt it, and set the effect types"""
-    return (load_scorefile(path)
+    return (load_scorefile(path, drop_missing=drop_missing)
             .pipe(melt_effect_weights)
             .pipe(set_effect_type))
 

@@ -129,6 +129,9 @@ def _parse_args(args=None):
                              'statistics were used to construct the score.'),
     parser.add_argument('--keep_multiallelic', dest='remove_multiallelic', action='store_false',
                         help='Flag to allow matching to multiallelic variants (default: false).')
+    parser.add_argument('--ignore_strand_flips', dest='consider_strand_flips', action='store_false',
+                        help='Flag to not consider matched variants that may be reported on the opposite strand. '
+                             'Default behaviour is to flip/complement unmatched variants and check if they match.')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)

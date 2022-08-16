@@ -4,7 +4,7 @@ from typing import NamedTuple
 
 import polars as pl
 
-from pgscatalog_utils.match.preprocess import ugly_complement, handle_multiallelic, check_weights
+from pgscatalog_utils.match.preprocess import handle_multiallelic, check_weights, complement_valid_alleles
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +35,9 @@ def read_target(path: str, remove_multiallelic: bool, single_file: bool = False,
         case 'bim':
             return (df[_default_cols()]
                     .pipe(handle_multiallelic, remove_multiallelic=remove_multiallelic, pvar=False)
-                    .pipe(ugly_complement))
         case 'pvar':
             return (df[_default_cols()]
                     .pipe(handle_multiallelic, remove_multiallelic=remove_multiallelic, pvar=True)
-                    .pipe(ugly_complement))
         case _:
             logger.error("Invalid file format detected")
             raise Exception
@@ -47,7 +45,9 @@ def read_target(path: str, remove_multiallelic: bool, single_file: bool = False,
 
 def read_scorefile(path: str) -> pl.DataFrame:
     logger.debug("Reading scorefile")
-    scorefile: pl.DataFrame = pl.read_csv(path, sep='\t', dtype={'chr_name': str})
+    scorefile: pl.DataFrame = pl.read_csv(path, sep='\t', dtype={'chr_name': str}).pipe(complement_valid_alleles,
+                                                                                        flip_cols=['effect_allele',
+                                                                                                   'other_allele'])
     check_weights(scorefile)
     return scorefile
 

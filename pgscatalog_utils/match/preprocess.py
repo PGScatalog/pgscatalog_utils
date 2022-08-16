@@ -38,7 +38,7 @@ def complement_valid_alleles(df: pl.DataFrame, flip_cols = []) -> pl.DataFrame:
     for col in flip_cols:
         new_col = col + '_FLIP'
         df = df.with_column(
-            pl.when(pl.col(col).str.contains('^[ACGT]*$'))
+            pl.when(pl.col(col).str.contains('^[ACGT]+$'))
                 .then(pl.col(col).str.replace_all("A", "V")
                            .str.replace_all("T", "X")
                            .str.replace_all("C", "Y")

@@ -114,7 +114,7 @@ def chain_files(db, tmp_path_factory):
 def lifted_scorefiles(scorefiles, chain_files, tmp_path_factory):
     out_path = tmp_path_factory.mktemp("scores") / "lifted.txt"
     args: list[str] = ['combine_scorefiles', '-s'] + scorefiles + ['--liftover', '-c', chain_files, '-t', 'GRCh38',
-                                                                   '-m', '0.95'] + ['-o', str(out_path.resolve())]
+                                                                   '-m', '0.8'] + ['-o', str(out_path.resolve())]
 
     with patch('sys.argv', args):
         combine_scorefiles()

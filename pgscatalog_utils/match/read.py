@@ -13,7 +13,6 @@ def read_target(path: str, remove_multiallelic: bool, singie_file: bool = False,
                 chrom: str = "") -> pl.DataFrame:
     target: Target = _detect_target_format(path)
     d = {'column_1': str}  # column_1 is always CHROM. CHROM must always be a string
-    logger.debug(f"Reading target {path}")
 
     if singie_file:
         logger.debug(f"Scanning target genome for chromosome {chrom}")
@@ -27,6 +26,7 @@ def read_target(path: str, remove_multiallelic: bool, singie_file: bool = False,
             logger.warning(f"Chromosome missing from target genome: {chrom}")
             return df
     else:
+        logger.debug(f"Reading target {path}")
         df: pl.DataFrame = pl.read_csv(path, sep='\t', has_header=False, comment_char='#', dtype=d)
 
     df.columns = target.header

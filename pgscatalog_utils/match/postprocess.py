@@ -25,12 +25,12 @@ def postprocess_matches(df: pl.DataFrame, remove_ambiguous: bool) -> pl.DataFram
 def _label_biallelic_ambiguous(df: pl.DataFrame) -> pl.DataFrame:
     # A / T or C / G may match multiple times
     df = df.with_columns([
-        pl.col(["effect_allele", "other_allele", "REF", "ALT", "REF_FLIP", "ALT_FLIP"]).cast(str),
+        pl.col(["effect_allele", "other_allele", "REF", "ALT", "effect_allele_FLIP", "other_allele_FLIP"]).cast(str),
         pl.lit(True).alias("ambiguous")
     ])
 
     return (df.with_column(
-        pl.when((pl.col("effect_allele") == pl.col("ALT_FLIP")) | (pl.col("effect_allele") == pl.col("REF_FLIP")))
+        pl.when((pl.col("effect_allele_FLIP") == pl.col("ALT")) | (pl.col("effect_allele_FLIP") == pl.col("REF")))
         .then(pl.col("ambiguous"))
         .otherwise(False))).pipe(_get_distinct_weights)
 

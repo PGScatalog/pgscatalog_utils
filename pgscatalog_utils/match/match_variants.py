@@ -17,7 +17,7 @@ def match_variants():
 
     set_logging_level(args.verbose)
 
-    logger.debug(f"n_threads: {pl.threadpool_size()}")
+    logger.debug(f"polars n_threads: {pl.threadpool_size()}")
     scorefile: pl.DataFrame = read_scorefile(path=args.scorefile)
 
     with pl.StringCache():
@@ -49,6 +49,10 @@ def match_variants():
             case _:
                 logger.critical(f"Invalid match mode: {match_mode}")
                 raise Exception
+
+        if args.skip_flip:
+            logger.debug("Ignoring strand flip matches")
+            matches = _drop_flips(matches)
 
         dataset = args.dataset.replace('_', '-')  # underscores are delimiters in pgs catalog calculator
         check_match_rate(scorefile, matches, args.min_overlap, dataset)
@@ -98,12 +102,16 @@ def _match_single_target(target_path: str, scorefile: pl.DataFrame, remove_multi
     matches = []
     for chrom in scorefile['chr_name'].unique().to_list():
         target = read_target(target_path, remove_multiallelic=remove_multiallelic,
-                             singie_file=True, chrom=chrom)  # scans and filters
+                             single_file=True, chrom=chrom)  # scans and filters
         if target:
             logger.debug(f"Matching chromosome {chrom}")
             matches.append(get_all_matches(scorefile, target, remove_ambiguous))
 
     return pl.concat(matches)
+
+
+def _drop_flips(df: pl.DataFrame):
+    return df.filter(pl.col('match_type').str.contains("flip").is_not())
 
 
 def _parse_args(args=None):
@@ -129,6 +137,9 @@ def _parse_args(args=None):
                              'statistics were used to construct the score.'),
     parser.add_argument('--keep_multiallelic', dest='remove_multiallelic', action='store_false',
                         help='Flag to allow matching to multiallelic variants (default: false).')
+    parser.add_argument('--ignore_strand_flips', dest='skip_flip', action='store_true',
+                        help='Flag to not consider matched variants that may be reported on the opposite strand. '
+                             'Default behaviour is to flip/complement unmatched variants and check if they match.')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)

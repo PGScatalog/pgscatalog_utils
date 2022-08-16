@@ -62,12 +62,14 @@ def _check_min_liftover(mapped: pd.DataFrame, unmapped: pd.DataFrame, min_lift: 
 
 def _convert_coordinates(df: pd.Series, lo_dict: dict[str, pyliftover.LiftOver]) -> pd.Series:
     """ Convert genomic coordinates to different build """
-
-    lo = lo_dict[df['genome_build'] + df['target_build']]  # extract lo object from dict
-    chrom: str = 'chr' + str(df['chr_name'])
-    pos: int = int(df['chr_position']) - 1  # liftOver is 0 indexed, VCF is 1 indexed
-    # converted example: [('chr22', 15460378, '+', 3320966530)] or None
-    converted: list[tuple[str, int, str, int] | None] = lo.convert_coordinate(chrom, pos)
+    if df[['chr_name', 'chr_position']].isnull().values.any():
+        converted = None
+    else:
+        lo = lo_dict[df['genome_build'] + df['target_build']]  # extract lo object from dict
+        chrom: str = 'chr' + str(df['chr_name'])
+        pos: int = int(df['chr_position']) - 1  # liftOver is 0 indexed, VCF is 1 indexed
+        # converted example: [('chr22', 15460378, '+', 3320966530)] or None
+        converted: list[tuple[str, int, str, int] | None] = lo.convert_coordinate(chrom, pos)
 
     if converted:
         lifted_chrom: str = _parse_lifted_chrom(converted[0][0][3:])  # return first matching liftover

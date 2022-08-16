@@ -12,7 +12,7 @@ def get_url(pgs: list[str], build: str) -> dict[str, str]:
 
     for chunk in _chunker(pgs):
         try:
-            response = _parse_json_query(_query_score(chunk), build)
+            response = _parse_json_query(query_score(chunk), build)
             pgs_result = pgs_result + list(response.keys())
             url_result = url_result + list(response.values())
         except TypeError:
@@ -27,16 +27,16 @@ def get_url(pgs: list[str], build: str) -> dict[str, str]:
     return dict(zip(pgs_result, url_result))
 
 
-def _chunker(pgs: list[str]):
-    size = 50  # /rest/score/{pgs_id} limit when searching multiple IDs
-    return(pgs[pos: pos + size] for pos in range(0, len(pgs), size))
-
-
-def _query_score(pgs_id: list[str]) -> dict:
+def query_score(pgs_id: list[str]) -> dict:
     pgs: str = ','.join(pgs_id)
     api: str = f'https://www.pgscatalog.org/rest/score/search?pgs_ids={pgs}'
     r: requests.models.Response = requests.get(api)
     return r.json()
+
+
+def _chunker(pgs: list[str]):
+    size = 50  # /rest/score/{pgs_id} limit when searching multiple IDs
+    return(pgs[pos: pos + size] for pos in range(0, len(pgs), size))
 
 
 def _parse_json_query(json: dict, build: str | None) -> dict[str, str]:

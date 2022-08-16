@@ -4,31 +4,26 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def ugly_complement(df: pl.DataFrame) -> pl.DataFrame:
-    """ Complementing alleles with a pile of regexes seems weird, but polars string functions are currently limited
-    (i.e. no str.translate). This is fast, and I stole the regex idea from Scott.
+def complement_valid_alleles(df: pl.DataFrame, flip_cols: list[str]) -> pl.DataFrame:
+    """ Improved function to complement alleles. Will only complement sequences that are valid DNA.
     """
-    logger.debug("Complementing target alleles")
-    return df.with_columns([
-        (pl.col("REF").str.replace_all("A", "V")
-         .str.replace_all("T", "X")
-         .str.replace_all("C", "Y")
-         .str.replace_all("G", "Z")
-         .str.replace_all("V", "T")
-         .str.replace_all("X", "A")
-         .str.replace_all("Y", "G")
-         .str.replace_all("Z", "C"))
-        .alias("REF_FLIP"),
-        (pl.col("ALT").str.replace_all("A", "V")
-         .str.replace_all("T", "X")
-         .str.replace_all("C", "Y")
-         .str.replace_all("G", "Z")
-         .str.replace_all("V", "T")
-         .str.replace_all("X", "A")
-         .str.replace_all("Y", "G")
-         .str.replace_all("Z", "C"))
-        .alias("ALT_FLIP")
-    ])
+    for col in flip_cols:
+        logger.debug(f"Complementing scorefile column {col}")
+        new_col = col + '_FLIP'
+        df = df.with_column(
+            pl.when(pl.col(col).str.contains('^[ACGT]+$'))
+                .then(pl.col(col).str.replace_all("A", "V")
+                           .str.replace_all("T", "X")
+                           .str.replace_all("C", "Y")
+                           .str.replace_all("G", "Z")
+                           .str.replace_all("V", "T")
+                           .str.replace_all("X", "A")
+                           .str.replace_all("Y", "G")
+                           .str.replace_all("Z", "C"))
+                .otherwise(pl.col(col))
+                .alias(new_col)
+        )
+    return df
 
 
 def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, pvar: bool) -> pl.DataFrame:

@@ -1,3 +1,4 @@
+from functools import reduce
 import polars as pl
 import logging
 
@@ -40,14 +41,46 @@ def _get_distinct_weights(df: pl.DataFrame) -> pl.DataFrame:
     singletons: pl.DataFrame = (count.filter(pl.col('count') == 1)[:, "accession":"effect_allele"]
                                 .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))
 
-    # TODO: something more complex than .unique()?
-    # TODO: prioritise unambiguous -> ref -> alt -> ref_flip -> alt_flip
     dups: pl.DataFrame = (count.filter(pl.col('count') > 1)[:, "accession":"effect_allele"]
-                          .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left')
-                          .distinct(subset=['accession', 'chr_name', 'chr_position', 'effect_allele']))
-    distinct: pl.DataFrame = pl.concat([singletons, dups])
+                          .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))
+
+    distinct: pl.DataFrame = pl.concat([singletons, _prioritise_match_type(dups)])
 
     assert all((distinct.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele']).count()['count']) == 1), \
         "Duplicate effect weights for a variant"
 
     return distinct
+
+
+def _prioritise_match_type(duplicates: pl.DataFrame) -> pl.DataFrame:
+    dup_oa: pl.DataFrame = duplicates.filter(pl.col("other_allele") != None)
+    dup_no_oa: pl.DataFrame = duplicates.filter(pl.col("other_allele") == None)
+    best_matches: list[pl.DataFrame] = []
+
+    if dup_oa:
+        match_priority: list[str] = ['refalt', 'altref', 'refalt_flip', 'altref_flip']
+        logger.debug(f"Prioritising matches in order {match_priority}")
+        best_matches.append(_get_best_match(dup_oa, match_priority))
+
+    if dup_no_oa:
+        match_priority: list[str] = ['no_oa_ref', 'no_oa_alt', 'no_oa_ref_flip', 'no_oa_alt_flip']
+        logger.debug(f"Prioritising matches in order {match_priority}")
+        best_matches.append(_get_best_match(dup_no_oa, match_priority))
+
+    return pl.concat(best_matches)
+
+
+def _get_best_match(df: pl.DataFrame, match_priority: list[str]) -> pl.DataFrame:
+    match: list[pl.DataFrame] = []
+    for match_type in match_priority:
+        match.append(df.filter(pl.col("match_type") == match_type))
+    logger.debug("Filtering best match types")
+    return reduce(lambda x, y: _join_best_match(x, y), match)
+
+
+def _join_best_match(x: pl.DataFrame, y: pl.DataFrame) -> pl.DataFrame:
+    # variants in dataframe x have a higher priority than dataframe y
+    # when concatenating the two dataframes, use an anti join to first remove variants in y that are in x
+    not_in: pl.DataFrame = y.join(x, how='anti',
+                                  on=['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele'])
+    return pl.concat([x, not_in])

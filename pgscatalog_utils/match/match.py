@@ -50,29 +50,6 @@ def check_match_rate(scorefile: pl.DataFrame, matches: pl.DataFrame, min_overlap
             raise Exception
 
 
-def _get_match_keys(strategy: str) -> tuple[list[str], list[str]]:
-    match strategy:
-        case 'refalt':
-            return _scorefile_keys('effect_allele', 'other_allele'), _target_keys()
-        case 'altref':
-            return _scorefile_keys('other_allele', 'effect_allele'), _target_keys()
-        case 'refalt_flip':
-            return _scorefile_keys('effect_allele_FLIP', 'other_allele_FLIP'), _target_keys()
-        case 'altref_flip':
-            return _scorefile_keys('other_allele_FLIP', 'effect_allele_FLIP'), _target_keys()
-        case 'no_oa_ref':
-            return _scorefile_keys('effect_allele', ''), _target_keys(False)
-        case 'no_oa_alt':
-            return _scorefile_keys('other_allele', ''), _target_keys(False)
-        case 'no_oa_ref_flip':
-            return _scorefile_keys('effect_allele_FLIP', ''), _target_keys(False)
-        case 'no_oa_alt_flip':
-            return _scorefile_keys('other_allele_FLIP', ''), _target_keys(False)
-        case _:
-            logger.critical(f"Invalid match strategy: {strategy}")
-            raise Exception
-
-
 def _match_keys():
     return ['chr_name', 'chr_position', 'effect_allele', 'other_allele',
             'accession', 'effect_type', 'effect_weight']
@@ -82,15 +59,39 @@ def _join_matches(matches: pl.DataFrame, scorefile: pl.DataFrame, dataset: str):
     return scorefile.join(matches, on=_match_keys(), how='left').with_column(pl.lit(dataset).alias('dataset'))
 
 
-def _match_variants(scorefile: pl.DataFrame,
-                    target: pl.DataFrame,
-                    match_type: str) -> pl.DataFrame:
+def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: str) -> pl.DataFrame:
     logger.debug(f"Matching strategy: {match_type}")
-    score_key, target_key = _get_match_keys(match_type)
-    return (scorefile.join(target,
-                           left_on=score_key,
-                           right_on=target_key,
-                           how='inner').pipe(_post_match, target_key, match_type))
+    match match_type:
+        case 'refalt':
+            score_keys = ["chr_name", "chr_position", "effect_allele", "other_allele"]
+            target_keys = ["#CHROM", "POS", "REF", "ALT"]
+        case 'altref':
+            score_keys = ["chr_name", "chr_position", "effect_allele", "other_allele"]
+            target_keys = ["#CHROM", "POS", "ALT", "REF"]
+        case 'refalt_flip':
+            score_keys = ["chr_name", "chr_position", "effect_allele_FLIP", "other_allele_FLIP"]
+            target_keys = ["#CHROM", "POS", "REF", "ALT"]
+        case 'altref_flip':
+            score_keys = ["chr_name", "chr_position", "effect_allele_FLIP", "other_allele_FLIP"]
+            target_keys = ["#CHROM", "POS", "ALT", "REF"]
+        case 'no_oa_ref':
+            score_keys = ["chr_name", "chr_position", "effect_allele"]
+            target_keys = ["#CHROM", "POS", "REF"]
+        case 'no_oa_alt':
+            score_keys = ["chr_name", "chr_position", "effect_allele"]
+            target_keys = ["#CHROM", "POS", "ALT"]
+        case 'no_oa_ref_flip':
+            score_keys = ["chr_name", "chr_position", "effect_allele_FLIP"]
+            target_keys = ["#CHROM", "POS", "REF"]
+        case 'no_oa_alt_flip':
+            score_keys = ["chr_name", "chr_position", "effect_allele_FLIP"]
+            target_keys = ["#CHROM", "POS", "ALT"]
+        case _:
+            logger.critical(f"Invalid match strategy: {match_type}")
+            raise Exception
+
+    return (scorefile.join(target, score_keys, target_keys, how='inner')
+            .pipe(_post_match, target_keys, match_type))
 
 
 def _post_match(df: pl.DataFrame,
@@ -131,20 +132,6 @@ def _cast_categorical(scorefile, target) -> tuple[pl.DataFrame, pl.DataFrame]:
         ])
 
     return scorefile, target
-
-
-def _scorefile_keys(ref_key: str, alt_key: str) -> list[str]:
-    if alt_key:
-        return ['chr_name', 'chr_position', ref_key, alt_key]
-    else:
-        return ['chr_name', 'chr_position', ref_key]
-
-
-def _target_keys(alt_key: bool = True) -> list[str]:
-    if alt_key:
-        return ['#CHROM', 'POS', "REF", "ALT"]
-    else:
-        return ['#CHROM', 'POS', "REF"]
 
 
 def _matched_colnames() -> list[str]:

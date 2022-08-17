@@ -38,7 +38,7 @@ def _label_biallelic_ambiguous(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _get_distinct_weights(df: pl.DataFrame) -> pl.DataFrame:
-    """ Get a single effect weight for each matched variant per accession """
+    """ Select single matched variant in target for each variant in the scoring file (e.g. per accession) """
     count: pl.DataFrame = df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele']).count()
     singletons: pl.DataFrame = (count.filter(pl.col('count') == 1)[:, "accession":"effect_allele"]
                                 .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))

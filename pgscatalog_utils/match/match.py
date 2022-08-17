@@ -7,7 +7,7 @@ from pgscatalog_utils.match.write import write_log
 logger = logging.getLogger(__name__)
 
 
-def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, remove_ambiguous: bool) -> pl.DataFrame:
+def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, remove_ambiguous: bool, skip_flip: bool) -> pl.DataFrame:
     scorefile_cat, target_cat = _cast_categorical(scorefile, target)
     scorefile_oa = scorefile_cat.filter(pl.col("other_allele") != None)
     scorefile_no_oa = scorefile_cat.filter(pl.col("other_allele") == None)
@@ -18,15 +18,17 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, remove_ambigu
         logger.debug("Getting matches for scores with effect allele and other allele")
         matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt"))
         matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref"))
-        matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt_flip"))
-        matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref_flip"))
+        if skip_flip is False:
+            matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt_flip"))
+            matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref_flip"))
 
     if scorefile_no_oa:
         logger.debug("Getting matches for scores with effect allele only")
         matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref"))
         matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt"))
-        matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref_flip"))
-        matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt_flip"))
+        if skip_flip is False:
+            matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref_flip"))
+            matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt_flip"))
 
     return pl.concat(matches).pipe(postprocess_matches, remove_ambiguous)
 

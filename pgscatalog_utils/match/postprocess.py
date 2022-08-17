@@ -51,8 +51,7 @@ def _get_distinct_weights(df: pl.DataFrame) -> pl.DataFrame:
     else:
         distinct: pl.DataFrame = singletons
 
-    assert all((distinct.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele']).count()['count']) == 1), \
-        "Duplicate effect weights for a variant"
+    assert all(distinct.groupby(['accession', 'ID']).count()['count'] == 1), "Duplicate effect weights for a variant"
 
     return distinct
 

@@ -2,6 +2,8 @@ from functools import reduce
 import polars as pl
 import logging
 
+from pgscatalog_utils.match.preprocess import complement_valid_alleles
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,13 +25,14 @@ def postprocess_matches(df: pl.DataFrame, remove_ambiguous: bool) -> pl.DataFram
 
 
 def _label_biallelic_ambiguous(df: pl.DataFrame) -> pl.DataFrame:
+    logger.debug("Labelling ambiguous variants")
     df = df.with_columns([
         pl.col(["effect_allele", "other_allele", "REF", "ALT", "effect_allele_FLIP", "other_allele_FLIP"]).cast(str),
         pl.lit(True).alias("ambiguous")
-    ])
+    ]).pipe(complement_valid_alleles, ["REF"])
 
     return (df.with_column(
-        pl.when((pl.col("effect_allele_FLIP") == pl.col("ALT")) | (pl.col("effect_allele_FLIP") == pl.col("REF")))
+        pl.when(pl.col("REF_FLIP") == pl.col("ALT"))
         .then(pl.col("ambiguous"))
         .otherwise(False))).pipe(_get_distinct_weights)
 

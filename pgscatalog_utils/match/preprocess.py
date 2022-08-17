@@ -8,7 +8,7 @@ def complement_valid_alleles(df: pl.DataFrame, flip_cols: list[str]) -> pl.DataF
     """ Improved function to complement alleles. Will only complement sequences that are valid DNA.
     """
     for col in flip_cols:
-        logger.debug(f"Complementing scorefile column {col}")
+        logger.debug(f"Complementing column {col}")
         new_col = col + '_FLIP'
         df = df.with_column(
             pl.when(pl.col(col).str.contains('^[ACGT]+$'))

@@ -65,53 +65,45 @@ def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: s
         case 'refalt':
             score_keys = ["chr_name", "chr_position", "effect_allele", "other_allele"]
             target_keys = ["#CHROM", "POS", "REF", "ALT"]
+            effect_allele_column = "effect_allele"
         case 'altref':
             score_keys = ["chr_name", "chr_position", "effect_allele", "other_allele"]
             target_keys = ["#CHROM", "POS", "ALT", "REF"]
+            effect_allele_column = "effect_allele"
         case 'refalt_flip':
             score_keys = ["chr_name", "chr_position", "effect_allele_FLIP", "other_allele_FLIP"]
             target_keys = ["#CHROM", "POS", "REF", "ALT"]
+            effect_allele_column = "effect_allele_FLIP"
         case 'altref_flip':
             score_keys = ["chr_name", "chr_position", "effect_allele_FLIP", "other_allele_FLIP"]
             target_keys = ["#CHROM", "POS", "ALT", "REF"]
+            effect_allele_column = "effect_allele_FLIP"
         case 'no_oa_ref':
             score_keys = ["chr_name", "chr_position", "effect_allele"]
             target_keys = ["#CHROM", "POS", "REF"]
+            effect_allele_column = "effect_allele"
         case 'no_oa_alt':
             score_keys = ["chr_name", "chr_position", "effect_allele"]
             target_keys = ["#CHROM", "POS", "ALT"]
+            effect_allele_column = "effect_allele"
         case 'no_oa_ref_flip':
             score_keys = ["chr_name", "chr_position", "effect_allele_FLIP"]
             target_keys = ["#CHROM", "POS", "REF"]
+            effect_allele_column = "effect_allele_FLIP"
         case 'no_oa_alt_flip':
             score_keys = ["chr_name", "chr_position", "effect_allele_FLIP"]
             target_keys = ["#CHROM", "POS", "ALT"]
+            effect_allele_column = "effect_allele_FLIP"
         case _:
             logger.critical(f"Invalid match strategy: {match_type}")
             raise Exception
 
     return (scorefile.join(target, score_keys, target_keys, how='inner')
-            .pipe(_post_match, target_keys, match_type))
-
-
-def _post_match(df: pl.DataFrame,
-                target_keys: list[str],
-                match_type: str) -> pl.DataFrame:
-    """ Annotate matches with parameters """
-    if len(target_keys) == 3:
-        logger.debug("Dropping missing other_allele during annotation")
-        ref_key = target_keys[-1]
-        alt_key = 'dummy'  # prevent trying to alias a column to None
-    else:
-        ref_key = target_keys[-2]
-        alt_key = target_keys[-1]
-
-    # aliases keep a copy of columns dropped during the join
-    return df.with_columns([pl.col("*"),
-                            pl.col("effect_allele").alias(ref_key),
-                            pl.col("other_allele").alias(alt_key),
-                            pl.lit(match_type).alias("match_type"),
-                            ])[_matched_colnames()]
+            .with_columns([pl.col("*"),
+                           pl.col(effect_allele_column).alias("matched_effect_allele"),
+                           pl.lit(match_type).alias("match_type")])
+            .join(target, on="ID", how="inner")  # get REF / ALT back after first join
+            .drop(["#CHROM", "POS", "is_multiallelic_right"]))
 
 
 def _cast_categorical(scorefile, target) -> tuple[pl.DataFrame, pl.DataFrame]:
@@ -127,13 +119,9 @@ def _cast_categorical(scorefile, target) -> tuple[pl.DataFrame, pl.DataFrame]:
         ])
     if target:
         target = target.with_columns([
+            pl.col("ID").cast(pl.Categorical),
             pl.col("REF").cast(pl.Categorical),
             pl.col("ALT").cast(pl.Categorical)
         ])
 
     return scorefile, target
-
-
-def _matched_colnames() -> list[str]:
-    return ['chr_name', 'chr_position', 'effect_allele', 'effect_allele_FLIP', 'other_allele', 'other_allele_FLIP',
-            'effect_weight', 'effect_type', 'accession', 'ID', 'REF', 'ALT', 'match_type', 'is_multiallelic']

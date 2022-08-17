@@ -23,7 +23,6 @@ def postprocess_matches(df: pl.DataFrame, remove_ambiguous: bool) -> pl.DataFram
 
 
 def _label_biallelic_ambiguous(df: pl.DataFrame) -> pl.DataFrame:
-    # A / T or C / G may match multiple times
     df = df.with_columns([
         pl.col(["effect_allele", "other_allele", "REF", "ALT", "effect_allele_FLIP", "other_allele_FLIP"]).cast(str),
         pl.lit(True).alias("ambiguous")
@@ -44,7 +43,10 @@ def _get_distinct_weights(df: pl.DataFrame) -> pl.DataFrame:
     dups: pl.DataFrame = (count.filter(pl.col('count') > 1)[:, "accession":"effect_allele"]
                           .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))
 
-    distinct: pl.DataFrame = pl.concat([singletons, _prioritise_match_type(dups)])
+    if dups:
+        distinct: pl.DataFrame = pl.concat([singletons, _prioritise_match_type(dups)])
+    else:
+        distinct: pl.DataFrame = singletons
 
     assert all((distinct.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele']).count()['count']) == 1), \
         "Duplicate effect weights for a variant"

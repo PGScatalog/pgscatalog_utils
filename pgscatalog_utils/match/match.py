@@ -19,19 +19,19 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, remove_ambigu
 
     if scorefile_oa:
         logger.debug("Getting matches for scores with effect allele and other allele")
-        matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt")[col_order])
-        matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref")[col_order])
+        matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt").select(col_order))
+        matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref").select(col_order))
         if skip_flip is False:
-            matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt_flip")[col_order])
-            matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref_flip")[col_order])
+            matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt_flip").select(col_order))
+            matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref_flip").select(col_order))
 
     if scorefile_no_oa:
         logger.debug("Getting matches for scores with effect allele only")
-        matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref")[col_order])
-        matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt")[col_order])
+        matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref").select(col_order))
+        matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt").select(col_order))
         if skip_flip is False:
-            matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref_flip")[col_order])
-            matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt_flip")[col_order])
+            matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref_flip").select(col_order))
+            matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt_flip").select(col_order))
 
     return pl.concat(matches).pipe(postprocess_matches, remove_ambiguous)
 
@@ -103,14 +103,6 @@ def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: s
             logger.critical(f"Invalid match strategy: {match_type}")
             raise Exception
 
-    # first_join = scorefile.join(target, score_keys, target_keys, how='inner')\
-    #     .with_columns([pl.col("*"),
-    #                    pl.col(effect_allele_column).alias("matched_effect_allele"),
-    #                    pl.lit(match_type).alias("match_type")]
-    #                   )
-    #
-    # print(match_type, first_join.columns)
-
     missing_cols = ['REF', 'ALT']
     if match_type.startswith('no_oa'):
         if match_type.startswith('no_oa_ref'):
@@ -122,7 +114,7 @@ def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: s
                     .with_columns([pl.col("*"),
                                    pl.col(effect_allele_column).alias("matched_effect_allele"),
                                    pl.lit(match_type).alias("match_type")])
-                    .join(target[join_cols], on="ID", how="inner"))  # get REF / ALT back after first join
+                    .join(target.select(join_cols), on="ID", how="inner"))  # get REF / ALT back after first join
 
 
 def _cast_categorical(scorefile, target) -> tuple[pl.DataFrame, pl.DataFrame]:

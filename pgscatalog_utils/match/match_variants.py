@@ -51,13 +51,14 @@ def match_variants():
                 raise Exception
 
         dataset = args.dataset.replace('_', '-')  # underscores are delimiters in pgs catalog calculator
-        check_match_rate(scorefile, matches, args.min_overlap, dataset)
+        valid_matches: pl.DataFrame = (check_match_rate(scorefile, matches, args.min_overlap, dataset)
+                                       .filter(pl.col('match_pass') == True))
 
-    if matches.shape[0] == 0:  # this can happen if args.min_overlap = 0
+    if valid_matches.is_empty():  # this can happen if args.min_overlap = 0
         logger.error("Error: no target variants match any variants in scoring files")
         raise Exception
 
-    write_out(matches, args.split, args.outdir, dataset)
+    write_out(valid_matches, args.split, args.outdir, dataset)
 
 
 def _check_target_chroms(target) -> None:

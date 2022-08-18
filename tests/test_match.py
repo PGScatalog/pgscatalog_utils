@@ -13,7 +13,7 @@ def test_match_fail(combined_scorefile, target_path, tmp_path):
 
     args: list[str] = ['match_variants', '-s', combined_scorefile,
                        '-t', target_path,
-                       '-m', 0,
+                       '-m', 1,
                        '-d', 'test',
                        '--outdir', out_dir,
                        '--keep_ambiguous', '--keep_multiallelic']

@@ -14,12 +14,8 @@ def postprocess_matches(df: pl.DataFrame, remove_ambiguous: bool) -> pl.DataFram
         return df.filter(pl.col("ambiguous") == False)
     else:
         logger.debug("Keeping best possible match from ambiguous matches")
-        # pick the best possible match from the ambiguous matches
-        # EA = REF and OA = ALT or EA = REF and OA = None
         ambiguous: pl.DataFrame = df.filter((pl.col("ambiguous") == True) & \
-                                            (pl.col("match_type") == "refalt") |
-                                            (pl.col("ambiguous") == True) & \
-                                            (pl.col("match_type") == "no_oa_ref"))
+                                            (pl.col("match_type").str.contains('flip').is_not()))
         unambiguous: pl.DataFrame = df.filter(pl.col("ambiguous") == False)
         return pl.concat([ambiguous, unambiguous])
 

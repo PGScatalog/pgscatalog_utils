@@ -8,7 +8,7 @@ def complement_valid_alleles(df: pl.DataFrame, flip_cols: list[str]) -> pl.DataF
     """ Improved function to complement alleles. Will only complement sequences that are valid DNA.
     """
     for col in flip_cols:
-        logger.debug(f"Complementing scorefile column {col}")
+        logger.debug(f"Complementing column {col}")
         new_col = col + '_FLIP'
         df = df.with_column(
             pl.when(pl.col(col).str.contains('^[ACGT]+$'))
@@ -52,10 +52,10 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, pvar: bool)
 
 
 def check_weights(df: pl.DataFrame) -> None:
-    weight_count = df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele']).count()['count']
-
-    if any(weight_count > 1):
-        logger.error("Multiple effect weights per variant per accession detected")
+    """ Checks weights for scoring file variants that could be matched (e.g. have a chr & pos) """
+    weight_count = df.filter(pl.col('chr_name').is_not_null() & pl.col('chr_position').is_not_null()).groupby(['accession', 'chr_name', 'chr_position', 'effect_allele']).count()
+    if any(weight_count['count'] > 1):
+        logger.error("Multiple effect weights per variant per accession detected in files: {}".format(list(weight_count.filter(pl.col('count') > 1)['accession'].unique())))
         raise Exception
 
 

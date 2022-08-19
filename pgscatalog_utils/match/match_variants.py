@@ -34,84 +34,73 @@ def match_variants():
         match match_mode:
             case "single":
                 logger.debug(f"Match mode: {match_mode}")
-                matches = _match_single_target(args.target, scorefile, args.remove_multiallelic, args.remove_ambiguous)
+                matches = _match_single_target(args.target, scorefile, args.remove_multiallelic, args.remove_ambiguous, args.skip_flip)
             case "multi":
                 logger.debug(f"Match mode: {match_mode}")
                 matches = _match_multiple_targets(args.target, scorefile, args.remove_multiallelic,
-                                                  args.remove_ambiguous)
+                                                  args.remove_ambiguous, args.skip_flip)
             case "fast":
                 logger.debug(f"Match mode: {match_mode}")
-                check_chrom: bool = False
-                if n_target_files > 1:
-                    check_chrom = True
                 matches = _fast_match(args.target, scorefile, args.remove_multiallelic,
-                                      args.remove_ambiguous, check_chrom)
+                                      args.remove_ambiguous, args.skip_flip)
             case _:
                 logger.critical(f"Invalid match mode: {match_mode}")
                 raise Exception
 
-        if args.skip_flip:
-            logger.debug("Ignoring strand flip matches")
-            matches = _drop_flips(matches)
-
         dataset = args.dataset.replace('_', '-')  # underscores are delimiters in pgs catalog calculator
-        check_match_rate(scorefile, matches, args.min_overlap, dataset)
+        valid_matches: pl.DataFrame = (check_match_rate(scorefile, matches, args.min_overlap, dataset)
+                                       .filter(pl.col('match_pass') == True))
 
-    if matches.shape[0] == 0:  # this can happen if args.min_overlap = 0
+    if valid_matches.is_empty():  # this can happen if args.min_overlap = 0
         logger.error("Error: no target variants match any variants in scoring files")
         raise Exception
 
-    write_out(matches, args.split, args.outdir, dataset)
+    write_out(valid_matches, args.split, args.outdir, dataset)
+
+
+def _check_target_chroms(target) -> None:
+    chroms: list[str] = target['#CHROM'].unique().to_list()
+    if len(chroms) > 1:
+        logger.critical(f"Multiple chromosomes detected: {chroms}. Check input data.")
+        raise Exception
+    else:
+        logger.debug("Split target genome contains one chromosome (good)")
 
 
 def _fast_match(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
-                remove_ambiguous: bool, check_chrom: bool) -> pl.DataFrame:
+                remove_ambiguous: bool, skip_filp: bool) -> pl.DataFrame:
     # fast match is fast because:
     #   1) all target files are read into memory
     #   2) matching occurs without iterating through chromosomes
     target: pl.DataFrame = read_target(path=target_path,
                                        remove_multiallelic=remove_multiallelic)
-    if check_chrom:
-        _check_target_chroms(target)
-    return get_all_matches(scorefile, target, remove_ambiguous)
+    logger.debug("Split target chromosomes not checked with fast match mode")
+    return get_all_matches(scorefile, target, remove_ambiguous, skip_filp)
 
 
 def _match_multiple_targets(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
-                            remove_ambiguous: bool) -> pl.DataFrame:
+                            remove_ambiguous: bool, skip_filp: bool) -> pl.DataFrame:
     matches = []
     for i, loc_target_current in enumerate(glob(target_path)):
         logger.debug(f'Matching scorefile(s) against target: {loc_target_current}')
         target: pl.DataFrame = read_target(path=loc_target_current,
                                            remove_multiallelic=remove_multiallelic)  #
         _check_target_chroms(target)
-        matches.append(get_all_matches(scorefile, target, remove_ambiguous))
+        matches.append(get_all_matches(scorefile, target, remove_ambiguous, skip_filp))
     return pl.concat(matches)
 
 
-def _check_target_chroms(target) -> None:
-    n_chrom: int = len(target['#CHROM'].unique().to_list())
-    if n_chrom > 1:
-        logger.critical("Multiple chromosomes detected in split file. Check input data.")
-        raise Exception
-    else:
-        logger.debug("Split target genome contains one chromosome (good)")
-
-
 def _match_single_target(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
-                         remove_ambiguous: bool) -> pl.DataFrame:
+                         remove_ambiguous: bool, skip_filp: bool) -> pl.DataFrame:
     matches = []
     for chrom in scorefile['chr_name'].unique().to_list():
         target = read_target(target_path, remove_multiallelic=remove_multiallelic,
                              single_file=True, chrom=chrom)  # scans and filters
         if target:
             logger.debug(f"Matching chromosome {chrom}")
-            matches.append(get_all_matches(scorefile, target, remove_ambiguous))
+            matches.append(get_all_matches(scorefile, target, remove_ambiguous, skip_filp))
 
     return pl.concat(matches)
-
-
-def _drop_flips(df: pl.DataFrame):
-    return df.filter(pl.col('match_type').str.contains("flip").is_not())
 
 
 def _parse_args(args=None):

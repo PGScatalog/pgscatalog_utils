@@ -6,14 +6,17 @@ logger = logging.getLogger(__name__)
 
 
 def write_out(df: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
-    if os.path.isdir(outdir) is False:
+    if not os.path.isdir(outdir):
         os.mkdir(outdir)
+
     logger.debug("Splitting by effect type")
     effect_types: dict[str, pl.DataFrame] = _split_effect_type(df)
+
     logger.debug("Deduplicating variants")
     deduplicated: dict[str, pl.DataFrame] = {k: _deduplicate_variants(k, v) for k, v in effect_types.items()}
-    ea_dict: dict[str, str] = {'is_dominant': 'dominant', 'is_recessive': 'recessive', 'additive': 'additive'}
+
     logger.debug("Writing out scorefiles")
+    ea_dict: dict[str, str] = {'is_dominant': 'dominant', 'is_recessive': 'recessive', 'additive': 'additive'}
     [_write_scorefile(ea_dict.get(k), v, split, outdir, dataset) for k, v in deduplicated.items()]
 
 
@@ -47,12 +50,14 @@ def _format_scorefile(df: pl.DataFrame, split: bool) -> dict[str, pl.DataFrame]:
         logger.debug("Split output requested")
         chroms: list[int] = df["chr_name"].unique().to_list()
         return {x: (df.filter(pl.col("chr_name") == x)
-                    .pivot(index=["ID", "effect_allele"], values="effect_weight", columns="accession")
+                    .pivot(index=["ID", "matched_effect_allele"], values="effect_weight", columns="accession")
+                    .rename({"matched_effect_allele": "effect_allele"})
                     .pipe(_fill_null))
                 for x in chroms}
     else:
         logger.debug("Split output not requested")
-        formatted: pl.DataFrame = (df.pivot(index=["ID", "effect_allele"], values="effect_weight", columns="accession")
+        formatted: pl.DataFrame = (df.pivot(index=["ID", "matched_effect_allele"], values="effect_weight", columns="accession")
+                                   .rename({"matched_effect_allele": "effect_allele"})
                                    .pipe(_fill_null))
         return {'false': formatted}
 
@@ -112,9 +117,4 @@ def _deduplicate_variants(effect_type: str, df: pl.DataFrame) -> list[pl.DataFra
 
 def _fill_null(df):
     # nulls are created when pivoting wider
-    if any(df.null_count() > 0):
-        logger.debug("Filling null weights with zero after pivoting wide")
-        return df.fill_null(0)
-    else:
-        logger.debug("No null weights detected")
-        return df
+    return df.fill_null(strategy="zero")

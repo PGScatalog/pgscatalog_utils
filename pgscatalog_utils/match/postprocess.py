@@ -2,6 +2,8 @@ from functools import reduce
 import polars as pl
 import logging
 
+from pgscatalog_utils.match.preprocess import complement_valid_alleles
+
 logger = logging.getLogger(__name__)
 
 
@@ -12,31 +14,27 @@ def postprocess_matches(df: pl.DataFrame, remove_ambiguous: bool) -> pl.DataFram
         return df.filter(pl.col("ambiguous") == False)
     else:
         logger.debug("Keeping best possible match from ambiguous matches")
-        # pick the best possible match from the ambiguous matches
-        # EA = REF and OA = ALT or EA = REF and OA = None
         ambiguous: pl.DataFrame = df.filter((pl.col("ambiguous") == True) & \
-                                            (pl.col("match_type") == "refalt") |
-                                            (pl.col("ambiguous") == True) & \
-                                            (pl.col("match_type") == "no_oa_ref"))
+                                            (pl.col("match_type").str.contains('flip').is_not()))
         unambiguous: pl.DataFrame = df.filter(pl.col("ambiguous") == False)
         return pl.concat([ambiguous, unambiguous])
 
 
 def _label_biallelic_ambiguous(df: pl.DataFrame) -> pl.DataFrame:
-    # A / T or C / G may match multiple times
+    logger.debug("Labelling ambiguous variants")
     df = df.with_columns([
         pl.col(["effect_allele", "other_allele", "REF", "ALT", "effect_allele_FLIP", "other_allele_FLIP"]).cast(str),
         pl.lit(True).alias("ambiguous")
-    ])
+    ]).pipe(complement_valid_alleles, ["REF"])
 
     return (df.with_column(
-        pl.when((pl.col("effect_allele_FLIP") == pl.col("ALT")) | (pl.col("effect_allele_FLIP") == pl.col("REF")))
+        pl.when(pl.col("REF_FLIP") == pl.col("ALT"))
         .then(pl.col("ambiguous"))
         .otherwise(False))).pipe(_get_distinct_weights)
 
 
 def _get_distinct_weights(df: pl.DataFrame) -> pl.DataFrame:
-    """ Get a single effect weight for each matched variant per accession """
+    """ Select single matched variant in target for each variant in the scoring file (e.g. per accession) """
     count: pl.DataFrame = df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele']).count()
     singletons: pl.DataFrame = (count.filter(pl.col('count') == 1)[:, "accession":"effect_allele"]
                                 .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))
@@ -44,10 +42,12 @@ def _get_distinct_weights(df: pl.DataFrame) -> pl.DataFrame:
     dups: pl.DataFrame = (count.filter(pl.col('count') > 1)[:, "accession":"effect_allele"]
                           .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))
 
-    distinct: pl.DataFrame = pl.concat([singletons, _prioritise_match_type(dups)])
+    if dups:
+        distinct: pl.DataFrame = pl.concat([singletons, _prioritise_match_type(dups)])
+    else:
+        distinct: pl.DataFrame = singletons
 
-    assert all((distinct.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele']).count()['count']) == 1), \
-        "Duplicate effect weights for a variant"
+    assert all(distinct.groupby(['accession', 'ID']).count()['count'] == 1), "Duplicate effect weights for a variant"
 
     return distinct
 

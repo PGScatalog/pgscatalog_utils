@@ -117,10 +117,4 @@ def _deduplicate_variants(effect_type: str, df: pl.DataFrame) -> list[pl.DataFra
 
 def _fill_null(df):
     # nulls are created when pivoting wider
-    nulls: pl.DataFrame = (df.null_count().filter(pl.col("*") > 0))
-    if nulls.is_empty():  # is_empty() avoids weird truthiness problems
-        logger.debug("No null weights detected")
-        return df
-    else:
-        logger.debug("Filling null weights with zero after pivoting wide")
-        return df.fill_null(0)
+    return df.fill_null(strategy="zero")

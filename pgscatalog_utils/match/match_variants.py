@@ -41,11 +41,8 @@ def match_variants():
                                                   args.remove_ambiguous, args.skip_flip)
             case "fast":
                 logger.debug(f"Match mode: {match_mode}")
-                check_chrom: bool = False
-                if n_target_files > 1:
-                    check_chrom = True
                 matches = _fast_match(args.target, scorefile, args.remove_multiallelic,
-                                      args.remove_ambiguous, check_chrom, args.skip_flip)
+                                      args.remove_ambiguous, args.skip_flip)
             case _:
                 logger.critical(f"Invalid match mode: {match_mode}")
                 raise Exception
@@ -62,22 +59,22 @@ def match_variants():
 
 
 def _check_target_chroms(target) -> None:
-    n_chrom: int = len(target['#CHROM'].unique().to_list())
-    if n_chrom > 1:
-        logger.critical("Multiple chromosomes detected in split file. Check input data.")
+    chroms: list[str] = target['#CHROM'].unique().to_list()
+    if len(chroms) > 1:
+        logger.critical(f"Multiple chromosomes detected: {chroms}. Check input data.")
         raise Exception
     else:
         logger.debug("Split target genome contains one chromosome (good)")
 
+
 def _fast_match(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
-                remove_ambiguous: bool, check_chrom: bool, skip_filp: bool) -> pl.DataFrame:
+                remove_ambiguous: bool, skip_filp: bool) -> pl.DataFrame:
     # fast match is fast because:
     #   1) all target files are read into memory
     #   2) matching occurs without iterating through chromosomes
     target: pl.DataFrame = read_target(path=target_path,
                                        remove_multiallelic=remove_multiallelic)
-    if check_chrom:
-        _check_target_chroms(target)
+    logger.debug("Split target chromosomes not checked with fast match mode")
     return get_all_matches(scorefile, target, remove_ambiguous, skip_filp)
 
 

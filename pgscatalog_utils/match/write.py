@@ -52,13 +52,13 @@ def _format_scorefile(df: pl.DataFrame, split: bool) -> dict[str, pl.DataFrame]:
         return {x: (df.filter(pl.col("chr_name") == x)
                     .pivot(index=["ID", "matched_effect_allele"], values="effect_weight", columns="accession")
                     .rename({"matched_effect_allele": "effect_allele"})
-                    .pipe(_fill_null))
+                    .fill_null(strategy="zero"))
                 for x in chroms}
     else:
         logger.debug("Split output not requested")
         formatted: pl.DataFrame = (df.pivot(index=["ID", "matched_effect_allele"], values="effect_weight", columns="accession")
                                    .rename({"matched_effect_allele": "effect_allele"})
-                                   .pipe(_fill_null))
+                                   .fill_null(strategy="zero"))
         return {'false': formatted}
 
 
@@ -113,8 +113,3 @@ def _deduplicate_variants(effect_type: str, df: pl.DataFrame) -> list[pl.DataFra
     assert n_var == df.shape[0]
 
     return df_lst
-
-
-def _fill_null(df):
-    # nulls are created when pivoting wider
-    return df.fill_null(strategy="zero")

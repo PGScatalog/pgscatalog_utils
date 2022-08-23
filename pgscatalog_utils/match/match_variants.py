@@ -1,5 +1,6 @@
 import argparse
 import logging
+import textwrap
 from glob import glob
 
 import polars as pl
@@ -103,10 +104,58 @@ def _match_single_target(target_path: str, scorefile: pl.DataFrame, remove_multi
     return pl.concat(matches)
 
 
+def _description_text() -> str:
+    return textwrap.dedent('''\
+    Match variants from a combined scoring file against a set of
+    target genomes from the same fileset, and output scoring files
+    compatible with the plink2 --score function.
+    
+    A combined scoring file is the output of the combine_scorefiles
+    script. It has the following structure:
+    
+        | chr_name | chr_position | ... | accession |
+        | -------- | ------------ | --- | --------- |
+        | 1        | 1            | ... | PGS000802 |
+    
+    The combined scoring file is in long format, with one row per
+    variant for each scoring file (accession). This structure is
+    different to the PGS Catalog standard, because the long format
+    makes matching faster and simpler.
+    
+    Target genomes can be in plink1 bim format or plink2 pvar
+    format. Variant IDs should be unique.
+    
+    Only one set of target genomes should be matched at a time. Don't
+    try to match target genomes from different plink
+    filesets. Matching against a set of chromosomes from the same
+    fileset is OK (see --split). 
+   ''')
+
+
+def _epilog_text() -> str:
+    return textwrap.dedent('''\
+    match_variants will output at least one scoring file in a
+    format compatible with the plink2 --score function. This
+    output might be split across different files to ensure each
+    variant ID, effect allele, and effect type appears only once
+    in each file. Output files have the pattern:
+
+        {dataset}_{chromosome}_{effect_type}_{n}.scorefile.
+
+    If multiple chromosomes are combined into a single file (i.e. not
+    --split), then {chromosome} is replaced with 'ALL'. Once the
+    scorefiles are used to calculate a score with plink2, the .sscore
+    files will need to be aggregated to calculate a single polygenic
+    score for each dataset, sample, and accession (scoring file). The
+    PGS Catalog Calculator does this automatically.
+    ''')
+
+
 def _parse_args(args=None):
-    parser = argparse.ArgumentParser(description='Match variants from a combined scoring file against target variants')
+    parser = argparse.ArgumentParser(description=_description_text(), epilog=_epilog_text(),
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-d', '--dataset', dest='dataset', required=True,
-                        help='<Required> Label for target genomic dataset (e.g. "-d thousand_genomes")')
+                        help='<Required> Label for target genomic dataset')
     parser.add_argument('-s', '--scorefiles', dest='scorefile', required=True,
                         help='<Required> Combined scorefile path (output of read_scorefiles.py)')
     parser.add_argument('-t', '--target', dest='target', required=True,
@@ -120,15 +169,18 @@ def _parse_args(args=None):
     parser.add_argument('-m', '--min_overlap', dest='min_overlap', required=True,
                         type=float, help='<Required> Minimum proportion of variants to match before error')
     parser.add_argument('--keep_ambiguous', dest='remove_ambiguous', action='store_false',
-                        help='Flag to force the program to keep variants with ambiguous alleles, (e.g. A/T and G/C '
-                             'SNPs), which are normally excluded (default: false). In this case the program proceeds '
-                             'assuming that the genotype data is on the same strand as the GWAS whose summary '
-                             'statistics were used to construct the score.'),
+                        help='''<Optional> Flag to force the program to keep variants with
+                        ambiguous alleles, (e.g. A/T and G/C SNPs), which are normally
+                        excluded (default: false). In this case the program proceeds
+                        assuming that the genotype data is on the same strand as the
+                        GWAS whose summary statistics were used to construct the score.
+    			        ''')
     parser.add_argument('--keep_multiallelic', dest='remove_multiallelic', action='store_false',
-                        help='Flag to allow matching to multiallelic variants (default: false).')
+                        help='<Optional> Flag to allow matching to multiallelic variants (default: false).')
     parser.add_argument('--ignore_strand_flips', dest='skip_flip', action='store_true',
-                        help='Flag to not consider matched variants that may be reported on the opposite strand. '
-                             'Default behaviour is to flip/complement unmatched variants and check if they match.')
+                        help='''<Optional> Flag to not consider matched variants that may be reported 
+                        on the opposite strand.  Default behaviour is to flip/complement unmatched variants and check if
+                        they match.''')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)

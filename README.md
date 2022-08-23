@@ -28,6 +28,8 @@ $ combine_scorefiles -s PGS*.txt.gz -o combined.txt
 $ match_variants -s combined.txt -t <example.pvar> --min_overlap 0.75 --outdir .
 ```
 
+More details are available using the `--help` parameter.
+
 ## Install from source
 
 Requirements:
@@ -44,6 +46,7 @@ $ pip install --user dist/*.whl
 ```
 
 ## Credits
+
 The `pgscatalog_utils` package is developed as part of the **Polygenic Score (PGS) Catalog** 
 ([www.PGSCatalog.org](https://www.PGSCatalog.org)) project, a collaboration between the 
 University of Cambridge’s Department of Public Health and Primary Care (Michael Inouye, Samuel Lambert, Laurent Gil) 

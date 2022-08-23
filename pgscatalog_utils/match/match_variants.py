@@ -123,12 +123,12 @@ def _description_text() -> str:
     makes matching faster and simpler.
     
     Target genomes can be in plink1 bim format or plink2 pvar
-    format. Variant IDs should be unique.
+    format. Variant IDs should be unique so that they can be specified
+    in the scoring file as: variant_id|effect_allele|[effect_weight column(s)...] 
     
     Only one set of target genomes should be matched at a time. Don't
-    try to match target genomes from different plink
-    filesets. Matching against a set of chromosomes from the same
-    fileset is OK (see --split). 
+    try to match target genomes from different plink filesets. Matching 
+    against a set of chromosomes from the same fileset is OK (see --split). 
    ''')
 
 

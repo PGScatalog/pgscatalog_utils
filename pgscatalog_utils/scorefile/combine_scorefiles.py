@@ -43,7 +43,8 @@ if __name__ == "__main__":
 
 def _description_text() -> str:
     return textwrap.dedent('''\
-    Combine multiple scoring files in PGS Catalog format to a 'long'
+    Combine multiple scoring files in PGS Catalog format (see 
+    https://www.pgscatalog.org/downloads/ for details) to a 'long'
     table, and optionally liftover genomic coordinates to GRCh37 or
     GRCh38. Custom scorefiles in PGS Catalog format can be combined
     with PGS Catalog scoring files. The program can accept a mix of

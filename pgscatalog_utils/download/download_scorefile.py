@@ -88,6 +88,10 @@ def _description_text() -> str:
     The PGS Catalog API is queried to get a list of scoring file
     URLs. Scoring files are downloaded via FTP to a specified
     directory. PGS Catalog scoring files are staged with the name:
+
+            {PGS_ID}.txt.gz
+
+    If a valid build is specified harmonized files are downloaded as:
     
         {PGS_ID}_hmPOS_{genome_build}.txt.gz
     

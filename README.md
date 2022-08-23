@@ -20,12 +20,6 @@ of `combine_scorefile` to produce scoring files for plink 2
 $ pip install pgscatalog-utils
 ```
 
-Or clone the repo:
-
-```
-$ git clone https://github.com/PGScatalog/pgscatalog_utils.git
-```
-
 ## Quickstart
 
 ```
@@ -33,3 +27,43 @@ $ download_scorefiles -i PGS000922 PGS001229 -o . -b GRCh37
 $ combine_scorefiles -s PGS*.txt.gz -o combined.txt 
 $ match_variants -s combined.txt -t <example.pvar> --min_overlap 0.75 --outdir .
 ```
+
+More details are available using the `--help` parameter.
+
+## Install from source
+
+Requirements:
+
+- python 3.10
+- [poetry](https://python-poetry.org)
+
+```
+$ git clone https://github.com/PGScatalog/pgscatalog_utils.git
+$ cd pgscatalog_utils
+$ poetry install
+$ poetry build
+$ pip install --user dist/*.whl 
+```
+
+## Credits
+
+The `pgscatalog_utils` package is developed as part of the **Polygenic Score (PGS) Catalog** 
+([www.PGSCatalog.org](https://www.PGSCatalog.org)) project, a collaboration between the 
+University of Cambridge’s Department of Public Health and Primary Care (Michael Inouye, Samuel Lambert, Laurent Gil) 
+and the European Bioinformatics Institute (Helen Parkinson, Aoife McMahon, Ben Wingfield, Laura Harris).
+
+A manuscript describing the tool and larger PGS Catalog Calculator pipeline 
+[(`PGSCatalog/pgsc_calc`)](https://github.com/PGScatalog/pgsc_calc) is in preparation. In the meantime 
+if you use these tools we ask you to cite the repo(s) and the paper describing the PGS Catalog resource:
+
+- >PGS Catalog utilities _(in development)_. PGS Catalog
+  Team. [https://github.com/PGScatalog/pgscatalog_utils](https://github.com/PGScatalog/pgscatalog_utils)
+- >PGS Catalog Calculator _(in development)_. PGS Catalog
+  Team. [https://github.com/PGScatalog/pgsc_calc](https://github.com/PGScatalog/pgsc_calc)
+- >Lambert _et al._ (2021) The Polygenic Score Catalog as an open database for
+reproducibility and systematic evaluation.  Nature Genetics. 53:420–425
+doi:[10.1038/s41588-021-00783-5](https://doi.org/10.1038/s41588-021-00783-5).
+
+This work has received funding from EMBL-EBI core funds, the Baker Institute, the University of Cambridge, 
+Health Data Research UK (HDRUK), and the European Union's Horizon 2020 research and innovation programme 
+under grant agreement No 101016775 INTERVENE.

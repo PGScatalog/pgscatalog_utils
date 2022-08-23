@@ -6,6 +6,7 @@ import requests as req
 from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
 from pysqlar import SQLiteArchive
 import pandas as pd
+import glob
 
 
 @pytest.fixture(scope="session")
@@ -21,11 +22,7 @@ def scorefiles(tmp_path_factory, pgs_accessions):
     with patch('sys.argv', args):
         download_scorefile()
 
-    paths: list[str] = [os.path.join(fn.resolve(), x + '.txt.gz') for x in pgs_accessions]
-
-    assert all([os.path.exists(x) for x in paths])
-
-    return paths
+    return glob.glob(os.path.join(fn.resolve(), "*.txt.gz"))
 
 
 @pytest.fixture(scope="session")
@@ -117,7 +114,7 @@ def chain_files(db, tmp_path_factory):
 def lifted_scorefiles(scorefiles, chain_files, tmp_path_factory):
     out_path = tmp_path_factory.mktemp("scores") / "lifted.txt"
     args: list[str] = ['combine_scorefiles', '-s'] + scorefiles + ['--liftover', '-c', chain_files, '-t', 'GRCh38',
-                                                                   '-m', '0.95'] + ['-o', str(out_path.resolve())]
+                                                                   '-m', '0.8'] + ['-o', str(out_path.resolve())]
 
     with patch('sys.argv', args):
         combine_scorefiles()

@@ -4,15 +4,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def quality_control(df: pd.DataFrame) -> pd.DataFrame:
+def quality_control(df: pd.DataFrame, drop_missing: bool) -> pd.DataFrame:
     """ Do quality control checks on a scorefile """
     _check_shape(df)
     _check_columns(df)
     logger.debug("Quality control: checking for bad variants")
-    return (df.pipe(_drop_hla)
-            .pipe(_drop_missing_variants)
-            .pipe(_check_duplicate_identifiers)
-            .pipe(_drop_multiple_oa))
+    if drop_missing is True:
+        return (df.pipe(_drop_hla)
+                .pipe(_drop_missing_variants)
+                .pipe(_check_duplicate_identifiers)
+                .pipe(_drop_multiple_oa))
+    else:
+        return (df.pipe(_check_duplicate_identifiers)
+                .pipe(_drop_multiple_oa))
 
 
 def _drop_multiple_oa(df: pd.DataFrame) -> pd.DataFrame:

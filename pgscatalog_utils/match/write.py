@@ -6,12 +6,17 @@ logger = logging.getLogger(__name__)
 
 
 def write_out(df: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
+    if not os.path.isdir(outdir):
+        os.mkdir(outdir)
+
     logger.debug("Splitting by effect type")
     effect_types: dict[str, pl.DataFrame] = _split_effect_type(df)
+
     logger.debug("Deduplicating variants")
-    deduplicated: dict[str, pl.DataFrame] = {k: _deduplicate_variants(v) for k, v in effect_types.items()}
-    ea_dict: dict[str, str] = {'is_dominant': 'dominant', 'is_recessive': 'recessive', 'additive': 'additive'}
+    deduplicated: dict[str, pl.DataFrame] = {k: _deduplicate_variants(k, v) for k, v in effect_types.items()}
+
     logger.debug("Writing out scorefiles")
+    ea_dict: dict[str, str] = {'is_dominant': 'dominant', 'is_recessive': 'recessive', 'additive': 'additive'}
     [_write_scorefile(ea_dict.get(k), v, split, outdir, dataset) for k, v in deduplicated.items()]
 
 
@@ -21,8 +26,6 @@ def write_log(df: pl.DataFrame, dataset: str) -> None:
 
 def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
     """ Write a list of scorefiles with the same effect type """
-    fout: str = '{dataset}_{chr}_{et}_{split}.scorefile'
-
     # each list element contains a dataframe of variants
     # lists are split to ensure variants have unique ID - effect alleles
     for i, scorefile in enumerate(scorefiles):
@@ -47,13 +50,15 @@ def _format_scorefile(df: pl.DataFrame, split: bool) -> dict[str, pl.DataFrame]:
         logger.debug("Split output requested")
         chroms: list[int] = df["chr_name"].unique().to_list()
         return {x: (df.filter(pl.col("chr_name") == x)
-                    .pivot(index=["ID", "effect_allele"], values="effect_weight", columns="accession")
-                    .pipe(_fill_null))
+                    .pivot(index=["ID", "matched_effect_allele"], values="effect_weight", columns="accession")
+                    .rename({"matched_effect_allele": "effect_allele"})
+                    .fill_null(strategy="zero"))
                 for x in chroms}
     else:
         logger.debug("Split output not requested")
-        formatted: pl.DataFrame = (df.pivot(index=["ID", "effect_allele"], values="effect_weight", columns="accession")
-                                   .pipe(_fill_null))
+        formatted: pl.DataFrame = (df.pivot(index=["ID", "matched_effect_allele"], values="effect_weight", columns="accession")
+                                   .rename({"matched_effect_allele": "effect_allele"})
+                                   .fill_null(strategy="zero"))
         return {'false': formatted}
 
 
@@ -63,7 +68,7 @@ def _split_effect_type(df: pl.DataFrame) -> dict[str, pl.DataFrame]:
     return {x: df.filter(pl.col("effect_type") == x) for x in effect_types}
 
 
-def _deduplicate_variants(df: pl.DataFrame) -> list[pl.DataFrame]:
+def _deduplicate_variants(effect_type: str, df: pl.DataFrame) -> list[pl.DataFrame]:
     """ Find variant matches that have duplicate identifiers
     When merging a lot of scoring files, sometimes a variant might be duplicated
     this can happen when the effect allele differs at the same position, e.g.:
@@ -101,20 +106,10 @@ def _deduplicate_variants(df: pl.DataFrame) -> list[pl.DataFrame]:
         df_lst.append(x)
 
     if len(df_lst) > 1:
-        logger.debug("Duplicate variant identifiers split")
+        logger.debug(f"Duplicate variant identifiers split for effect type {effect_type}")
     else:
-        logger.debug("No duplicate variant identifiers found")
+        logger.debug(f"No duplicate variant identifiers found for effect type {effect_type}")
 
     assert n_var == df.shape[0]
 
     return df_lst
-
-
-def _fill_null(df):
-    # nulls are created when pivoting wider
-    if any(df.null_count() > 0):
-        logger.debug("Filling null weights with zero after pivoting wide")
-        return df.fill_null(0)
-    else:
-        logger.debug("No null weights detected")
-        return df

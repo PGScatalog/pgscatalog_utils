@@ -72,6 +72,7 @@ def _check_duplicate_identifiers(df: pd.DataFrame) -> pd.DataFrame:
         return df
     else:
         logger.warning("Duplicate variants in scoring file.")
+        return df
 
 
 def _check_shape(df: pd.DataFrame) -> None:

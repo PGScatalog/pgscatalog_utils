@@ -43,19 +43,21 @@ if __name__ == "__main__":
 
 def _description_text() -> str:
     return textwrap.dedent('''\
-    Combine multiple scoring files in PGS Catalog format (see 
-    https://www.pgscatalog.org/downloads/ for details) to a 'long'
-    table, and optionally liftover genomic coordinates to GRCh37 or
-    GRCh38. Custom scorefiles in PGS Catalog format can be combined
-    with PGS Catalog scoring files. The program can accept a mix of
-    unharmonised and harmonised PGS Catalog data.     
+    Combine multiple scoring files in PGS Catalog format (see https://www.pgscatalog.org/downloads/ 
+    for details) to a 'long' table of columns needed for variant matching and subsequent calculation. 
+    
+    Custom scorefiles in PGS Catalog format can be combined with PGS Catalog scoring files, and 
+    optionally liftover genomic coordinates to GRCh37 or GRCh38. The script can accept a mix of
+    unharmonised and harmonised PGS Catalog data. By default all variants are output (including 
+    positions with duplicated data [often caused by rsID/liftover collions across builds]) and 
+    variants with missing positions. 
     ''')
 
 
 def _epilog_text() -> str:
     return textwrap.dedent('''\
-    The long table is used to simplify intersecting variants in target
-    genomes and the scoring files with the match_variants program.    
+    The long table is used to simplify intersecting variants in target genotyping datasets 
+    and the scoring files with the match_variants program.
     ''')
 
 

@@ -71,7 +71,7 @@ def _check_duplicate_identifiers(df: pd.DataFrame) -> pd.DataFrame:
     if unique.all():
         return df
     else:
-        raise Exception("Duplicate variants in scoring file")
+        logger.warning("Duplicate variants in scoring file.")
 
 
 def _check_shape(df: pd.DataFrame) -> None:

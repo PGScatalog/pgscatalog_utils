@@ -40,15 +40,16 @@ def combine_scorefiles():
                 logger.error(f"Cannot combine {x} (harmonized to {h.get('HmPOS_build')}) in target build {args.target_build}")
                 raise Exception
 
-
-
+        # Process/QC score and check variant columns
         score = (score.pipe(remap_harmonised, use_harmonised=True)
                   .pipe(quality_control, drop_missing=args.drop_missing)
                   .pipe(melt_effect_weights)
-                  .pipe(set_effect_type).assign(genome_build=current_build))
+                  .pipe(set_effect_type))
+
         # Check if the score is in the right build or could be lifted
         if current_build is None:
             current_build = build2GRC(h.get('genome_build'))
+            score = score.assign(genome_build=current_build)
 
         if (current_build != args.target_build) and (args.liftover is False):
             logger.error(

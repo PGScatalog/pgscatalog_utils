@@ -30,26 +30,46 @@ def _label_biallelic_ambiguous(df: pl.DataFrame) -> pl.DataFrame:
     return (df.with_column(
         pl.when(pl.col("REF_FLIP") == pl.col("ALT"))
         .then(pl.col("ambiguous"))
-        .otherwise(False))).pipe(_get_distinct_weights)
+        .otherwise(False))).pipe(_prune_matches)
 
 
-def _get_distinct_weights(df: pl.DataFrame) -> pl.DataFrame:
+def _prune_matches(df: pl.DataFrame) -> pl.DataFrame:
     """ Select single matched variant in target for each variant in the scoring file (e.g. per accession) """
-    count: pl.DataFrame = df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele']).count()
-    singletons: pl.DataFrame = (count.filter(pl.col('count') == 1)[:, "accession":"effect_allele"]
-                                .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))
-
-    dups: pl.DataFrame = (count.filter(pl.col('count') > 1)[:, "accession":"effect_allele"]
-                          .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))
+    dups: pl.DataFrame = _get_duplicate_variants(df)
 
     if dups:
-        distinct: pl.DataFrame = pl.concat([singletons, _prioritise_match_type(dups)])
+        logger.debug("First match pruning: prioritise by match types")
+        singletons: pl.DataFrame = _get_singleton_variants(df)
+        prioritised: pl.DataFrame = _prioritise_match_type(dups)
+        prioritised_dups: pl.DataFrame = _get_duplicate_variants(prioritised)
+        if prioritised_dups:
+            logger.debug("Final match pruning: dropping any duplicates remaining")
+            prioritised_singletons: pl.DataFrame = _get_singleton_variants(prioritised)
+            distinct: pl.DataFrame = pl.concat([singletons, prioritised_singletons])
+        else:
+            logger.debug("Final match pruning skipped (not required)")
+            distinct: pl.DataFrame = pl.concat([singletons, prioritised])
     else:
-        distinct: pl.DataFrame = singletons
+        distinct: pl.DataFrame = df
 
     assert all(distinct.groupby(['accession', 'ID']).count()['count'] == 1), "Duplicate effect weights for a variant"
+    logger.debug("Match pruning complete")
 
     return distinct
+
+
+def _get_singleton_variants(df: pl.DataFrame) -> pl.DataFrame:
+    return (df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele'])
+            .count()
+            .filter(pl.col('count') == 1)[:, "accession":"effect_allele"]
+            .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))
+
+
+def _get_duplicate_variants(df: pl.DataFrame) -> pl.DataFrame:
+    return (df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele'])
+            .count()
+            .filter(pl.col('count') > 1)[:, "accession":"effect_allele"]
+            .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))
 
 
 def _prioritise_match_type(duplicates: pl.DataFrame) -> pl.DataFrame:

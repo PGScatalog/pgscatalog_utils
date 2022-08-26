@@ -71,7 +71,7 @@ def _check_duplicate_identifiers(df: pd.DataFrame) -> pd.DataFrame:
     if all(u_count == 1):
         return df.assign(is_duplicated=False)
     else:
-        logger.warning("Duplicate variants in scoring file.")
+        logger.warning("Duplicate variants in scoring file: {}".format(df['filename_prefix'].unique()))
         u_count = u_count > 1
         u_count.name = 'is_duplicated'
         df = pd.merge(df, u_count, how='left', left_on=group_cols, right_index=True)

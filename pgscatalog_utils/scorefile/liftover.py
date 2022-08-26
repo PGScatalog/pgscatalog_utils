@@ -12,8 +12,8 @@ def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float, target_build: st
     df = annotate_build(df, target_build)  # grab build from scoring file headers
 
     mapped, unmapped = pd.DataFrame(), pd.DataFrame()
-    no_liftover: pd.DataFrame = df.query('target_build == genome_build')
-    to_liftover: pd.DataFrame = df.query('target_build != genome_build')
+    no_liftover: pd.DataFrame = df.query('chain_target_build == chain_genome_build')
+    to_liftover: pd.DataFrame = df.query('chain_target_build != chain_genome_build')
 
     if no_liftover.empty:
         logger.debug("Liftover required for all scorefile variants")
@@ -65,7 +65,7 @@ def _convert_coordinates(df: pd.Series, lo_dict: dict[str, pyliftover.LiftOver])
     if df[['chr_name', 'chr_position']].isnull().values.any():
         converted = None
     else:
-        lo = lo_dict[df['genome_build'] + df['target_build']]  # extract lo object from dict
+        lo = lo_dict[df['chain_genome_build'] + df['chain_target_build']]  # extract lo object from dict
         chrom: str = 'chr' + str(df['chr_name'])
         pos: int = int(df['chr_position']) - 1  # liftOver is 0 indexed, VCF is 1 indexed
         # converted example: [('chr22', 15460378, '+', 3320966530)] or None

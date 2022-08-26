@@ -79,9 +79,9 @@ def _parse_args(args=None) -> argparse.Namespace:
                         help='Drop variants with missing information (chr/pos) and '
                              'non-standard alleles (e.g. HLA=P/N) from the output file.')
     parser.add_argument('-o', '--outfile', dest='outfile', required=True,
-                        help='[ will compress output if filename ends with .gz ]',
                         default='combined.txt',
-                        help='<Required> Output path to combined long scorefile')
+                        help='<Required> Output path to combined long scorefile '
+                             '[ will compress output if filename ends with .gz ]')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)

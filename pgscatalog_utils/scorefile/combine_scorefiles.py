@@ -77,7 +77,7 @@ def _parse_args(args=None) -> argparse.Namespace:
                         required="--liftover" in sys.argv, default=0.95, type=float)
     parser.add_argument('--drop_missing', dest='drop_missing', action='store_true',
                         help='Drop variants with missing information (chr/pos) and '
-                             'non-standard alleles from the output file.')
+                             'non-standard alleles (e.g. HLA=P/N) from the output file.')
     parser.add_argument('-o', '--outfile', dest='outfile', required=True,
                         default='combined.txt',
                         help='<Required> Output path to combined long scorefile')

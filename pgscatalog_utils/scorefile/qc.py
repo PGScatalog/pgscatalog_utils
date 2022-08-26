@@ -66,14 +66,15 @@ def _check_duplicate_identifiers(df: pd.DataFrame) -> pd.DataFrame:
         logger.warning("Other allele column not detected, dropping other_allele from variant identifier.")
         group_cols = ['chr_name', 'chr_position', 'effect_allele']
 
-    unique: pd.Series = df.groupby(group_cols).size() == 1
+    u_count: pd.Series = df.groupby(group_cols).size()
 
-    if unique.all():
-        return df
+    if all(u_count == 1):
+        return df.assign(is_duplicated=False)
     else:
         logger.warning("Duplicate variants in scoring file.")
-        return df
-
+        u_count = u_count > 1
+        u_count.name = 'is_duplicated'
+        return pd.merge(df, u_count, how='left', left_on=group_cols, right_index=True)
 
 def _check_shape(df: pd.DataFrame) -> None:
     assert len(df.columns) > 1, "ERROR: scorefile not formatted correctly (0 columns)"

@@ -116,7 +116,7 @@ def _parse_args(args=None) -> argparse.Namespace:
     parser.add_argument('-t', '--efo', dest='efo', nargs='+',
                         help='Traits described by an EFO term(s) (e.g. EFO_0004611)')
     parser.add_argument('-p', '--pgp', dest='pgp', help='PGP publication ID(s) (e.g. PGP000007)', nargs='+')
-    parser.add_argument('-b', '--build', dest='build',
+    parser.add_argument('-b', '--build', dest='build', choices=['GRCh37', 'GRCh38'],
                         help='Download Harmonized Scores with Positions in Genome build: GRCh37 or GRCh38')
     parser.add_argument('-o', '--outdir', dest='outdir', required=True,
                         default='scores/',

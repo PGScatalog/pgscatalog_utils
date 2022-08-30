@@ -75,8 +75,9 @@ def _check_duplicate_identifiers(df: pd.DataFrame) -> pd.DataFrame:
         u_count = u_count > 1
         u_count.name = 'is_duplicated'
         df = pd.merge(df, u_count, how='left', left_on=group_cols, right_index=True)
-        df.loc[df.is_duplicated.isnull(), 'is_duplicated'] = False # handles variants with null chr/pos
+        df.loc[df.is_duplicated.isnull(), 'is_duplicated'] = False  # handles variants with null chr/pos
         return df
+
 
 def _check_shape(df: pd.DataFrame) -> None:
     assert len(df.columns) > 1, "ERROR: scorefile not formatted correctly (0 columns)"

@@ -17,7 +17,7 @@ def annotate_build(df: pd.DataFrame, target_build: str) -> pd.DataFrame:
 def build2GRC(build):
     """Map build names so they can be compared with GRCh37 and 38"""
     build_2_GRC_dict = {'GRCh37': 'GRCh37', 'GRCh38': 'GRCh38', 'hg19': 'GRCh37', 'hg38': 'GRCh38'}  # standardise build names
-    if build is None:
+    if pd.isnull(build):
         return None
     else:
         return build_2_GRC_dict.get(build)

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float, target_build: str) -> pd.DataFrame:
     """ Liftover genomic coordinates to a different genome build """
-    df = annotate_build(df, target_build)  # grab build from scoring file headers
+    df = annotate_build(df, target_build)  # get chain_target_build (e.g. in hg notation to match chain files)
 
     mapped, unmapped = pd.DataFrame(), pd.DataFrame()
     no_liftover: pd.DataFrame = df.query('chain_target_build == chain_genome_build')
@@ -19,15 +19,15 @@ def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float, target_build: st
         logger.debug("Liftover required for all scorefile variants")
     else:
         logger.debug("Skipping liftover for scorefiles with same build as target genome")
-        no_liftover[['lifted_chr', 'lifted_pos']] = no_liftover[['chr_name', 'chr_position']]  # assume col structure
+        no_liftover.loc[:,['lifted_chr', 'lifted_pos']] = no_liftover[['chr_name', 'chr_position']]  # assume col structure
         no_liftover.assign(liftover=None)
 
     if to_liftover.empty:
         logger.debug("Liftover skipped because no variants required it")
     else:
+        lo: dict[str, pyliftover.LiftOver] = _create_liftover(chain_dir) # loads chain files
         logger.debug("Lifting over scoring files")
-        lo: dict[str, pyliftover.LiftOver] = _create_liftover(chain_dir)
-        to_liftover[['lifted_chr', 'lifted_pos']] = to_liftover.apply(lambda x: _convert_coordinates(x, lo), axis=1)
+        to_liftover.loc[:, ['lifted_chr', 'lifted_pos']] = to_liftover.apply(lambda x: _convert_coordinates(x, lo), axis=1)
         logger.debug("Liftover complete")
 
         mapped: pd.DataFrame = (to_liftover[~to_liftover[['lifted_chr', 'lifted_pos']].isnull().any(axis=1)]

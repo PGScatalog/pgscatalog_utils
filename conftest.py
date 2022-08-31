@@ -123,15 +123,11 @@ def lifted_scorefiles(mini_score_path, chain_files, tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def hg38_coords(tmp_path_factory):
-    out_path = tmp_path_factory.mktemp("dummy") / "hg38.txt"
+def hg38_coords():
     d = {'rsid': ['rs11903757', 'rs6061231'], 'chr_name': ['2', '20'], 'chr_position': [191722478, 62381861]}
     df = pd.DataFrame(d)
-    with open(out_path, 'w') as f:
-        f.write('#genome_build=GRCh38\n')
-    df.to_csv(out_path, mode='a', index=False)
-    df['filename'] = str(out_path.resolve())
     df['accession'] = 'dummy'
+    df['genome_build'] = 'GRCh38'
     return df
 
 

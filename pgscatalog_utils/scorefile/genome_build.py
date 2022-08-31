@@ -2,8 +2,6 @@ import logging
 
 import pandas as pd
 
-from pgscatalog_utils.scorefile.read import _read_header
-
 logger = logging.getLogger(__name__)
 
 
@@ -24,19 +22,3 @@ def build2GRC(build):
         return None
     else:
         return build_2_GRC_dict.get(build)
-
-
-def _read_build(path: str) -> dict[str, str]:
-    """ Open scorefiles and automatically handle compressed input """
-    logger.debug(f'Reading header of {path}')
-    h = _read_header(path)
-    return {k: h.get(k, None) for k in ('genome_build', 'HmPOS_build')}
-
-
-def _get_builds(paths: list) -> pd.DataFrame:
-    """ Get genome builds for a series of scorefile paths
-        | filename              | -> |                       | genome_build | HmPOS_build |
-        | x.txt.gz              |    | x.txt.gz              | hg19         | None        |
-        | x_hmPOS_GRCh37.txt.gz |    | x_hmPOS_GRCh37.txt.gz | hg19         | GRCh37      |
-    """
-    return pd.DataFrame.from_dict({path: _read_build(path) for path in paths}, orient='index')

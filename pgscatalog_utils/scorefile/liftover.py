@@ -25,9 +25,9 @@ def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float, target_build: st
     if to_liftover.empty:
         logger.debug("Liftover skipped because no variants required it")
     else:
-        lo: dict[str, pyliftover.LiftOver] = _create_liftover(chain_dir) # loads chain files
+        lo: dict[str, pyliftover.LiftOver] = _create_liftover(chain_dir)  # loads chain files
         logger.debug("Lifting over scoring files")
-        to_liftover.loc[:, ['lifted_chr', 'lifted_pos']] = to_liftover.apply(lambda x: _convert_coordinates(x, lo), axis=1)
+        to_liftover[['lifted_chr', 'lifted_pos']] = to_liftover.apply(lambda x: _convert_coordinates(x, lo), axis=1)
         logger.debug("Liftover complete")
 
         mapped: pd.DataFrame = (to_liftover[~to_liftover[['lifted_chr', 'lifted_pos']].isnull().any(axis=1)]

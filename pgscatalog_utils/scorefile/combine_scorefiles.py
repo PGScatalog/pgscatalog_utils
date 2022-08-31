@@ -15,6 +15,7 @@ from pgscatalog_utils.scorefile.effect_weight import melt_effect_weights
 from pgscatalog_utils.scorefile.liftover import liftover
 from pgscatalog_utils.scorefile.write import write_scorefile
 
+
 def combine_scorefiles():
     args = _parse_args()
 
@@ -73,16 +74,11 @@ def combine_scorefiles():
     write_scorefile(scorefiles, args.outfile)
 
 
-
-if __name__ == "__main__":
-    combine_scorefiles()
-
-
 def _description_text() -> str:
     return textwrap.dedent('''\
     Combine multiple scoring files in PGS Catalog format (see https://www.pgscatalog.org/downloads/ 
     for details) to a 'long' table of columns needed for variant matching and subsequent calculation. 
-    
+
     Custom scorefiles in PGS Catalog format can be combined with PGS Catalog scoring files, and 
     optionally liftover genomic coordinates to GRCh37 or GRCh38. The script can accept a mix of
     unharmonised and harmonised PGS Catalog data. By default all variants are output (including 
@@ -106,15 +102,15 @@ def _parse_args(args=None) -> argparse.Namespace:
     parser.add_argument('--liftover', dest='liftover',
                         help='<Optional> Convert scoring file variants to target genome build?', action='store_true')
     parser.add_argument('-t', '--target_build', dest='target_build',
-                        choices=['GRCh37', 'GRCh38'], help='Build of target genome',
+                        choices=['GRCh37', 'GRCh38'], help='<Required> Build of target genome',
                         required=True)
     parser.add_argument('-c', '--chain_dir', dest='chain_dir', help='Path to directory containing chain files',
                         required="--liftover" in sys.argv)
     parser.add_argument('-m', '--min_lift', dest='min_lift',
-                        help='If liftover, minimum proportion of variants lifted over',
+                        help='<Optional> If liftover, minimum proportion of variants lifted over',
                         required="--liftover" in sys.argv, default=0.95, type=float)
     parser.add_argument('--drop_missing', dest='drop_missing', action='store_true',
-                        help='Drop variants with missing information (chr/pos) and '
+                        help='<Optional> Drop variants with missing information (chr/pos) and '
                              'non-standard alleles (e.g. HLA=P/N) from the output file.')
     parser.add_argument('-o', '--outfile', dest='outfile', required=True,
                         default='combined.txt',
@@ -123,3 +119,8 @@ def _parse_args(args=None) -> argparse.Namespace:
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)
+
+
+if __name__ == "__main__":
+    combine_scorefiles()
+

@@ -1,14 +1,18 @@
 import os
+from typing import Tuple
+
 import pandas as pd
 import logging
 
 import gzip
 import io
 
+from pandas import DataFrame
+
 logger = logging.getLogger(__name__)
 
 
-def load_scorefile(path: str) -> pd.DataFrame:
+def load_scorefile(path: str) -> tuple[dict, pd.DataFrame]:
     logger.debug(f'Reading scorefile {path}')
     return (_read_header(path),
             pd.read_table(path, dtype=_scorefile_dtypes(), comment='#', na_values=['None'], low_memory=False)
@@ -18,8 +22,9 @@ def load_scorefile(path: str) -> pd.DataFrame:
 
 def _read_header(path: str) -> dict:
     """Parses the header of a PGS Catalog format scorefle into a dictionary"""
+    f = io.TextIOWrapper(gzip.open(path, 'r'))
     try:
-        f = io.TextIOWrapper(gzip.open(path, 'r'))
+        f.readline()
     except gzip.BadGzipFile:
         f = open(path, 'r')
 
@@ -41,6 +46,7 @@ def _read_header(path: str) -> dict:
         header['genome_build'] = None
     f.close()
     return header
+
 
 def _scorefile_dtypes() -> dict[str]:
     """ Data types for columns that might be found in a scorefile """

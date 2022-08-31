@@ -7,7 +7,8 @@ from pgscatalog_utils.download.score import query_score
 
 def test_combine_scorefiles(combined_scorefile, _n_variants):
     df = pd.read_table(combined_scorefile)
-    cols = {'chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type', 'accession'}
+    cols = {'chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type',
+            'is_duplicated', 'accession'}
     assert set(df.columns).issubset(cols)
     assert df.shape[0] == _n_variants
 

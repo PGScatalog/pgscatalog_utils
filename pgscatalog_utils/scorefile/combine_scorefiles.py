@@ -43,19 +43,21 @@ if __name__ == "__main__":
 
 def _description_text() -> str:
     return textwrap.dedent('''\
-    Combine multiple scoring files in PGS Catalog format (see 
-    https://www.pgscatalog.org/downloads/ for details) to a 'long'
-    table, and optionally liftover genomic coordinates to GRCh37 or
-    GRCh38. Custom scorefiles in PGS Catalog format can be combined
-    with PGS Catalog scoring files. The program can accept a mix of
-    unharmonised and harmonised PGS Catalog data.     
+    Combine multiple scoring files in PGS Catalog format (see https://www.pgscatalog.org/downloads/ 
+    for details) to a 'long' table of columns needed for variant matching and subsequent calculation. 
+    
+    Custom scorefiles in PGS Catalog format can be combined with PGS Catalog scoring files, and 
+    optionally liftover genomic coordinates to GRCh37 or GRCh38. The script can accept a mix of
+    unharmonised and harmonised PGS Catalog data. By default all variants are output (including 
+    positions with duplicated data [often caused by rsID/liftover collions across builds]) and 
+    variants with missing positions. 
     ''')
 
 
 def _epilog_text() -> str:
     return textwrap.dedent('''\
-    The long table is used to simplify intersecting variants in target
-    genomes and the scoring files with the match_variants program.    
+    The long table is used to simplify intersecting variants in target genotyping datasets 
+    and the scoring files with the match_variants program.
     ''')
 
 
@@ -75,10 +77,11 @@ def _parse_args(args=None) -> argparse.Namespace:
                         required="--liftover" in sys.argv, default=0.95, type=float)
     parser.add_argument('--drop_missing', dest='drop_missing', action='store_true',
                         help='Drop variants with missing information (chr/pos) and '
-                             'non-standard alleles from the output file.')
+                             'non-standard alleles (e.g. HLA=P/N) from the output file.')
     parser.add_argument('-o', '--outfile', dest='outfile', required=True,
                         default='combined.txt',
-                        help='<Required> Output path to combined long scorefile')
+                        help='<Required> Output path to combined long scorefile '
+                             '[ will compress output if filename ends with .gz ]')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)

@@ -51,13 +51,5 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, pvar: bool)
         return df
 
 
-def check_weights(df: pl.DataFrame) -> None:
-    """ Checks weights for scoring file variants that could be matched (e.g. have a chr & pos) """
-    weight_count = df.filter(pl.col('chr_name').is_not_null() & pl.col('chr_position').is_not_null()).groupby(['accession', 'chr_name', 'chr_position', 'effect_allele']).count()
-    if any(weight_count['count'] > 1):
-        logger.error("Multiple effect weights per variant per accession detected in files: {}".format(list(weight_count.filter(pl.col('count') > 1)['accession'].unique())))
-        raise Exception
-
-
 def _annotate_multiallelic(df: pl.DataFrame) -> pl.DataFrame:
     df.with_column(pl.when(pl.col("ALT").str.contains(',')).then(pl.lit(True)).otherwise(pl.lit(False)).alias('is_multiallelic'))

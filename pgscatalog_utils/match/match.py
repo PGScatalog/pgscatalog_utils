@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, remove_ambiguous: bool,
-                    skip_flip: bool) -> pl.DataFrame:
+                    skip_flip: bool, keep_first_match: bool) -> pl.DataFrame:
     scorefile_cat, target_cat = _cast_categorical(scorefile, target)
     scorefile_oa = scorefile_cat.filter(pl.col("other_allele") != None)
     scorefile_no_oa = scorefile_cat.filter(pl.col("other_allele") == None)
@@ -35,7 +35,7 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, remove_ambigu
             matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref_flip").select(col_order))
             matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt_flip").select(col_order))
 
-    return pl.concat(matches).pipe(postprocess_matches, remove_ambiguous)
+    return pl.concat(matches).pipe(postprocess_matches, remove_ambiguous, keep_first_match)
 
 
 def check_match_rate(scorefile: pl.DataFrame, matches: pl.DataFrame, min_overlap: float, dataset: str) -> pl.DataFrame:
@@ -58,13 +58,15 @@ def check_match_rate(scorefile: pl.DataFrame, matches: pl.DataFrame, min_overlap
             pass_df = pl.concat([pass_df, df])
             logger.error(f"Score {accession} fails minimum matching threshold ({1 - rate:.2%} variants match)")
 
+    # TODO: fill nulls in certain columns with false in a nicer way
+    match_log['passes_pruning'] = match_log['passes_pruning'].fill_null(False)
+
     # add match statistics to log and matches
     write_log((match_log.with_column(pl.col('accession').cast(str))
                .join(pass_df, on='accession', how='left')), dataset)
 
     return (matches.with_column(pl.col('accession').cast(str))
             .join(pass_df, on='accession', how='left'))
-
 
 
 def _match_keys():

@@ -35,15 +35,16 @@ def match_variants():
         match match_mode:
             case "single":
                 logger.debug(f"Match mode: {match_mode}")
-                matches = _match_single_target(args.target, scorefile, args.remove_multiallelic, args.remove_ambiguous, args.skip_flip)
+                matches = _match_single_target(args.target, scorefile, args.remove_multiallelic, args.remove_ambiguous,
+                                               args.skip_flip, args.keep_first_match)
             case "multi":
                 logger.debug(f"Match mode: {match_mode}")
                 matches = _match_multiple_targets(args.target, scorefile, args.remove_multiallelic,
-                                                  args.remove_ambiguous, args.skip_flip)
+                                                  args.remove_ambiguous, args.skip_flip, args.keep_first_match)
             case "fast":
                 logger.debug(f"Match mode: {match_mode}")
                 matches = _fast_match(args.target, scorefile, args.remove_multiallelic,
-                                      args.remove_ambiguous, args.skip_flip)
+                                      args.remove_ambiguous, args.skip_flip, args.keep_first_match)
             case _:
                 logger.critical(f"Invalid match mode: {match_mode}")
                 raise Exception
@@ -69,37 +70,37 @@ def _check_target_chroms(target) -> None:
 
 
 def _fast_match(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
-                remove_ambiguous: bool, skip_filp: bool) -> pl.DataFrame:
+                remove_ambiguous: bool, skip_filp: bool, keep_first_match: bool) -> pl.DataFrame:
     # fast match is fast because:
     #   1) all target files are read into memory
     #   2) matching occurs without iterating through chromosomes
     target: pl.DataFrame = read_target(path=target_path,
                                        remove_multiallelic=remove_multiallelic)
     logger.debug("Split target chromosomes not checked with fast match mode")
-    return get_all_matches(scorefile, target, remove_ambiguous, skip_filp)
+    return get_all_matches(scorefile, target, remove_ambiguous, skip_filp, keep_first_match)
 
 
 def _match_multiple_targets(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
-                            remove_ambiguous: bool, skip_filp: bool) -> pl.DataFrame:
+                            remove_ambiguous: bool, skip_filp: bool, keep_first_match: bool) -> pl.DataFrame:
     matches = []
     for i, loc_target_current in enumerate(glob(target_path)):
         logger.debug(f'Matching scorefile(s) against target: {loc_target_current}')
         target: pl.DataFrame = read_target(path=loc_target_current,
                                            remove_multiallelic=remove_multiallelic)  #
         _check_target_chroms(target)
-        matches.append(get_all_matches(scorefile, target, remove_ambiguous, skip_filp))
+        matches.append(get_all_matches(scorefile, target, remove_ambiguous, skip_filp, keep_first_match))
     return pl.concat(matches)
 
 
 def _match_single_target(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
-                         remove_ambiguous: bool, skip_filp: bool) -> pl.DataFrame:
+                         remove_ambiguous: bool, skip_filp: bool, keep_first_match: bool) -> pl.DataFrame:
     matches = []
     for chrom in scorefile['chr_name'].unique().to_list():
         target = read_target(target_path, remove_multiallelic=remove_multiallelic,
                              single_file=True, chrom=chrom)  # scans and filters
         if target:
             logger.debug(f"Matching chromosome {chrom}")
-            matches.append(get_all_matches(scorefile, target, remove_ambiguous, skip_filp))
+            matches.append(get_all_matches(scorefile, target, remove_ambiguous, skip_filp, keep_first_match))
 
     return pl.concat(matches)
 
@@ -181,6 +182,9 @@ def _parse_args(args=None):
                         help='''<Optional> Flag to not consider matched variants that may be reported 
                         on the opposite strand.  Default behaviour is to flip/complement unmatched variants and check if
                         they match.''')
+    parser.add_argument('--keep_first_match', dest='keep_first_match', action='store_true',
+                        help='''<Optional> If multiple match candidates for a variant exist that can't be prioritised,
+                         keep the first match candidate (default: drop all candidates)''')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)

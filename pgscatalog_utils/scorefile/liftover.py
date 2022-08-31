@@ -30,7 +30,8 @@ def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float, target_build: st
     else:
         lo: dict[str, pyliftover.LiftOver] = _create_liftover(chain_dir)  # loads chain files
         logger.debug("Lifting over scoring files")
-        to_liftover[['lifted_chr', 'lifted_pos']] = to_liftover.apply(lambda x: _convert_coordinates(x, lo), axis=1)
+        lifted: pd.DataFrame = to_liftover.apply(_convert_coordinates, axis=1, lo_dict=lo)
+        to_liftover = pd.concat([to_liftover, lifted], axis=1)
         logger.debug("Liftover complete")
 
         mapped: pd.DataFrame = (to_liftover[~to_liftover[['lifted_chr', 'lifted_pos']].isnull().any(axis=1)]
@@ -65,6 +66,8 @@ def _check_min_liftover(mapped: pd.DataFrame, unmapped: pd.DataFrame, min_lift: 
 
 def _convert_coordinates(df: pd.Series, lo_dict: dict[str, pyliftover.LiftOver]) -> pd.Series:
     """ Convert genomic coordinates to different build """
+    converted: list[tuple[str, int, str, int]] | None
+
     if df[['chr_name', 'chr_position']].isnull().values.any():
         converted = None
     else:
@@ -72,14 +75,14 @@ def _convert_coordinates(df: pd.Series, lo_dict: dict[str, pyliftover.LiftOver])
         chrom: str = 'chr' + str(df['chr_name'])
         pos: int = int(df['chr_position']) - 1  # liftOver is 0 indexed, VCF is 1 indexed
         # converted example: [('chr22', 15460378, '+', 3320966530)] or None
-        converted: list[tuple[str, int, str, int] | None] = lo.convert_coordinate(chrom, pos)
+        converted = lo.convert_coordinate(chrom, pos)
 
     if converted:
         lifted_chrom: str = _parse_lifted_chrom(converted[0][0][3:])  # return first matching liftover
         lifted_pos: int = int(converted[0][1]) + 1  # reverse 0 indexing
-        return pd.Series([lifted_chrom, lifted_pos])
+        return pd.Series([lifted_chrom, lifted_pos], index=['lifted_chr', 'lifted_pos'])
     else:
-        return pd.Series([None, None])
+        return pd.Series([None, None], index=['lifted_chr', 'lifted_pos'])
 
 
 def _parse_lifted_chrom(i: str) -> str:

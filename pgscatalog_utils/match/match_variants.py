@@ -175,7 +175,7 @@ def _parse_args(args=None):
                         excluded (default: false). In this case the program proceeds
                         assuming that the genotype data is on the same strand as the
                         GWAS whose summary statistics were used to construct the score.
-    			        ''')
+                                ''')
     parser.add_argument('--keep_multiallelic', dest='remove_multiallelic', action='store_false',
                         help='<Optional> Flag to allow matching to multiallelic variants (default: false).')
     parser.add_argument('--ignore_strand_flips', dest='skip_flip', action='store_true',

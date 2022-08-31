@@ -1,7 +1,8 @@
-import requests
 import logging
-import jq
 import sys
+
+import jq
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ def query_score(pgs_id: list[str]) -> dict:
 
 def _chunker(pgs: list[str]):
     size = 50  # /rest/score/{pgs_id} limit when searching multiple IDs
-    return(pgs[pos: pos + size] for pos in range(0, len(pgs), size))
+    return (pgs[pos: pos + size] for pos in range(0, len(pgs), size))
 
 
 def _parse_json_query(json: dict, build: str | None) -> dict[str, str]:
@@ -53,5 +54,6 @@ def _extract_ftp_url(json: list[dict], build: str | None) -> dict[str, str]:
         result: list[str] = jq.compile(f'[.results][][].ftp_scoring_file').input(
             json).all()
     else:
-        result: list[str] = jq.compile(f'[.results][][].ftp_harmonized_scoring_files.{build}.positions').input(json).all()
+        result: list[str] = jq.compile(f'[.results][][].ftp_harmonized_scoring_files.{build}.positions').input(
+            json).all()
     return dict(zip(id, [x.replace('https', 'ftp') for x in result]))

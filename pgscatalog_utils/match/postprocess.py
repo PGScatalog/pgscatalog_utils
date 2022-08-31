@@ -1,6 +1,7 @@
-from functools import reduce
-import polars as pl
 import logging
+from functools import reduce
+
+import polars as pl
 
 from pgscatalog_utils.match.preprocess import complement_valid_alleles
 

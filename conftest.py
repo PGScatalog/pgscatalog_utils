@@ -1,12 +1,14 @@
-import pytest
-from unittest.mock import patch
-from pgscatalog_utils.download.download_scorefile import download_scorefile
-import os
-import requests as req
-from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
-from pysqlar import SQLiteArchive
-import pandas as pd
 import glob
+import os
+from unittest.mock import patch
+
+import pandas as pd
+import pytest
+import requests as req
+from pysqlar import SQLiteArchive
+
+from pgscatalog_utils.download.download_scorefile import download_scorefile
+from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
 
 
 @pytest.fixture(scope="session")
@@ -66,7 +68,7 @@ def mini_score_path(tmp_path_factory):
 def mini_scorefile(mini_score_path, tmp_path_factory):
     # The mini scorefile overlaps well with cineca synthetic subset
     out_path = tmp_path_factory.mktemp("scores") / "mini_score.txt"
-    args: list[str] = ['combine_scorefiles', '-s'] + [mini_score_path] + ['-o', str(out_path.resolve())]
+    args: list[str] = ['combine_scorefiles', '-t', 'GRCh37', '-s'] + [mini_score_path] + ['-o', str(out_path.resolve())]
 
     with patch('sys.argv', args):
         combine_scorefiles()
@@ -78,7 +80,7 @@ def mini_scorefile(mini_score_path, tmp_path_factory):
 def combined_scorefile(scorefiles, tmp_path_factory):
     # The combined scorefile overlaps poorly with cineca synthetic subset
     out_path = tmp_path_factory.mktemp("scores") / "combined.txt"
-    args: list[str] = ['combine_scorefiles', '-s'] + scorefiles + ['-o', str(out_path.resolve())]
+    args: list[str] = ['combine_scorefiles', '-t', 'GRCh37', '-s'] + scorefiles + ['-o', str(out_path.resolve())]
 
     with patch('sys.argv', args):
         combine_scorefiles()
@@ -111,10 +113,11 @@ def chain_files(db, tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def lifted_scorefiles(scorefiles, chain_files, tmp_path_factory):
+def lifted_scorefiles(mini_score_path, chain_files, tmp_path_factory):
     out_path = tmp_path_factory.mktemp("scores") / "lifted.txt"
-    args: list[str] = ['combine_scorefiles', '-s'] + scorefiles + ['--liftover', '-c', chain_files, '-t', 'GRCh38',
-                                                                   '-m', '0.8'] + ['-o', str(out_path.resolve())]
+    args: list[str] = ['combine_scorefiles', '-s'] + [mini_score_path] + ['--liftover', '-c', chain_files, '-t',
+                                                                          'GRCh38',
+                                                                          '-m', '0.8'] + ['-o', str(out_path.resolve())]
 
     with patch('sys.argv', args):
         combine_scorefiles()
@@ -123,15 +126,11 @@ def lifted_scorefiles(scorefiles, chain_files, tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def hg38_coords(tmp_path_factory):
-    out_path = tmp_path_factory.mktemp("dummy") / "hg38.txt"
+def hg38_coords():
     d = {'rsid': ['rs11903757', 'rs6061231'], 'chr_name': ['2', '20'], 'chr_position': [191722478, 62381861]}
     df = pd.DataFrame(d)
-    with open(out_path, 'w') as f:
-        f.write('#genome_build=GRCh38\n')
-    df.to_csv(out_path, mode='a', index=False)
-    df['filename'] = str(out_path.resolve())
     df['accession'] = 'dummy'
+    df['genome_build'] = 'GRCh38'
     return df
 
 

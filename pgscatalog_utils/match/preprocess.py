@@ -1,5 +1,6 @@
-import polars as pl
 import logging
+
+import polars as pl
 
 logger = logging.getLogger(__name__)
 
@@ -12,16 +13,16 @@ def complement_valid_alleles(df: pl.DataFrame, flip_cols: list[str]) -> pl.DataF
         new_col = col + '_FLIP'
         df = df.with_column(
             pl.when(pl.col(col).str.contains('^[ACGT]+$'))
-                .then(pl.col(col).str.replace_all("A", "V")
-                           .str.replace_all("T", "X")
-                           .str.replace_all("C", "Y")
-                           .str.replace_all("G", "Z")
-                           .str.replace_all("V", "T")
-                           .str.replace_all("X", "A")
-                           .str.replace_all("Y", "G")
-                           .str.replace_all("Z", "C"))
-                .otherwise(pl.col(col))
-                .alias(new_col)
+            .then(pl.col(col).str.replace_all("A", "V")
+                  .str.replace_all("T", "X")
+                  .str.replace_all("C", "Y")
+                  .str.replace_all("G", "Z")
+                  .str.replace_all("V", "T")
+                  .str.replace_all("X", "A")
+                  .str.replace_all("Y", "G")
+                  .str.replace_all("Z", "C"))
+            .otherwise(pl.col(col))
+            .alias(new_col)
         )
     return df
 
@@ -52,4 +53,5 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, pvar: bool)
 
 
 def _annotate_multiallelic(df: pl.DataFrame) -> pl.DataFrame:
-    df.with_column(pl.when(pl.col("ALT").str.contains(',')).then(pl.lit(True)).otherwise(pl.lit(False)).alias('is_multiallelic'))
+    df.with_column(
+        pl.when(pl.col("ALT").str.contains(',')).then(pl.lit(True)).otherwise(pl.lit(False)).alias('is_multiallelic'))

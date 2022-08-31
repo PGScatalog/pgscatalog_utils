@@ -1,6 +1,6 @@
-import pandas as pd
 import logging
-import sqlite3
+
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -34,4 +34,3 @@ def _filter_failed_liftover(df: pd.DataFrame) -> pd.DataFrame:
         return df.query('liftover == True')
     else:
         return df
-

@@ -1,6 +1,7 @@
-import polars as pl
 import logging
 import os
+
+import polars as pl
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +57,10 @@ def _format_scorefile(df: pl.DataFrame, split: bool) -> dict[str, pl.DataFrame]:
                 for x in chroms}
     else:
         logger.debug("Split output not requested")
-        formatted: pl.DataFrame = (df.pivot(index=["ID", "matched_effect_allele"], values="effect_weight", columns="accession")
-                                   .rename({"matched_effect_allele": "effect_allele"})
-                                   .fill_null(strategy="zero"))
+        formatted: pl.DataFrame = (
+            df.pivot(index=["ID", "matched_effect_allele"], values="effect_weight", columns="accession")
+            .rename({"matched_effect_allele": "effect_allele"})
+            .fill_null(strategy="zero"))
         return {'false': formatted}
 
 
@@ -87,8 +89,8 @@ def _deduplicate_variants(effect_type: str, df: pl.DataFrame) -> list[pl.DataFra
     # 2. use cumcount to number duplicate IDs
     # 3. join cumcount data on original DF, use this data for splitting
     ea_count: pl.DataFrame = (df.select(["ID", "effect_allele"])
-        .distinct()
-        .with_columns([
+    .distinct()
+    .with_columns([
         pl.col("ID").cumcount().over(["ID"]).alias("cumcount"),
         pl.col("ID").count().over(["ID"]).alias("count")
     ]))

@@ -1,8 +1,10 @@
+import logging
+import os
+
 import pandas as pd
 import pyliftover
-import os
-import logging
-from .genome_build import annotate_build
+
+from pgscatalog_utils.scorefile.genome_build import annotate_build
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,8 @@ def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float, target_build: st
         logger.debug("Liftover required for all scorefile variants")
     else:
         logger.debug("Skipping liftover for scorefiles with same build as target genome")
-        no_liftover.loc[:,['lifted_chr', 'lifted_pos']] = no_liftover[['chr_name', 'chr_position']]  # assume col structure
+        no_liftover.loc[:, ['lifted_chr', 'lifted_pos']] = no_liftover[
+            ['chr_name', 'chr_position']]  # assume col structure
         no_liftover.assign(liftover=None)
 
     if to_liftover.empty:
@@ -32,7 +35,7 @@ def liftover(df: pd.DataFrame, chain_dir: str, min_lift: float, target_build: st
 
         mapped: pd.DataFrame = (to_liftover[~to_liftover[['lifted_chr', 'lifted_pos']].isnull().any(axis=1)]
                                 .assign(liftover=True))
-        unmapped: pd.DataFrame = (to_liftover[to_liftover[['lifted_chr', 'lifted_pos']].isnull().any(axis=1)]\
+        unmapped: pd.DataFrame = (to_liftover[to_liftover[['lifted_chr', 'lifted_pos']].isnull().any(axis=1)] \
                                   .assign(liftover=False))
         _check_min_liftover(mapped, unmapped, min_lift)
 
@@ -45,7 +48,7 @@ def _check_min_liftover(mapped: pd.DataFrame, unmapped: pd.DataFrame, min_lift: 
     n_variants: pd.DataFrame = (pd.DataFrame(df.groupby('accession')['liftover'].count())
                                 .reset_index()
                                 .rename({'liftover': 'n_var'}, axis=1))
-    lo_counts = (pd.DataFrame(df.groupby(['accession', 'liftover'])['liftover'].count())\
+    lo_counts = (pd.DataFrame(df.groupby(['accession', 'liftover'])['liftover'].count()) \
                  .rename_axis(['accession', 'liftover_status'])
                  .reset_index())
     summary: pd.DataFrame = lo_counts.merge(n_variants, on='accession')
@@ -91,7 +94,7 @@ def _parse_lifted_chrom(i: str) -> str:
 def _create_liftover(chain_dir: str) -> dict['str': pyliftover.LiftOver]:
     """ Create LiftOver objects that can remap genomic coordinates """
     builds: list[str] = ["hg19hg38", "hg38hg19"]
-    chains: list[str] = [os.path.join(chain_dir, x) for x in ["hg19ToHg38.over.chain.gz",  "hg38ToHg19.over.chain.gz"]]
+    chains: list[str] = [os.path.join(chain_dir, x) for x in ["hg19ToHg38.over.chain.gz", "hg38ToHg19.over.chain.gz"]]
     lo: list[pyliftover.LiftOver] = [pyliftover.LiftOver(x) for x in chains]
     logger.debug("Chain files loaded for liftover")
     return dict(zip(builds, lo))

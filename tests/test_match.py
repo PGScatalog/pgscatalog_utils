@@ -1,5 +1,5 @@
-import os
 from unittest.mock import patch
+
 import polars as pl
 import pytest
 
@@ -53,8 +53,8 @@ def test_match_strategies(small_scorefile, small_target):
     # when keeping ambiguous and flipping alleles:
     #   2:2:T:A is ambiguous, and matches 'altref' and 'refalt_flip'
     # flipped matches should be dropped for ambiguous matches
-    flip = (get_all_matches(scorefile, target, remove_ambiguous=False, skip_flip=False)\
-        .filter(pl.col('ambiguous') == True))
+    flip = (get_all_matches(scorefile, target, remove_ambiguous=False, skip_flip=False) \
+            .filter(pl.col('ambiguous') == True))
     assert set(flip['ID'].to_list()).issubset({'2:2:T:A'})
     assert set(flip['match_type'].to_list()).issubset({'altref'})
 
@@ -62,7 +62,7 @@ def test_match_strategies(small_scorefile, small_target):
 def test_no_oa_match(small_scorefile_no_oa, small_target):
     scorefile, target = _cast_cat(small_scorefile_no_oa, small_target)
 
-    df = get_all_matches(scorefile, target, remove_ambiguous=True,skip_flip=True)
+    df = get_all_matches(scorefile, target, remove_ambiguous=True, skip_flip=True)
     assert set(df['ID'].to_list()).issubset(['3:3:T:G', '1:1:A:C'])
     assert set(df['match_type'].to_list()).issubset(['no_oa_alt', 'no_oa_ref'])
 
@@ -123,4 +123,3 @@ def small_target():
                          "ALT": ["C", "A", "G"],
                          "ID": ["1:1:A:C", "2:2:T:A", "3:3:T:G"],
                          "is_multiallelic": [False, False, False]})
-

@@ -1,5 +1,6 @@
-import re
 import logging
+import re
+
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -46,5 +47,3 @@ def _melt(df: pd.DataFrame) -> pd.DataFrame:
     """ Melt a multiple effect weight format """
     ew_cols: list[str] = df.filter(regex="effect_weight_*").columns.to_list()
     return df.melt(value_vars=ew_cols, value_name="effect_weight", var_name="accession")
-
-

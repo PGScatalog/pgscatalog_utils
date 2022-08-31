@@ -1,8 +1,8 @@
 from unittest.mock import patch
 
+import jq
 import pandas as pd
 import pytest
-import jq
 
 from pgscatalog_utils.download.score import query_score
 from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
@@ -35,4 +35,3 @@ def _n_variants(pgs_accessions):
     json = query_score(pgs_accessions)
     n: list[int] = jq.compile("[.results][][].variants_number").input(json).all()
     return sum(n)
-

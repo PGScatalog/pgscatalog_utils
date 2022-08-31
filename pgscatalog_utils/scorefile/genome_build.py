@@ -1,4 +1,5 @@
 import logging
+
 import pandas as pd
 
 from pgscatalog_utils.scorefile.read import _read_header
@@ -14,17 +15,18 @@ def annotate_build(df: pd.DataFrame, target_build: str) -> pd.DataFrame:
     df = df.assign(chain_genome_build=[build_dict[x] for x in df['genome_build']])
     return df
 
+
 def build2GRC(build):
     """Map build names so they can be compared with GRCh37 and 38"""
-    build_2_GRC_dict = {'GRCh37': 'GRCh37', 'GRCh38': 'GRCh38', 'hg19': 'GRCh37', 'hg38': 'GRCh38'}  # standardise build names
+    build_2_GRC_dict = {'GRCh37': 'GRCh37', 'GRCh38': 'GRCh38', 'hg19': 'GRCh37',
+                        'hg38': 'GRCh38'}  # standardise build names
     if pd.isnull(build):
         return None
     else:
         return build_2_GRC_dict.get(build)
 
 
-
-def _read_build(path: str) -> str:
+def _read_build(path: str) -> dict[str, str]:
     """ Open scorefiles and automatically handle compressed input """
     logger.debug(f'Reading header of {path}')
     h = _read_header(path)
@@ -38,4 +40,3 @@ def _get_builds(paths: list) -> pd.DataFrame:
         | x_hmPOS_GRCh37.txt.gz |    | x_hmPOS_GRCh37.txt.gz | hg19         | GRCh37      |
     """
     return pd.DataFrame.from_dict({path: _read_build(path) for path in paths}, orient='index')
-

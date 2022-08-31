@@ -1,13 +1,9 @@
-import os
-from typing import Tuple
-
-import pandas as pd
-import logging
-
 import gzip
 import io
+import logging
+import os
 
-from pandas import DataFrame
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +55,7 @@ def _get_basename(path: str) -> str:
     """ Return the basename of a scoring file without extension """
     return os.path.basename(path).split('.')[0]
 
+
 remap_header = {
     'PGS ID': 'pgs_id',
     'PGS Name': 'pgs_name',
@@ -70,7 +67,7 @@ remap_header = {
     'LICENSE': 'license',
     # Harmonization related
     'HmPOS Build': 'HmPOS_build',
-    'HmPOS Date':'HmPOS_date',
+    'HmPOS Date': 'HmPOS_date',
     'HmVCF Reference': 'HmVCF_ref',
     'HmVCF Date': 'HmVCF_date',
     'HmVCF N Matched Variants': 'HmVCF_n_matched',

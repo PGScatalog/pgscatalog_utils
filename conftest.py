@@ -1,12 +1,14 @@
-import pytest
-from unittest.mock import patch
-from pgscatalog_utils.download.download_scorefile import download_scorefile
-import os
-import requests as req
-from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
-from pysqlar import SQLiteArchive
-import pandas as pd
 import glob
+import os
+from unittest.mock import patch
+
+import pandas as pd
+import pytest
+import requests as req
+from pysqlar import SQLiteArchive
+
+from pgscatalog_utils.download.download_scorefile import download_scorefile
+from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
 
 
 @pytest.fixture(scope="session")
@@ -113,8 +115,9 @@ def chain_files(db, tmp_path_factory):
 @pytest.fixture(scope="session")
 def lifted_scorefiles(mini_score_path, chain_files, tmp_path_factory):
     out_path = tmp_path_factory.mktemp("scores") / "lifted.txt"
-    args: list[str] = ['combine_scorefiles', '-s'] + [mini_score_path] + ['--liftover', '-c', chain_files, '-t', 'GRCh38',
-                                                                   '-m', '0.8'] + ['-o', str(out_path.resolve())]
+    args: list[str] = ['combine_scorefiles', '-s'] + [mini_score_path] + ['--liftover', '-c', chain_files, '-t',
+                                                                          'GRCh38',
+                                                                          '-m', '0.8'] + ['-o', str(out_path.resolve())]
 
     with patch('sys.argv', args):
         combine_scorefiles()

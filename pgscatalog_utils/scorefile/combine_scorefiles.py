@@ -6,13 +6,13 @@ import textwrap
 import pandas as pd
 
 from pgscatalog_utils.log_config import set_logging_level
-from pgscatalog_utils.scorefile.read import load_scorefile
-from pgscatalog_utils.scorefile.harmonised import remap_harmonised
-from pgscatalog_utils.scorefile.qc import quality_control
-from pgscatalog_utils.scorefile.genome_build import build2GRC
 from pgscatalog_utils.scorefile.effect_type import set_effect_type
 from pgscatalog_utils.scorefile.effect_weight import melt_effect_weights
+from pgscatalog_utils.scorefile.genome_build import build2GRC
+from pgscatalog_utils.scorefile.harmonised import remap_harmonised
 from pgscatalog_utils.scorefile.liftover import liftover
+from pgscatalog_utils.scorefile.qc import quality_control
+from pgscatalog_utils.scorefile.read import load_scorefile
 from pgscatalog_utils.scorefile.write import write_scorefile
 
 
@@ -38,14 +38,15 @@ def combine_scorefiles():
                 use_harmonised = True
                 current_build = h.get('HmPOS_build')
             else:
-                logger.error(f"Cannot combine {x} (harmonized to {h.get('HmPOS_build')}) in target build {args.target_build}")
+                logger.error(
+                    f"Cannot combine {x} (harmonized to {h.get('HmPOS_build')}) in target build {args.target_build}")
                 raise Exception
 
         # Process/QC score and check variant columns
         score = (score.pipe(remap_harmonised, use_harmonised=True)
-                  .pipe(quality_control, drop_missing=args.drop_missing)
-                  .pipe(melt_effect_weights)
-                  .pipe(set_effect_type))
+                 .pipe(quality_control, drop_missing=args.drop_missing)
+                 .pipe(melt_effect_weights)
+                 .pipe(set_effect_type))
 
         # Annotate score with the genome_build (in GRCh notation)
         if current_build is None:
@@ -123,4 +124,3 @@ def _parse_args(args=None) -> argparse.Namespace:
 
 if __name__ == "__main__":
     combine_scorefiles()
-

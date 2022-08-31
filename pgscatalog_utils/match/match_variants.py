@@ -35,7 +35,8 @@ def match_variants():
         match match_mode:
             case "single":
                 logger.debug(f"Match mode: {match_mode}")
-                matches = _match_single_target(args.target, scorefile, args.remove_multiallelic, args.remove_ambiguous, args.skip_flip)
+                matches = _match_single_target(args.target, scorefile, args.remove_multiallelic, args.remove_ambiguous,
+                                               args.skip_flip)
             case "multi":
                 logger.debug(f"Match mode: {match_mode}")
                 matches = _match_multiple_targets(args.target, scorefile, args.remove_multiallelic,

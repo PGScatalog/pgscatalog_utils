@@ -1,6 +1,7 @@
-import requests
 import logging
 from functools import reduce
+
+import requests
 
 logger = logging.getLogger(__name__)
 

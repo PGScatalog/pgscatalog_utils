@@ -66,7 +66,6 @@ def check_match_rate(scorefile: pl.DataFrame, matches: pl.DataFrame, min_overlap
             .join(pass_df, on='accession', how='left'))
 
 
-
 def _match_keys():
     return ['chr_name', 'chr_position', 'effect_allele', 'other_allele',
             'accession', 'effect_type', 'effect_weight']

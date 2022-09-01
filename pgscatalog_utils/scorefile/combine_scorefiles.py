@@ -43,7 +43,7 @@ def combine_scorefiles():
                 raise Exception
 
         # Process/QC score and check variant columns
-        score = (score.pipe(remap_harmonised, use_harmonised=True)
+        score = (score.pipe(remap_harmonised, use_harmonised=use_harmonised)
                  .pipe(quality_control, drop_missing=args.drop_missing)
                  .pipe(melt_effect_weights)
                  .pipe(set_effect_type))

@@ -51,6 +51,11 @@ def combine_scorefiles():
         # Annotate score with the genome_build (in GRCh notation)
         if current_build is None:
             current_build = build2GRC(h.get('genome_build'))
+            if current_build is None:
+                logger.error("Scorefile has no build information, "
+                             "please add the build to the header with "
+                             "('#genome_build=[insert variant build]")
+                raise Exception
 
         score = score.assign(genome_build=current_build)
 

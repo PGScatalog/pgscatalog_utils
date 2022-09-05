@@ -78,18 +78,18 @@ def _prune_matches(df: pl.DataFrame, keep_first_match: bool = True) -> pl.DataFr
 
 def _get_singleton_variants(df: pl.DataFrame) -> pl.DataFrame:
     """ Return variants with only one row (match candidate) per variant ID """
-    return (df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele'])
+    return (df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele'])
             .count()
-            .filter(pl.col('count') == 1)[:, "accession":"effect_allele"]
-            .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))
+            .filter(pl.col('count') == 1)[:, "accession":"other_allele"]
+            .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele'], how='left'))
 
 
 def _get_duplicate_variants(df: pl.DataFrame) -> pl.DataFrame:
     """ Return variants with more than one row (match candidate) per variant ID """
-    return (df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele'])
+    return (df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele'])
             .count()
-            .filter(pl.col('count') > 1)[:, "accession":"effect_allele"]
-            .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele'], how='left'))
+            .filter(pl.col('count') > 1)[:, "accession":"other_allele"]
+            .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele'], how='left'))
 
 
 def _prioritise_match_type(duplicates: pl.DataFrame) -> pl.DataFrame:

@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 def write_scorefile(df: pd.DataFrame, path: str) -> None:
     cols: list[str] = ['chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type',
-                       'is_duplicated', 'accession']
+                       'is_duplicated', 'accession', 'row_nr']
 
     if df.empty:
         logger.error("Empty scorefile output! Please check the input data")

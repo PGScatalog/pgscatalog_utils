@@ -41,23 +41,22 @@ def _label_biallelic_ambiguous(df: pl.DataFrame) -> pl.DataFrame:
         .otherwise(False)))
 
 
-def _prune_matches(df: pl.DataFrame, keep_first_match: bool = True) -> pl.DataFrame:
+def _prune_matches(df: pl.DataFrame, keep_first_match: bool = False) -> pl.DataFrame:
     """ Select the best match candidate in the target for each variant in the scoring file
 
-    - In a scoring file (accession), each variant ID with the same effect allele and weight *must be unique*
     - The variant matching process normally returns multiple match candidates for each variant ID, e.g.:
         refalt > altref > refalt_flip > altref_flip
     - When multiple match candidates for an ID exist, they must be prioritised and pruned to be unique
     - If it's impossible to prioritise match candidates (i.e. same strategy is used), drop all matches by default
+    - In a scoring file (accession), each variant ID *must be unique* (have only one weight and effect_allele)
 
     :param df: A dataframe containing multiple match candidates for each variant
-    :param drop_duplicates: If it's impossible to make match candidates unique, drop all candidates?
+    :param keep_first_match: If it's impossible to make match candidates unique, keep the first occuring variant?
     :return: A dataframe containing the best match candidate for each variant
     """
     logger.debug("First match pruning: prioritise by match types")
     prioritised = _prioritise_match_type(df)
-    singletons: pl.DataFrame = _get_singleton_variants(prioritised)
-    dups: pl.DataFrame = _get_duplicate_variants(prioritised)
+    singletons, dups = _divide_matches(prioritised)
 
     if dups:
         if keep_first_match:
@@ -70,26 +69,25 @@ def _prune_matches(df: pl.DataFrame, keep_first_match: bool = True) -> pl.DataFr
         logger.debug("Final match pruning unnecessary")
         distinct: pl.DataFrame = singletons
 
-    assert all(distinct.groupby(['accession', 'ID']).count()['count'] == 1), "Duplicate effect weights for a variant"
+    # Final QC check
+    u_counts = distinct.groupby(['accession', 'ID']).count()
+    assert all(u_counts['count'] == 1), "Duplicate effect weights for a variant: {}".format(list(u_counts['accession'].unique()))
+
     logger.debug("Match pruning complete")
 
     return distinct.with_column(pl.lit(True).alias('passes_pruning'))
 
 
-def _get_singleton_variants(df: pl.DataFrame) -> pl.DataFrame:
-    """ Return variants with only one row (match candidate) per variant ID """
-    return (df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele'])
-            .count()
-            .filter(pl.col('count') == 1)[:, "accession":"other_allele"]
-            .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele'], how='left'))
+def _divide_matches(df: pl.DataFrame) -> tuple [ pl.DataFrame, pl.DataFrame ]:
+    """ Divide score file match candidates with only one row (unique) vs. multiple (duplicates)"""
+    join_cols = ['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele']
+    counted = df.groupby(join_cols).count()
+    singletons = (counted.filter(pl.col('count') == 1)[:, "accession":"other_allele"]
+                         .join(df, on=join_cols, how='left'))
+    duplicates = (counted.filter(pl.col('count') > 1)[:, "accession":"other_allele"]
+                         .join(df, on=join_cols, how='left'))
 
-
-def _get_duplicate_variants(df: pl.DataFrame) -> pl.DataFrame:
-    """ Return variants with more than one row (match candidate) per variant ID """
-    return (df.groupby(['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele'])
-            .count()
-            .filter(pl.col('count') > 1)[:, "accession":"other_allele"]
-            .join(df, on=['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele'], how='left'))
+    return singletons, duplicates
 
 
 def _prioritise_match_type(duplicates: pl.DataFrame) -> pl.DataFrame:

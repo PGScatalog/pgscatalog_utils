@@ -54,26 +54,21 @@ def _prune_matches(df: pl.DataFrame, keep_first_match: bool = True) -> pl.DataFr
     :param drop_duplicates: If it's impossible to make match candidates unique, drop all candidates?
     :return: A dataframe containing the best match candidate for each variant
     """
-
-    dups: pl.DataFrame = _get_duplicate_variants(df)
+    logger.debug("First match pruning: prioritise by match types")
+    prioritised = _prioritise_match_type(df)
+    singletons: pl.DataFrame = _get_singleton_variants(prioritised)
+    dups: pl.DataFrame = _get_duplicate_variants(prioritised)
 
     if dups:
-        logger.debug("First match pruning: prioritise by match types")
-        singletons: pl.DataFrame = _get_singleton_variants(df)
-        prioritised: pl.DataFrame = _prioritise_match_type(dups)
-        prioritised_dups: pl.DataFrame = _get_duplicate_variants(prioritised)
-        if prioritised_dups and not keep_first_match:
-            logger.debug("Final match pruning: dropping remaining duplicate matches")
-            distinct: pl.DataFrame = pl.concat([singletons, _get_singleton_variants(prioritised)])
-        elif prioritised_dups and keep_first_match:
+        if keep_first_match:
             logger.debug("Final match pruning: keeping first match")
-            distinct: pl.DataFrame = pl.concat([singletons, _get_singleton_variants(prioritised),
-                                                prioritised.unique(maintain_order=True)])
+            distinct: pl.DataFrame = pl.concat([singletons, dups.unique(maintain_order=True)])
         else:
-            logger.debug("Final match pruning unnecessary")
-            distinct: pl.DataFrame = pl.concat([singletons, prioritised])
+            logger.debug("Final match pruning: dropping remaining duplicate matches")
+            distinct: pl.DataFrame = singletons
     else:
-        distinct: pl.DataFrame = df
+        logger.debug("Final match pruning unnecessary")
+        distinct: pl.DataFrame = singletons
 
     assert all(distinct.groupby(['accession', 'ID']).count()['count'] == 1), "Duplicate effect weights for a variant"
     logger.debug("Match pruning complete")
@@ -98,34 +93,23 @@ def _get_duplicate_variants(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _prioritise_match_type(duplicates: pl.DataFrame) -> pl.DataFrame:
-    dup_oa: pl.DataFrame = duplicates.filter(pl.col("other_allele") != None)
-    dup_no_oa: pl.DataFrame = duplicates.filter(pl.col("other_allele") == None)
-    best_matches: list[pl.DataFrame] = []
-
-    if dup_oa:
-        match_priority: list[str] = ['refalt', 'altref', 'refalt_flip', 'altref_flip']
-        logger.debug(f"Prioritising matches in order {match_priority}")
-        best_matches.append(_get_best_match(dup_oa, match_priority))
-
-    if dup_no_oa:
-        match_priority: list[str] = ['no_oa_ref', 'no_oa_alt', 'no_oa_ref_flip', 'no_oa_alt_flip']
-        logger.debug(f"Prioritising matches in order {match_priority}")
-        best_matches.append(_get_best_match(dup_no_oa, match_priority))
-
-    return pl.concat(best_matches)
+    # first element has the highest priority and last element has the lowest priority
+    match_priority = ['refalt', 'altref', 'refalt_flip', 'altref_flip', 'no_oa_ref', 'no_oa_alt', 'no_oa_ref_flip',
+                      'no_oa_alt_flip']
+    return _get_best_match(duplicates, match_priority)
 
 
 def _get_best_match(df: pl.DataFrame, match_priority: list[str]) -> pl.DataFrame:
     match: list[pl.DataFrame] = []
     for match_type in match_priority:
+        logger.debug(f"Selecting matches with match type {match_type}")
         match.append(df.filter(pl.col("match_type") == match_type))
-    logger.debug("Filtering best match types")
+    logger.debug("Prioritising match types (refalt > altref > ...)")
     return reduce(lambda x, y: _join_best_match(x, y), match)
 
 
 def _join_best_match(x: pl.DataFrame, y: pl.DataFrame) -> pl.DataFrame:
     # variants in dataframe x have a higher priority than dataframe y
     # when concatenating the two dataframes, use an anti join to first remove variants in y that are in x
-    not_in: pl.DataFrame = y.join(x, how='anti',
-                                  on=['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele'])
+    not_in: pl.DataFrame = y.join(x, how='anti', on=['accession', 'ID'])
     return pl.concat([x, not_in])

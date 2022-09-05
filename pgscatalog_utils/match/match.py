@@ -15,7 +15,7 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, remove_ambigu
     scorefile_no_oa = scorefile_cat.filter(pl.col("other_allele") == None)
 
     matches: list[pl.DataFrame] = []
-    col_order = ['chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type',
+    col_order = ['row_nr', 'chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type',
                  'accession', 'effect_allele_FLIP', 'other_allele_FLIP',
                  'ID', 'REF', 'ALT', 'is_multiallelic', 'matched_effect_allele', 'match_type']
 

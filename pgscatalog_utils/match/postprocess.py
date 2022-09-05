@@ -79,22 +79,22 @@ def _prune_matches(df: pl.DataFrame, keep_first_match: bool = False) -> pl.DataF
 
 
 def _divide_matches(df: pl.DataFrame) -> tuple [ pl.DataFrame, pl.DataFrame ]:
-    """ Divide score file match candidates with only one row (unique) vs. multiple (duplicates)"""
-    join_cols = ['accession', 'chr_name', 'chr_position', 'effect_allele', 'other_allele']
+    """ Divide scorefile (accession) matches with only one ID match (singletons) vs. multiple (duplicates)"""
+    join_cols = ['accession', 'ID']
     counted = df.groupby(join_cols).count()
-    singletons = (counted.filter(pl.col('count') == 1)[:, "accession":"other_allele"]
+    singletons = (counted.filter(pl.col('count') == 1)[:, join_cols]
                          .join(df, on=join_cols, how='left'))
-    duplicates = (counted.filter(pl.col('count') > 1)[:, "accession":"other_allele"]
+    duplicates = (counted.filter(pl.col('count') > 1)[:, join_cols]
                          .join(df, on=join_cols, how='left'))
 
     return singletons, duplicates
 
 
-def _prioritise_match_type(duplicates: pl.DataFrame) -> pl.DataFrame:
-    # first element has the highest priority and last element has the lowest priority
+def _prioritise_match_type(all_matches: pl.DataFrame) -> pl.DataFrame:
+    # Select best match for each row in the scoring file
     match_priority = ['refalt', 'altref', 'refalt_flip', 'altref_flip', 'no_oa_ref', 'no_oa_alt', 'no_oa_ref_flip',
                       'no_oa_alt_flip']
-    return _get_best_match(duplicates, match_priority)
+    return _get_best_match(all_matches, match_priority)
 
 
 def _get_best_match(df: pl.DataFrame, match_priority: list[str]) -> pl.DataFrame:
@@ -109,5 +109,5 @@ def _get_best_match(df: pl.DataFrame, match_priority: list[str]) -> pl.DataFrame
 def _join_best_match(x: pl.DataFrame, y: pl.DataFrame) -> pl.DataFrame:
     # variants in dataframe x have a higher priority than dataframe y
     # when concatenating the two dataframes, use an anti join to first remove variants in y that are in x
-    not_in: pl.DataFrame = y.join(x, how='anti', on=['accession', 'ID'])
+    not_in: pl.DataFrame = y.join(x, how='anti', on=['accession', 'row_nr'])
     return pl.concat([x, not_in])

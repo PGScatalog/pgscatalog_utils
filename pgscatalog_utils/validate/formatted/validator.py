@@ -20,6 +20,7 @@ class ValidatorFormatted(ValidatorBase):
         self.validators = FORMATTED_VALIDATORS
         self.valid_cols = VALID_COLS_FORMATTED
         self.valid_type = VALID_TYPE_FORMATTED
+        self.setup_field_validation()
 
     
     def extract_specific_metadata(self,line):
@@ -44,7 +45,7 @@ class ValidatorFormatted(ValidatorBase):
                         self.variants_number = int(match_variants_number.group(1))
                 else:
                     variant_lines += 1
-                    if re.search('\w+', line): # Line not empty
+                    if re.search(r'\w+', line): # Line not empty
                         cols = line.split(self.sep)
                         has_trailing_spaces = self.check_leading_trailing_spaces(cols,line_number)
                         if has_trailing_spaces:
@@ -128,7 +129,7 @@ class ValidatorFormatted(ValidatorBase):
 
     def validate_filename(self):
         filename = self.file.split('/')[-1].split('.')[0]
-        if re.match('^PGS\d{6}$', filename):
+        if re.match(r'^PGS\d{6}$', filename):
             return True
         else:
             self.logger.error("Filename: {} should follow the pattern 'PGSXXXXXX.txt.gz', where the 'X' are the 6 digits of the PGS identifier (e.g. PGS000001)".format(filename))
@@ -136,7 +137,6 @@ class ValidatorFormatted(ValidatorBase):
 
 
     def validate_headers(self):
-        self.setup_field_validation()
         self.detect_genomebuild_with_rsid()
         required_is_subset = set(STD_COLS_VAR_FORMATTED).issubset(self.header)
         if not required_is_subset:

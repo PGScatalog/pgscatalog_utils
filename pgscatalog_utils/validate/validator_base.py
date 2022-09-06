@@ -113,7 +113,7 @@ class ValidatorBase:
                 # Check data
                 else:
                     variant_lines_count += 1
-                    if re.search('\w+', line): # Line not empty
+                    if re.search(r'\w+', line): # Line not empty
                         cols_content = line.split(self.sep)
                         has_trailing_spaces = self.check_leading_trailing_spaces(cols_content,line_number)
                         if has_trailing_spaces:

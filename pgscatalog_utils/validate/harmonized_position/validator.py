@@ -16,6 +16,7 @@ class ValidatorPos(ValidatorBase):
         self.validators = POS_VALIDATORS
         self.valid_cols = VALID_COLS_POS
         self.valid_type = VALID_TYPE_POS
+        self.setup_field_validation()
 
 
     def extract_specific_metadata(self,line):
@@ -65,7 +66,6 @@ class ValidatorPos(ValidatorBase):
     def validate_headers(self):
         ''' Validate the list of column names. '''
         # Check if it has at least a "SNP" column or a "chromosome" column
-        self.setup_field_validation()
         required_is_subset = set(STD_COLS_VAR_POS).issubset(self.header)
         if not required_is_subset:
             self.logger.error("Required headers: {} are not in the file header: {}".format(STD_COLS_VAR_POS, self.header))

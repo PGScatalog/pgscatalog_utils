@@ -46,53 +46,48 @@ def test_match_strategies(small_scorefile, small_target):
     scorefile, target = _cast_cat(small_scorefile, small_target)
 
     # check unambiguous matches
-    df = get_all_matches(scorefile, target, skip_flip=True)
+    df = get_all_matches(scorefile, target, skip_flip=True).filter(pl.col('ambiguous') == False)
     assert set(df['ID'].to_list()).issubset({'3:3:T:G', '1:1:A:C'})
     assert set(df['match_type'].to_list()).issubset(['altref', 'refalt'])
 
-    # when keeping ambiguous and flipping alleles:
-    #   2:2:T:A is ambiguous, and matches 'altref' and 'refalt_flip'
-    # flipped matches should be dropped for ambiguous matches
-    flip = (get_all_matches(scorefile, target, skip_flip=False)\
-        .filter(pl.col('ambiguous') == True))
+    # when keeping ambiguous and flipping alleles
+    flip = (get_all_matches(scorefile, target, skip_flip=False).filter(pl.col('ambiguous') == True))
 
     assert set(flip['ID'].to_list()).issubset({'2:2:T:A'})
-    assert set(flip['match_type'].to_list()).issubset({'altref'})
+    assert set(flip['match_type'].to_list()).issubset({'altref', 'refalt_flip'})
 
 
 def test_no_oa_match(small_scorefile_no_oa, small_target):
     scorefile, target = _cast_cat(small_scorefile_no_oa, small_target)
 
-    df = get_all_matches(scorefile, target, skip_flip=True)
+    df = get_all_matches(scorefile, target, skip_flip=True).filter(pl.col('ambiguous') == False)
 
     assert set(df['ID'].to_list()).issubset(['3:3:T:G', '1:1:A:C'])
     assert set(df['match_type'].to_list()).issubset(['no_oa_alt', 'no_oa_ref'])
 
-    # one of the matches is ambiguous
+    # check ambiguous matches
     flip = (get_all_matches(scorefile, target, skip_flip=False)
             .filter(pl.col('ambiguous') == True))
     assert set(flip['ID'].to_list()).issubset({'2:2:T:A'})
-    assert set(flip['match_type'].to_list()).issubset({'no_oa_alt'})
+    assert set(flip['match_type'].to_list()).issubset({'no_oa_alt', 'no_oa_ref_flip'})
 
 
 def test_flip_match(small_flipped_scorefile, small_target):
     scorefile, target = _cast_cat(small_flipped_scorefile, small_target)
 
     df = get_all_matches(scorefile, target, skip_flip=True)
-    assert df.is_empty()
+    assert set(df['ambiguous']) == {True}
+    assert set(df['match_type']) == {'refalt'}
 
-    flip = get_all_matches(scorefile, target, skip_flip=False)
+    flip = get_all_matches(scorefile, target, skip_flip=False).filter(pl.col('ambiguous') == False)
     assert flip['match_type'].str.contains('flip').all()
     assert set(flip['ID'].to_list()).issubset(['3:3:T:G', '1:1:A:C'])
-
-    flip_ambig = (get_all_matches(scorefile, target, skip_flip=False)
-                  .filter(pl.col('ambiguous') == True))
-    assert not flip_ambig['match_type'].str.contains('flip').any()  # no flip matches for ambiguous
 
 
 @pytest.fixture
 def small_scorefile():
     df = pl.DataFrame({"accession": ["test", "test", "test"],
+                       "row_nr": [1, 2, 3],
                        "chr_name": [1, 2, 3],
                        "chr_position": [1, 2, 3],
                        "effect_allele": ["A", "A", "G"],

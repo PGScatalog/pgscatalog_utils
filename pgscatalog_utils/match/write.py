@@ -21,10 +21,6 @@ def write_out(df: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
     [_write_scorefile(ea_dict.get(k), v, split, outdir, dataset) for k, v in deduplicated.items()]
 
 
-def write_log(df: pl.DataFrame, dataset: str) -> None:
-    df.write_csv(f"{dataset}_log.csv")
-
-
 def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
     """ Write a list of scorefiles with the same effect type """
     # each list element contains a dataframe of variants

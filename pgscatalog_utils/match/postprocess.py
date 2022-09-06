@@ -8,24 +8,17 @@ from pgscatalog_utils.match.preprocess import complement_valid_alleles
 logger = logging.getLogger(__name__)
 
 
-def postprocess_matches(df: pl.DataFrame, remove_ambiguous: bool, keep_first_match: bool) -> pl.DataFrame:
-    """ Clean up match candidates ready for writing out, including:
+def postprocess_matches(df: pl.DataFrame) -> pl.DataFrame:
+    """ Label match candidates with additional metadata. Column definitions:
 
-    - Label ambiguous variants
-    - Prune match candidates to select the best match for each variant in the scoring file
-    - Optionally remove ambiguous variants
+    - match_candidate: All input variants that were returned from match.get_all_matches() (always True in this function)
+    - best_match: True if row is the best possible match type (refalt > altref > ...)
+    - duplicate: True if >1 scoring file line matches to the same variant ID
+    - ambiguous: True if ambiguous
     """
-    df = _label_biallelic_ambiguous(df).pipe(_prune_matches, keep_first_match)
-
-    if remove_ambiguous:
-        logger.debug("Removing ambiguous matches")
-        return df.filter(pl.col("ambiguous") == False)
-    else:
-        logger.debug("Keeping best possible match from ambiguous matches")
-        ambiguous: pl.DataFrame = df.filter((pl.col("ambiguous") == True) & \
-                                            (pl.col("match_type").str.contains('flip').is_not()))
-        unambiguous: pl.DataFrame = df.filter(pl.col("ambiguous") == False)
-        return pl.concat([ambiguous, unambiguous])
+    return (df.with_column(pl.lit(True).alias('match_candidate'))
+            .pipe(_label_biallelic_ambiguous)
+            .pipe(_label_pruned_matches))
 
 
 def _label_biallelic_ambiguous(df: pl.DataFrame) -> pl.DataFrame:
@@ -41,73 +34,53 @@ def _label_biallelic_ambiguous(df: pl.DataFrame) -> pl.DataFrame:
         .otherwise(False)))
 
 
-def _prune_matches(df: pl.DataFrame, keep_first_match: bool = False) -> pl.DataFrame:
-    """ Select the best match candidate in the target for each variant in the scoring file
+def _label_pruned_matches(df: pl.DataFrame) -> pl.DataFrame:
+    best_matches = (df.pipe(_label_best_match)
+                    .pipe(_label_duplicates))
 
-    - The variant matching process normally returns multiple match candidates for each variant ID, e.g.:
-        refalt > altref > refalt_flip > altref_flip
-    - When multiple match candidates for an ID exist, they must be prioritised and pruned to be unique
-    - If it's impossible to prioritise match candidates (i.e. same strategy is used), drop all matches by default
-    - In a scoring file (accession), each variant ID *must be unique* (have only one weight and effect_allele)
+    # check that duplicates were correctly labelled
+    u_counts = best_matches.filter(pl.col('duplicate') == False).groupby(['accession', 'ID']).count()
+    assert (u_counts['count'] == 1).all(), \
+        "Duplicate effect weights for a variant: {}".format(list(u_counts['accession'].unique()))
 
-    :param df: A dataframe containing multiple match candidates for each variant
-    :param keep_first_match: If it's impossible to make match candidates unique, keep the first occuring variant?
-    :return: A dataframe containing the best match candidate for each variant
-    """
-    logger.debug("First match pruning: prioritise by match types")
-    prioritised = _prioritise_match_type(df)
-    singletons, dups = _divide_matches(prioritised)
+    labelled = (df.join(best_matches, how='left', on=['row_nr', 'accession', 'ID'])
+                .select(pl.exclude("^.*_right$")))
+    assert labelled.shape[0] == df.shape[0]  # don't want to lose any rows from the input df
 
-    if dups:
-        if keep_first_match:
-            logger.debug("Final match pruning: keeping first match")
-            distinct: pl.DataFrame = pl.concat([singletons, dups.unique(maintain_order=True)])
-        else:
-            logger.debug("Final match pruning: dropping remaining duplicate matches")
-            distinct: pl.DataFrame = singletons
-    else:
-        logger.debug("Final match pruning unnecessary")
-        distinct: pl.DataFrame = singletons
-
-    # Final QC check
-    u_counts = distinct.groupby(['accession', 'ID']).count()
-    assert all(u_counts['count'] == 1), "Duplicate effect weights for a variant: {}".format(list(u_counts['accession'].unique()))
-
-    logger.debug("Match pruning complete")
-
-    return distinct.with_column(pl.lit(True).alias('passes_pruning'))
+    return labelled
 
 
-def _divide_matches(df: pl.DataFrame) -> tuple [ pl.DataFrame, pl.DataFrame ]:
-    """ Divide scorefile (accession) matches with only one ID match (singletons) vs. multiple (duplicates)"""
+def _label_duplicates(df: pl.DataFrame) -> pl.DataFrame:
+    """ Label scorefile (accession) matches with only one ID match (singletons) vs. multiple (duplicates)"""
+    logger.debug('Labelling multiple accession - ID rows as duplicates')
+
     join_cols = ['accession', 'ID']
     counted = df.groupby(join_cols).count()
     singletons = (counted.filter(pl.col('count') == 1)[:, join_cols]
-                         .join(df, on=join_cols, how='left'))
+                         .join(df, on=join_cols, how='left')
+                         .with_column(pl.lit(False).alias('duplicate')))
     duplicates = (counted.filter(pl.col('count') > 1)[:, join_cols]
-                         .join(df, on=join_cols, how='left'))
+                         .join(df, on=join_cols, how='left')
+                         .with_column(pl.lit(True).alias('duplicate')))
 
-    return singletons, duplicates
+    return pl.concat([singletons, duplicates])
 
 
-def _prioritise_match_type(all_matches: pl.DataFrame) -> pl.DataFrame:
-    # Select best match for each row in the scoring file
+def _label_best_match(df: pl.DataFrame) -> pl.DataFrame:
     match_priority = ['refalt', 'altref', 'refalt_flip', 'altref_flip', 'no_oa_ref', 'no_oa_alt', 'no_oa_ref_flip',
                       'no_oa_alt_flip']
-    return _get_best_match(all_matches, match_priority)
-
-
-def _get_best_match(df: pl.DataFrame, match_priority: list[str]) -> pl.DataFrame:
     match: list[pl.DataFrame] = []
     for match_type in match_priority:
         logger.debug(f"Selecting matches with match type {match_type}")
         match.append(df.filter(pl.col("match_type") == match_type))
-    logger.debug("Prioritising match types (refalt > altref > ...)")
-    return reduce(lambda x, y: _join_best_match(x, y), match)
+
+    logger.debug("Labelling best match type (refalt > altref > ...)")
+    best_match: pl.DataFrame = reduce(lambda x, y: _prioritise_best_match(x, y), match)
+    return best_match.with_column(pl.lit(True).alias('best_match'))
 
 
-def _join_best_match(x: pl.DataFrame, y: pl.DataFrame) -> pl.DataFrame:
+def _prioritise_best_match(x: pl.DataFrame, y: pl.DataFrame) -> pl.DataFrame:
     # variants in dataframe x have a higher priority than dataframe y
     # when concatenating the two dataframes, use an anti join to first remove variants in y that are in x
-    not_in: pl.DataFrame = y.join(x, how='anti', on=['accession', 'row_nr'])
+    not_in: pl.DataFrame = y.join(x, how='anti', on=['accession', 'ID', 'row_nr'])
     return pl.concat([x, not_in])

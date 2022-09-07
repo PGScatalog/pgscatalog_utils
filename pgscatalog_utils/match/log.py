@@ -15,7 +15,8 @@ def make_logs(scorefile, match_candidates, filter_summary, dataset):
 
 def make_summary_log(df, filter_summary):
     """ Make an aggregated table """
-    return (df.groupby(['dataset', 'accession', 'match_status', 'ambiguous', 'is_multiallelic', 'duplicate'])
+    return (df.filter(pl.col('match_status') != 'not_best')
+            .groupby(['dataset', 'accession', 'match_status', 'ambiguous', 'is_multiallelic', 'duplicate'])
             .count()
             .join(filter_summary, how='left', on='accession')).sort(['dataset', 'accession', 'score_pass'],
                                                                     reverse=True)

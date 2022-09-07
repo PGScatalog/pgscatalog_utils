@@ -23,12 +23,12 @@ def label_matches(df: pl.DataFrame, remove_ambiguous, keep_first_match) -> pl.Da
     # encode a new column called match status containing matched, unmatched, and excluded
     return (labelled.with_columns([
         # set false best match to excluded
-        pl.col('best_match').apply(lambda x: {None: 0, True: 1, False: 2}[x]).alias('match_priority'),
+        pl.col('best_match').apply(lambda x: {None: 0, True: 1, False: 3}[x]).alias('match_priority'),
         pl.col('exclude').apply(lambda x: {None: 0, True: 2, False: 0}[x]).alias('excluded_match_priority')
     ])
             .with_column(pl.max(["match_priority", "excluded_match_priority"]))
             .with_column(pl.col("max")
-                         .apply(lambda x: {0: 'unmatched', 1: 'matched', 2: 'excluded'}[x])
+                         .apply(lambda x: {0: 'unmatched', 1: 'matched', 2: 'excluded', 3: 'not_best'}[x])
                          .alias('match_status'))).drop(["max", "excluded_match_priority", "match_priority"])
 
 

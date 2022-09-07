@@ -1,9 +1,16 @@
+import gzip
 import logging
 import os
 
 import polars as pl
 
 logger = logging.getLogger(__name__)
+
+
+def write_log(df: pl.DataFrame, dataset: str) -> None:
+    logger.debug("Compressing and writing log")
+    with gzip.open(f"{dataset}_log.csv.gz", 'wb') as f:
+        df.write_csv(f)
 
 
 def write_out(df: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:

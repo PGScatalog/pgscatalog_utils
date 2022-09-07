@@ -6,10 +6,6 @@ import polars as pl
 logger = logging.getLogger(__name__)
 
 
-def write_log(df: pl.DataFrame, dataset: str) -> None:
-    logger.debug("Compressing and writing log")
-    with gzip.open(f"{dataset}_log.csv.gz", 'wb') as f:
-        df.pipe(_prettify_log).write_csv(f)
 
 
 def _prettify_log(df: pl.DataFrame) -> pl.DataFrame:

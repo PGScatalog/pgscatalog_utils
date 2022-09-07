@@ -2,14 +2,12 @@ import logging
 
 import polars as pl
 
-from pgscatalog_utils.match.log import write_log
-
 logger = logging.getLogger(__name__)
 
 
 def filter_scores(scorefile: pl.DataFrame, matches: pl.DataFrame, remove_ambiguous: bool, keep_first_match: bool,
-                  min_overlap: float, dataset: str) -> pl.DataFrame:
-    """ Remove scores that don't match well """
+                  min_overlap: float, dataset: str) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """ Remove scores that don't match well and return a summary report df"""
     scorefile: pl.DataFrame = scorefile.with_columns([
         pl.col('effect_type').cast(pl.Categorical),
         pl.col('accession').cast(pl.Categorical)])  # same dtypes for join
@@ -17,7 +15,7 @@ def filter_scores(scorefile: pl.DataFrame, matches: pl.DataFrame, remove_ambiguo
     # matches may contain more than one row per variant in the scoring file
     # e.g., one ambiguous match and one clear match, or duplicates may be in the scoring file
     filtered_matches: pl.DataFrame = _filter_matches(matches, remove_ambiguous, keep_first_match)
-    match_log: pl.DataFrame = _join_matches(filtered_matches, scorefile, dataset)
+    match_log: pl.DataFrame = _join_filtered_matches(filtered_matches, scorefile, dataset)
     match_log['best_match'] = match_log['best_match'].fill_null(False)
 
     fail_rates: pl.DataFrame = _calculate_match_rate(match_log)
@@ -27,17 +25,17 @@ def filter_scores(scorefile: pl.DataFrame, matches: pl.DataFrame, remove_ambiguo
         if rate < (1 - min_overlap):
             df: pl.DataFrame = pl.DataFrame({'accession': [accession], 'score_pass': [True], 'match_rate': [1 - rate]})
             logger.debug(f"Score {accession} passes minimum matching threshold ({1 - rate:.2%}  variants match)")
-            scores.append(df)
+            scores.append(df.with_column(pl.col('accession').cast(pl.Categorical)))
         else:
             df: pl.DataFrame = pl.DataFrame({'accession': [accession], 'score_pass': [False], 'match_rate': [1 - rate]})
             logger.error(f"Score {accession} fails minimum matching threshold ({1 - rate:.2%} variants match)")
-            scores.append(df)
+            scores.append(df.with_column(pl.col('accession').cast(pl.Categorical)))
 
-    (match_log.with_column(pl.col('accession').cast(str))
-     .join(pl.concat(scores), on='accession', how='left')).pipe(write_log, dataset)  # write log to gzipped CSV
+    score_summary: pl.DataFrame = pl.concat(scores)
+    filtered_scores: pl.DataFrame = (filtered_matches.join(score_summary, on='accession', how='left')
+                                     .filter(pl.col('score_pass') == True))
 
-    return (filtered_matches.with_column(pl.col('accession').cast(str))
-            .join(pl.concat(scores), on='accession', how='left'))
+    return filtered_scores, score_summary
 
 
 def _calculate_match_rate(df: pl.DataFrame) -> pl.DataFrame:
@@ -70,18 +68,15 @@ def _handle_duplicates(df: pl.DataFrame, keep_first_match: bool) -> pl.DataFrame
     singletons = df.filter(pl.col('duplicate') == False)
     if keep_first_match:
         logger.debug("Filtering: keeping first match")
-        first = (df.filter(pl.col('duplicate') == True)
-                 .groupby(["accession", "ID"])
-                 .agg([pl.col("row_nr").first()])
-                 .join(df, on=['accession', 'row_nr'], how='left'))
-        return pl.concat([singletons, first.select(singletons.columns)])
+        first = df.filter((pl.col('duplicate') == True) & (pl.col('exclude') == False))
+        return pl.concat([singletons, first])
     else:
         logger.debug("Filtering: dropping any duplicate matches")
         return singletons
 
 
-def _join_matches(matches: pl.DataFrame, scorefile: pl.DataFrame, dataset: str) -> pl.DataFrame:
-    return (scorefile.join(matches, on=['accession', 'row_nr'], how='left')
+def _join_filtered_matches(matches: pl.DataFrame, scorefile: pl.DataFrame, dataset: str) -> pl.DataFrame:
+    return (scorefile.join(matches, on=['row_nr', 'accession'], how='left')
             .with_column(pl.lit(dataset).alias('dataset'))
             .select(pl.exclude("^.*_right$")))
 

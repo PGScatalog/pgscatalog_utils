@@ -15,10 +15,21 @@ def label_matches(df: pl.DataFrame, remove_ambiguous, keep_first_match) -> pl.Da
     - duplicate: True if more than one best match exists for the same accession and ID
     - ambiguous: True if ambiguous
     """
-    return (df.with_column(pl.lit(True).alias('match_candidate'))
-            .pipe(_label_biallelic_ambiguous, remove_ambiguous)
-            .pipe(_label_best_match)
-            .pipe(_label_duplicate_best_match, keep_first_match))
+    labelled = (df.with_column(pl.lit(True).alias('match_candidate'))
+                .pipe(_label_biallelic_ambiguous, remove_ambiguous)
+                .pipe(_label_best_match)
+                .pipe(_label_duplicate_best_match, keep_first_match))
+
+    # encode a new column called match status containing matched, unmatched, and excluded
+    return (labelled.with_columns([
+        # set false best match to excluded
+        pl.col('best_match').apply(lambda x: {None: 0, True: 1, False: 2}[x]).alias('match_priority'),
+        pl.col('exclude').apply(lambda x: {None: 0, True: 2, False: 0}[x]).alias('excluded_match_priority')
+    ])
+            .with_column(pl.max(["match_priority", "excluded_match_priority"]))
+            .with_column(pl.col("max")
+                         .apply(lambda x: {0: 'unmatched', 1: 'matched', 2: 'excluded'}[x])
+                         .alias('match_status'))).drop(["max", "excluded_match_priority", "match_priority"])
 
 
 def _label_biallelic_ambiguous(df: pl.DataFrame, remove_ambiguous) -> pl.DataFrame:
@@ -26,7 +37,7 @@ def _label_biallelic_ambiguous(df: pl.DataFrame, remove_ambiguous) -> pl.DataFra
     ambig = ((df.with_columns([
         pl.col(["effect_allele", "other_allele", "REF", "ALT", "effect_allele_FLIP", "other_allele_FLIP"]).cast(str),
         pl.lit(True).alias("ambiguous")])
-        .pipe(complement_valid_alleles, ["REF"]))
+              .pipe(complement_valid_alleles, ["REF"]))
              .with_column(pl.when(pl.col("REF_FLIP") == pl.col("ALT"))
                           .then(pl.col("ambiguous"))
                           .otherwise(False)))

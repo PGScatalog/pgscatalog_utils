@@ -15,8 +15,8 @@ def filter_scores(scorefile: pl.DataFrame, matches: pl.DataFrame, remove_ambiguo
     # matches may contain more than one row per variant in the scoring file
     # e.g., one ambiguous match and one clear match, or duplicates may be in the scoring file
     filtered_matches: pl.DataFrame = _filter_matches(matches, remove_ambiguous, keep_first_match)
-    match_log: pl.DataFrame = _join_filtered_matches(filtered_matches, scorefile, dataset)
-    match_log['best_match'] = match_log['best_match'].fill_null(False)
+    match_log: pl.DataFrame = (_join_filtered_matches(filtered_matches, scorefile, dataset)
+                               .with_columns(pl.col('best_match').fill_null(False)))
 
     fail_rates: pl.DataFrame = _calculate_match_rate(match_log)
 

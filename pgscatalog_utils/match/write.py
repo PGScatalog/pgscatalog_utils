@@ -92,7 +92,7 @@ def _deduplicate_variants(effect_type: str, df: pl.DataFrame) -> list[pl.DataFra
     # 2. use cumcount to number duplicate IDs
     # 3. join cumcount data on original DF, use this data for splitting
     ea_count: pl.DataFrame = (df.select(["ID", "effect_allele"])
-    .distinct()
+    .unique()
     .with_columns([
         pl.col("ID").cumcount().over(["ID"]).alias("cumcount"),
         pl.col("ID").count().over(["ID"]).alias("count")

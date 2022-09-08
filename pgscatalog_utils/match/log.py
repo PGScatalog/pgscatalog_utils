@@ -6,19 +6,18 @@ logger = logging.getLogger(__name__)
 
 
 def make_logs(scorefile, match_candidates, filter_summary, dataset):
-    # best log -> aggregated into summary_log, one match per scoring file line
-    # big log -> written to compressed gzip, possibly multiple matches per scoring file line
+    # summary log -> aggregated from best matches (one per scoring file line)
+    # big log -> unaggregated, written to compressed gzip, possibly multiple matches per scoring file line
     summary_log, big_log = _join_match_candidates(scorefile=scorefile, matches=match_candidates,
                                                   filter_summary=filter_summary,
                                                   dataset=dataset)
 
     # make sure the aggregated best log matches the scoring file accession line count
+    summary_count = (summary_log.groupby(pl.col('accession'))
+                     .agg(pl.sum('count')))
     log_count = (scorefile.groupby("accession")
                  .count()
-                 .join(summary_log
-                       .groupby(pl.col("accession"))
-                       .agg(pl.sum("count")),
-                       on='accession'))
+                 .join(summary_count, on='accession'))
 
     assert (log_count['count'] == log_count['count_right']).all(), "Log doesn't match input scoring file"
     logger.debug("Log matches input scoring file")

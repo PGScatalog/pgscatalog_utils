@@ -53,8 +53,8 @@ def match_variants():
                 raise Exception
 
         dataset = args.dataset.replace('_', '-')  # underscores are delimiters in pgs catalog calculator
-        valid_matches, filter_summary = filter_scores(scorefile, matches, args.remove_ambiguous,
-                                                      args.keep_first_match, args.min_overlap, dataset)
+        valid_matches, filter_summary = filter_scores(scorefile=scorefile, matches=matches, dataset=dataset,
+                                                      min_overlap=args.min_overlap)
 
         if valid_matches.is_empty():  # this can happen if args.min_overlap = 0
             logger.error("Error: no target variants match any variants in scoring files")
@@ -62,7 +62,8 @@ def match_variants():
 
         big_log, summary_log = make_logs(scorefile, matches, filter_summary, args.dataset)
 
-        write_log(big_log, args.dataset)
+        write_log(big_log, prefix=dataset)
+        summary_log.write_csv(f"{dataset}_summary.csv")
         write_out(valid_matches, args.split, args.outdir, dataset)
 
 

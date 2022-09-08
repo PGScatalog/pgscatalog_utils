@@ -6,16 +6,30 @@ logger = logging.getLogger(__name__)
 
 
 def make_logs(scorefile, match_candidates, filter_summary, dataset):
-    big_log = (_join_match_candidates(scorefile, match_candidates, dataset)
-               .pipe(_prettify_log))
-    summary_log = make_summary_log(big_log, filter_summary)
+    # best log -> aggregated into summary_log, one match per scoring file line
+    # big log -> written to compressed gzip, possibly multiple matches per scoring file line
+    summary_log, big_log = _join_match_candidates(scorefile=scorefile, matches=match_candidates,
+                                                  filter_summary=filter_summary,
+                                                  dataset=dataset)
+
+    # make sure the aggregated best log matches the scoring file accession line count
+    log_count = (scorefile.groupby("accession")
+                 .count()
+                 .join(summary_log
+                       .groupby(pl.col("accession"))
+                       .agg(pl.sum("count")),
+                       on='accession'))
+
+    assert (log_count['count'] == log_count['count_right']).all(), "Log doesn't match input scoring file"
+    logger.debug("Log matches input scoring file")
 
     return _prettify_log(big_log), _prettify_summary(summary_log)
 
 
-def make_summary_log(df, filter_summary):
+def make_summary_log(best_matches, filter_summary):
     """ Make an aggregated table """
-    return (df.filter(pl.col('match_status') != 'not_best')
+    logger.debug("Aggregating best match log into a summary table")
+    return (best_matches
             .groupby(['dataset', 'accession', 'match_status', 'ambiguous', 'is_multiallelic', 'duplicate'])
             .count()
             .join(filter_summary, how='left', on='accession')).sort(['dataset', 'accession', 'score_pass'],
@@ -39,15 +53,24 @@ def _prettify_log(df: pl.DataFrame) -> pl.DataFrame:
     return pretty_df.sort(["accession", "row_nr", "chr_name", "chr_position"])
 
 
-def _join_match_candidates(scorefile: pl.DataFrame, matches: pl.DataFrame, dataset: str) -> pl.DataFrame:
-    """
-    Join match candidates against the original scoring file
+def _join_match_candidates(scorefile: pl.DataFrame, matches: pl.DataFrame, filter_summary: pl.DataFrame,
+                           dataset: str) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """ Join match candidates against the original scoring file """
+    logger.debug("Making big logs")
+    # make the summary log using the best matched candidates only
+    summary_log = (scorefile.join(matches.filter(pl.col('match_status') == 'matched'),
+                                  on=['row_nr', 'accession'],
+                                  how='outer')  # left join would make checking line count later pointless
+                   .with_column(pl.lit(dataset).alias('dataset'))
+                   .select(pl.exclude("^.*_right$"))
+                   .with_column(pl.col('match_status').fill_null("unmatched"))
+                   .pipe(make_summary_log, filter_summary))
 
-    Uses an outer join because mltiple match candidates may exist with different match types
+    # make a raw log with all match candidates included
+    raw_log = (scorefile.join(matches,
+                              on=['row_nr', 'accession'],
+                              how='outer')
+               .with_column(pl.lit(dataset).alias('dataset'))
+               .select(pl.exclude("^.*_right$"))).with_column(pl.col('match_status').fill_null("unmatched"))
 
-    Multiple match candidates will exist as extra rows in the joined dataframe
-    """
-    return (scorefile.join(matches, on=['row_nr', 'accession'], how='outer')
-          .with_column(pl.lit(dataset).alias('dataset'))
-          .select(pl.exclude("^.*_right$"))).with_column(pl.col('match_status').fill_null("unmatched"))
-
+    return summary_log, raw_log

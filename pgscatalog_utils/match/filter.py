@@ -5,16 +5,10 @@ import polars as pl
 logger = logging.getLogger(__name__)
 
 
-def filter_scores(scorefile: pl.DataFrame, matches: pl.DataFrame, remove_ambiguous: bool, keep_first_match: bool,
-                  min_overlap: float, dataset: str) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """ Remove scores that don't match well and return a summary report df"""
-    scorefile: pl.DataFrame = scorefile.with_columns([
-        pl.col('effect_type').cast(pl.Categorical),
-        pl.col('accession').cast(pl.Categorical)])  # same dtypes for join
-
-    # matches may contain more than one row per variant in the scoring file
-    # e.g., one ambiguous match and one clear match, or duplicates may be in the scoring file
-    filtered_matches: pl.DataFrame = _filter_matches(matches, remove_ambiguous, keep_first_match)
+def filter_scores(scorefile: pl.DataFrame, matches: pl.DataFrame, min_overlap: float,
+                  dataset: str) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """ Check overlap between filtered matches and scorefile, remove scores that don't match well and report stats """
+    filtered_matches: pl.DataFrame = _filter_matches(matches)
     match_log: pl.DataFrame = (_join_filtered_matches(filtered_matches, scorefile, dataset)
                                .with_columns(pl.col('best_match').fill_null(False)))
 
@@ -45,34 +39,9 @@ def _calculate_match_rate(df: pl.DataFrame) -> pl.DataFrame:
             .with_column((pl.col('no_match') / pl.col('count')).alias('fail_rate')))
 
 
-def _filter_matches(df: pl.DataFrame, remove_ambiguous: bool, keep_first_match: bool) -> pl.DataFrame:
-    logger.debug("Final match candidate filtering")
-    return (df.filter(pl.col('best_match') == True)
-            .pipe(_handle_ambiguous, remove_ambiguous)
-            .pipe(_handle_duplicates, keep_first_match))
-
-
-def _handle_ambiguous(df: pl.DataFrame, remove_ambiguous: bool) -> pl.DataFrame:
-    if remove_ambiguous:
-        logger.debug("Filtering: Removing ambiguous matches")
-        return df.filter(pl.col("ambiguous") == False)
-    else:
-        logger.debug("Filtering: Keeping best possible match from ambiguous matches")
-        ambiguous: pl.DataFrame = df.filter((pl.col("ambiguous") == True) & \
-                                            (pl.col("match_type").str.contains('flip').is_not()))
-        unambiguous: pl.DataFrame = df.filter(pl.col("ambiguous") == False)
-        return pl.concat([ambiguous, unambiguous])
-
-
-def _handle_duplicates(df: pl.DataFrame, keep_first_match: bool) -> pl.DataFrame:
-    singletons = df.filter(pl.col('duplicate') == False)
-    if keep_first_match:
-        logger.debug("Filtering: keeping first match")
-        first = df.filter((pl.col('duplicate') == True) & (pl.col('exclude') == False))
-        return pl.concat([singletons, first])
-    else:
-        logger.debug("Filtering: dropping any duplicate matches")
-        return singletons
+def _filter_matches(df: pl.DataFrame) -> pl.DataFrame:
+    logger.debug("Filtering variants with exclude flag")
+    return df.filter((pl.col('best_match') == True) & (pl.col('exclude') == False))
 
 
 def _join_filtered_matches(matches: pl.DataFrame, scorefile: pl.DataFrame, dataset: str) -> pl.DataFrame:

@@ -15,11 +15,12 @@ def label_matches(df: pl.DataFrame, remove_ambiguous, keep_first_match) -> pl.Da
     - duplicate: True if more than one best match exists for the same accession and ID
     - ambiguous: True if ambiguous
     """
-    labelled = (df.with_column(pl.lit(True).alias('match_candidate'))
-                .pipe(_label_biallelic_ambiguous, remove_ambiguous)
+    labelled = (df.with_column(pl.lit(False).alias('exclude'))  # set up dummy exclude column for _label_*
                 .pipe(_label_best_match)
                 .pipe(_label_duplicate_best_match, keep_first_match)
-                .pipe(_label_duplicate_row_nr))
+                .pipe(_label_duplicate_row_nr)
+                .pipe(_label_biallelic_ambiguous, remove_ambiguous)
+                .with_column(pl.lit(True).alias('match_candidate')))
 
     # encode a new column called match status containing matched, unmatched, and excluded
     return (labelled.with_columns([
@@ -45,15 +46,22 @@ def _label_biallelic_ambiguous(df: pl.DataFrame, remove_ambiguous) -> pl.DataFra
 
     if remove_ambiguous:
         logger.debug("Labelling ambiguous variants with exclude flag")
-        return ambig.with_column(pl.when(pl.col('ambiguous') == True)
-                                 .then(True)
-                                 .otherwise(False)
-                                 .alias('exclude'))
+        return (ambig.with_column(pl.when(pl.col('ambiguous') == True)
+                                  .then(True)
+                                  .otherwise(False)
+                                  .alias('exclude_ambiguous'))
+                .with_column(pl.max(["exclude", "exclude_ambiguous"]))
+                .drop(["exclude", "exclude_ambiguous"])
+                .rename({"max": "exclude"}))
     else:
-        return ambig.with_column(pl.lit(False).alias('exclude'))
+        return (ambig.with_column(pl.lit(False).alias('exclude_ambiguous'))
+                .with_column(pl.max(["exclude", "ambiguous"]))
+                .drop(["exclude", "exclude_ambiguous"])
+                .rename({"max": "exclude"}))
 
 
 def _label_best_match(df: pl.DataFrame) -> pl.DataFrame:
+    """ Best matches have the lowest match priority type. Find the best matches and label them.  """
     logger.debug("Labelling best match type (refalt > altref > ...)")
     match_priority = {'refalt': 0, 'altref': 1, 'refalt_flip': 2, 'altref_flip': 3, 'no_oa_ref': 4, 'no_oa_alt': 5,
                       'no_oa_ref_flip': 6, 'no_oa_alt_flip': 7}
@@ -118,7 +126,8 @@ def _label_duplicate_best_match(df: pl.DataFrame, keep_first_match: bool) -> pl.
 
     # get the horizontal maximum to combine the exclusion columns for each variant
     return (labelled.with_column(pl.max(["exclude", "exclude_duplicate"]))
-            .drop(["exclude", "exclude_duplicate"])).rename({"max": "exclude"})
+            .drop(["exclude", "exclude_duplicate"])
+            .rename({"max": "exclude"}))
 
 
 def _label_duplicate_row_nr(df: pl.DataFrame) -> pl.DataFrame:
@@ -150,10 +159,11 @@ def _label_duplicate_row_nr(df: pl.DataFrame) -> pl.DataFrame:
                                                                                       .over(["accession", "score_row_nr"])))
                                              .then(True)
                                              .otherwise(False)
-                                             .alias('exclude_duplicate'))
+                                             .alias('exclude_duplicate_row_nr'))
                                 .drop('row_nr')
                                 .rename({'score_row_nr': 'row_nr'}))
 
     # get the horizontal maximum to combine the exclusion columns for each variant
-    return (labelled.with_column(pl.max(["exclude", "exclude_duplicate"]))
-            .drop(["exclude", "exclude_duplicate"])).rename({"max": "exclude"})
+    return (labelled.with_column(pl.max(["exclude", "exclude_duplicate_row_nr"]))
+            .drop(["exclude", "exclude_duplicate_row_nr"])
+            .rename({"max": "exclude"}))

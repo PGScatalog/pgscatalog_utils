@@ -57,8 +57,9 @@ def _join_match_candidates(scorefile: pl.DataFrame, matches: pl.DataFrame, filte
                            dataset: str) -> tuple[pl.DataFrame, pl.DataFrame]:
     """ Join match candidates against the original scoring file """
     logger.debug("Making big logs")
+
     # make the summary log using the best matched candidates only
-    summary_log = (scorefile.join(matches.filter(pl.col('match_status') == 'matched'),
+    summary_log = (scorefile.join(matches.filter(pl.col('best_match') == True),
                                   on=['row_nr', 'accession'],
                                   how='outer')  # left join would make checking line count later pointless
                    .with_column(pl.lit(dataset).alias('dataset'))

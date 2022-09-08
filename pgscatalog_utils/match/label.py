@@ -18,7 +18,8 @@ def label_matches(df: pl.DataFrame, remove_ambiguous, keep_first_match) -> pl.Da
     labelled = (df.with_column(pl.lit(True).alias('match_candidate'))
                 .pipe(_label_biallelic_ambiguous, remove_ambiguous)
                 .pipe(_label_best_match)
-                .pipe(_label_duplicate_best_match, keep_first_match))
+                .pipe(_label_duplicate_best_match, keep_first_match)
+                .pipe(_label_duplicate_row_nr))
 
     # encode a new column called match status containing matched, unmatched, and excluded
     return (labelled.with_columns([
@@ -76,7 +77,21 @@ def _label_best_match(df: pl.DataFrame) -> pl.DataFrame:
     return prioritised.drop(['match_priority', 'best_match_type'])
 
 
-def _label_duplicate_best_match(df: pl.DataFrame, keep_first_match) -> pl.DataFrame:
+def _label_duplicate_best_match(df: pl.DataFrame, keep_first_match: bool) -> pl.DataFrame:
+    """ Label best match duplicates made when the scoring file is remapped to a different genome build
+
+    ┌─────────┬────────────────────────┬─────────────┬────────────────┬─────┬────────────┐
+    │ row_nr  ┆ accession              ┆ match_type  ┆ ID             ┆ REF ┆ best_match │
+    │ ---     ┆ ---                    ┆ ---         ┆ ---            ┆ --- ┆ ---        │
+    │ i64     ┆ cat                    ┆ str         ┆ cat            ┆ str ┆ bool       │
+    ╞═════════╪════════════════════════╪═════════════╪════════════════╪═════╪════════════╡
+    │ 1194115 ┆ PGS002244_hmPOS_GRCh37 ┆ altref      ┆ 3:50924580:C:A ┆ C   ┆ true       │
+    ├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+    │ 1194132 ┆ PGS002244_hmPOS_GRCh37 ┆ refalt_flip ┆ 3:50924580:C:A ┆ C   ┆ true       │
+    └─────────┴────────────────────────┴─────────────┴────────────────┴─────┴────────────┘
+
+    refalt > altref > ... prioritisation doesn't fix this problem because row_nr is different (duplicated by remapping)
+    """
     logger.debug('Labelling duplicated best matches')
     duplicates = (df.with_column(pl.col('best_match')
                                  .count()
@@ -100,6 +115,44 @@ def _label_duplicate_best_match(df: pl.DataFrame, keep_first_match) -> pl.DataFr
     else:
         logger.debug("Labelling all duplicates with exclude flag")
         labelled = duplicates.with_column(pl.lit(False).alias('exclude_duplicate'))
+
+    # get the horizontal maximum to combine the exclusion columns for each variant
+    return (labelled.with_column(pl.max(["exclude", "exclude_duplicate"]))
+            .drop(["exclude", "exclude_duplicate"])).rename({"max": "exclude"})
+
+
+def _label_duplicate_row_nr(df: pl.DataFrame) -> pl.DataFrame:
+    """ A scoring file row_nr in an accession group can be duplicated if a target position has different REF, e.g.:
+
+    ┌────────┬────────────────────────┬────────────┬────────────────┬─────┬────────────┐
+    │ row_nr ┆ accession              ┆ match_type ┆ ID             ┆ REF ┆ best_match │
+    │ ---    ┆ ---                    ┆ ---        ┆ ---            ┆ --- ┆ ---        │
+    │ i64    ┆ cat                    ┆ str        ┆ cat            ┆ str ┆ bool       │
+    ╞════════╪════════════════════════╪════════════╪════════════════╪═════╪════════════╡
+    │ 38557  ┆ PGS000012_hmPOS_GRCh37 ┆ no_oa_alt  ┆ 3:29588979:A:G ┆ A   ┆ true       │
+    ├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+    │ 38557  ┆ PGS000012_hmPOS_GRCh37 ┆ no_oa_alt  ┆ 3:29588979:T:G ┆ T   ┆ true       │
+    └────────┴────────────────────────┴────────────┴────────────────┴─────┴────────────┘
+    """
+    logger.debug("Labelling duplicated matches with same row_nr")
+    labelled: pl.DataFrame = (df.with_column(pl.col('best_match')
+                                               .count()
+                                               .over(['accession', 'row_nr', 'best_match'])
+                                               .alias('count'))
+                                .with_column(pl.when(pl.col('count') > 1)
+                                             .then(pl.lit(True))
+                                             .otherwise(pl.lit(False))
+                                             .alias('duplicate'))
+                                .drop('count')
+                                .rename({'row_nr': 'score_row_nr'})
+                                .with_row_count()  # add temporary row count to get first variant
+                                .with_column(pl.when((pl.col("duplicate") == True) & (pl.col("row_nr") != pl.min("row_nr")
+                                                                                      .over(["accession", "score_row_nr"])))
+                                             .then(True)
+                                             .otherwise(False)
+                                             .alias('exclude_duplicate'))
+                                .drop('row_nr')
+                                .rename({'score_row_nr': 'row_nr'}))
 
     # get the horizontal maximum to combine the exclusion columns for each variant
     return (labelled.with_column(pl.max(["exclude", "exclude_duplicate"]))

@@ -29,15 +29,16 @@ def make_summary_log(best_matches, filter_summary):
     """ Make an aggregated table """
     logger.debug("Aggregating best match log into a summary table")
     return (best_matches
-            .groupby(['dataset', 'accession', 'match_status', 'ambiguous', 'is_multiallelic', 'duplicate'])
+            .groupby(['dataset', 'accession', 'match_status', 'ambiguous', 'is_multiallelic', 'duplicate_best_match',
+                      'duplicate_ID'])
             .count()
             .join(filter_summary, how='left', on='accession')).sort(['dataset', 'accession', 'score_pass'],
                                                                     reverse=True)
 
 
 def _prettify_summary(df: pl.DataFrame):
-    keep_cols = ["dataset", "accession", "score_pass", "match_status", "ambiguous", "is_multiallelic", "duplicate",
-                 "count", "percent"]
+    keep_cols = ["dataset", "accession", "score_pass", "match_status", "ambiguous", "is_multiallelic",
+                 "duplicate_best_match", "duplicate_ID", "count", "percent"]
     return (df.with_column((pl.col("count") / pl.sum("count"))
                            .over(["dataset", "accession"])
                            .alias("percent"))
@@ -47,7 +48,7 @@ def _prettify_summary(df: pl.DataFrame):
 def _prettify_log(df: pl.DataFrame) -> pl.DataFrame:
     keep_cols = ["row_nr", "accession", "chr_name", "chr_position", "effect_allele", "other_allele", "effect_weight",
                  "effect_type", "ID", "REF", "ALT", "matched_effect_allele", "match_type", "is_multiallelic",
-                 "ambiguous", "duplicate", "match_status", "dataset"]
+                 "ambiguous", "duplicate_best_match", "duplicate_ID", "match_status", "dataset"]
     pretty_df = (df.select(keep_cols).select(pl.exclude("^.*_right")))
     return pretty_df.sort(["accession", "row_nr", "chr_name", "chr_position"])
 

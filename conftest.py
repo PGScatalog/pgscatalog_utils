@@ -143,7 +143,7 @@ def hg19_coords(hg38_coords):
     return pd.DataFrame(d)
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def small_flipped_scorefile(small_scorefile):
     # simulate a scorefile on the wrong strand
     return (complement_valid_alleles(small_scorefile, ['effect_allele', 'other_allele'])
@@ -152,7 +152,7 @@ def small_flipped_scorefile(small_scorefile):
             .pipe(complement_valid_alleles, ['effect_allele', 'other_allele']))
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def small_target():
     return pl.DataFrame({"#CHROM": [1, 2, 3],
                          "POS": [1, 2, 3],
@@ -162,7 +162,7 @@ def small_target():
                          "is_multiallelic": [False, False, False]})
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def small_scorefile():
     df = pl.DataFrame({"accession": ["test", "test", "test"],
                        "row_nr": [1, 2, 3],
@@ -176,7 +176,7 @@ def small_scorefile():
     return complement_valid_alleles(df, ["effect_allele", "other_allele"])
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def small_scorefile_no_oa(small_scorefile):
     return small_scorefile.with_column(pl.lit(None).alias('other_allele'))
 

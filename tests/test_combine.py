@@ -11,7 +11,7 @@ from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
 def test_combine_scorefiles(combined_scorefile, _n_variants):
     df = pd.read_table(combined_scorefile)
     cols = {'chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type',
-            'is_duplicated', 'accession'}
+            'is_duplicated', 'accession', 'row_nr'}
     assert set(df.columns).issubset(cols)
     assert df.shape[0] == _n_variants
 

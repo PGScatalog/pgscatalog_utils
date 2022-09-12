@@ -10,10 +10,9 @@ logger = logging.getLogger(__name__)
 
 def load_scorefile(path: str) -> tuple[dict, pd.DataFrame]:
     logger.debug(f'Reading scorefile {path}')
+    df = pd.read_table(path, dtype=_scorefile_dtypes(), comment='#', na_values=['None'], low_memory=False)
     return (_read_header(path),
-            pd.read_table(path, dtype=_scorefile_dtypes(), comment='#', na_values=['None'], low_memory=False)
-            .assign(filename_prefix=_get_basename(path),
-                    filename=path))
+            df.assign(filename_prefix=_get_basename(path), filename=path, row_nr=df.index))
 
 
 def _read_header(path: str) -> dict:

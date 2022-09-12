@@ -1,9 +1,16 @@
+import gzip
 import logging
 import os
 
 import polars as pl
 
 logger = logging.getLogger(__name__)
+
+
+def write_log(df: pl.DataFrame, prefix: str) -> None:
+    logger.debug(f"Compressing and writing log: {prefix}_log.csv.gz")
+    with gzip.open(f"{prefix}_log.csv.gz", 'wb') as f:
+        df.write_csv(f)
 
 
 def write_out(df: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
@@ -19,10 +26,6 @@ def write_out(df: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
     logger.debug("Writing out scorefiles")
     ea_dict: dict[str, str] = {'is_dominant': 'dominant', 'is_recessive': 'recessive', 'additive': 'additive'}
     [_write_scorefile(ea_dict.get(k), v, split, outdir, dataset) for k, v in deduplicated.items()]
-
-
-def write_log(df: pl.DataFrame, dataset: str) -> None:
-    df.write_csv(f"{dataset}_log.csv")
 
 
 def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
@@ -89,7 +92,7 @@ def _deduplicate_variants(effect_type: str, df: pl.DataFrame) -> list[pl.DataFra
     # 2. use cumcount to number duplicate IDs
     # 3. join cumcount data on original DF, use this data for splitting
     ea_count: pl.DataFrame = (df.select(["ID", "effect_allele"])
-    .distinct()
+    .unique()
     .with_columns([
         pl.col("ID").cumcount().over(["ID"]).alias("cumcount"),
         pl.col("ID").count().over(["ID"]).alias("count")

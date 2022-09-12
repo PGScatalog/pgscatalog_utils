@@ -3,11 +3,13 @@ import os
 from unittest.mock import patch
 
 import pandas as pd
+import polars as pl
 import pytest
 import requests as req
 from pysqlar import SQLiteArchive
 
 from pgscatalog_utils.download.download_scorefile import download_scorefile
+from pgscatalog_utils.match.preprocess import complement_valid_alleles
 from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
 
 
@@ -139,6 +141,44 @@ def hg19_coords(hg38_coords):
     # hg38_coords in GRCh37, from dbSNP
     d = {'lifted_chr': ['2', '20'], 'lifted_pos': [192587204, 60956917], 'liftover': [True, True]}
     return pd.DataFrame(d)
+
+
+@pytest.fixture(scope='session')
+def small_flipped_scorefile(small_scorefile):
+    # simulate a scorefile on the wrong strand
+    return (complement_valid_alleles(small_scorefile, ['effect_allele', 'other_allele'])
+            .drop(['effect_allele', 'other_allele'])
+            .rename({'effect_allele_FLIP': 'effect_allele', 'other_allele_FLIP': 'other_allele'})
+            .pipe(complement_valid_alleles, ['effect_allele', 'other_allele']))
+
+
+@pytest.fixture(scope='session')
+def small_target():
+    return pl.DataFrame({"#CHROM": [1, 2, 3],
+                         "POS": [1, 2, 3],
+                         "REF": ["A", "T", "T"],
+                         "ALT": ["C", "A", "G"],
+                         "ID": ["1:1:A:C", "2:2:T:A", "3:3:T:G"],
+                         "is_multiallelic": [False, False, False]})
+
+
+@pytest.fixture(scope='session')
+def small_scorefile():
+    df = pl.DataFrame({"accession": ["test", "test", "test"],
+                       "row_nr": [1, 2, 3],
+                       "chr_name": [1, 2, 3],
+                       "chr_position": [1, 2, 3],
+                       "effect_allele": ["A", "A", "G"],
+                       "other_allele": ["C", "T", "T"],
+                       "effect_weight": [1, 2, 3],
+                       "effect_type": ["additive", "additive", "additive"]})
+
+    return complement_valid_alleles(df, ["effect_allele", "other_allele"])
+
+
+@pytest.fixture(scope='session')
+def small_scorefile_no_oa(small_scorefile):
+    return small_scorefile.with_column(pl.lit(None).alias('other_allele'))
 
 
 def _get_timeout(url):

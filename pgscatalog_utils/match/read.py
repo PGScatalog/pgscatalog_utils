@@ -48,7 +48,11 @@ def read_target(path: str, remove_multiallelic: bool, single_file: bool = False,
 def read_scorefile(path: str) -> pl.DataFrame:
     logger.debug("Reading scorefile")
     scorefile: pl.DataFrame = (pl.read_csv(path, sep='\t', dtype={'chr_name': str})
-                               .pipe(complement_valid_alleles, flip_cols=['effect_allele', 'other_allele']))
+                               .pipe(complement_valid_alleles, flip_cols=['effect_allele', 'other_allele'])
+                               .with_columns([
+        pl.col('accession').cast(pl.Categorical),
+        pl.col("effect_type").cast(pl.Categorical)]))
+
     return scorefile
 
 

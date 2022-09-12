@@ -2,20 +2,19 @@ import logging
 
 import polars as pl
 
-from pgscatalog_utils.match.postprocess import postprocess_matches
-from pgscatalog_utils.match.write import write_log
+from pgscatalog_utils.match.label import label_matches
 
 logger = logging.getLogger(__name__)
 
 
-def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, remove_ambiguous: bool,
-                    skip_flip: bool, keep_first_match: bool) -> pl.DataFrame:
+def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, skip_flip: bool, remove_ambiguous: bool,
+                    keep_first_match: bool) -> pl.DataFrame:
     scorefile_cat, target_cat = _cast_categorical(scorefile, target)
     scorefile_oa = scorefile_cat.filter(pl.col("other_allele") != None)
     scorefile_no_oa = scorefile_cat.filter(pl.col("other_allele") == None)
 
     matches: list[pl.DataFrame] = []
-    col_order = ['chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type',
+    col_order = ['row_nr', 'chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type',
                  'accession', 'effect_allele_FLIP', 'other_allele_FLIP',
                  'ID', 'REF', 'ALT', 'is_multiallelic', 'matched_effect_allele', 'match_type']
 
@@ -35,47 +34,7 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, remove_ambigu
             matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref_flip").select(col_order))
             matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt_flip").select(col_order))
 
-    return pl.concat(matches).pipe(postprocess_matches, remove_ambiguous, keep_first_match)
-
-
-def check_match_rate(scorefile: pl.DataFrame, matches: pl.DataFrame, min_overlap: float, dataset: str) -> pl.DataFrame:
-    scorefile: pl.DataFrame = scorefile.with_columns([
-        pl.col('effect_type').cast(pl.Categorical),
-        pl.col('accession').cast(pl.Categorical)])  # same dtypes for join
-    match_log: pl.DataFrame = _join_matches(matches, scorefile, dataset)
-    fail_rates: pl.DataFrame = (match_log.groupby('accession')
-                                .agg([pl.count(), (pl.col('match_type') == None).sum().alias('no_match')])
-                                .with_column((pl.col('no_match') / pl.col('count')).alias('fail_rate'))
-                                )
-    pass_df: pl.DataFrame = pl.DataFrame()
-    for accession, rate in zip(fail_rates['accession'].to_list(), fail_rates['fail_rate'].to_list()):
-        if rate < (1 - min_overlap):
-            df = pl.DataFrame({'accession': [accession], 'match_pass': [True], 'match_rate': [1 - rate]})
-            pass_df = pl.concat([pass_df, df])
-            logger.debug(f"Score {accession} passes minimum matching threshold ({1 - rate:.2%}  variants match)")
-        else:
-            df = pl.DataFrame({'accession': [accession], 'match_pass': [False], 'match_rate': [1 - rate]})
-            pass_df = pl.concat([pass_df, df])
-            logger.error(f"Score {accession} fails minimum matching threshold ({1 - rate:.2%} variants match)")
-
-    # TODO: fill nulls in certain columns with false in a nicer way
-    match_log['passes_pruning'] = match_log['passes_pruning'].fill_null(False)
-
-    # add match statistics to log and matches
-    write_log((match_log.with_column(pl.col('accession').cast(str))
-               .join(pass_df, on='accession', how='left')), dataset)
-
-    return (matches.with_column(pl.col('accession').cast(str))
-            .join(pass_df, on='accession', how='left'))
-
-
-def _match_keys():
-    return ['chr_name', 'chr_position', 'effect_allele', 'other_allele',
-            'accession', 'effect_type', 'effect_weight']
-
-
-def _join_matches(matches: pl.DataFrame, scorefile: pl.DataFrame, dataset: str):
-    return scorefile.join(matches, on=_match_keys(), how='left').with_column(pl.lit(dataset).alias('dataset'))
+    return pl.concat(matches).pipe(label_matches, remove_ambiguous, keep_first_match)
 
 
 def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: str) -> pl.DataFrame:

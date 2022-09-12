@@ -49,7 +49,7 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
 name = "coverage"
-version = "6.4.3"
+version = "6.4.4"
 description = "Code coverage measurement for Python"
 category = "dev"
 optional = false
@@ -134,19 +134,20 @@ testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
 name = "polars"
-version = "0.13.62"
+version = "0.14.9"
 description = "Blazingly fast DataFrame library"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 
 [package.extras]
+pandas = ["pyarrow (>=4.0)", "pandas"]
+connectorx = ["connectorx"]
+numpy = ["numpy (>=1.16.0)"]
 fsspec = ["fsspec"]
 xlsx2csv = ["xlsx2csv (>=0.8.0)"]
-connectorx = ["connectorx"]
-pandas = ["pyarrow (>=4.0)", "pandas"]
+pytz = ["pytz"]
 pyarrow = ["pyarrow (>=4.0)"]
-numpy = ["numpy (>=1.16.0)"]
 
 [[package]]
 name = "py"
@@ -288,7 +289,7 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "31cffdaa5cb10864005af569ed7ab3142071abe6934d06789bac6a00ca2ba1ee"
+content-hash = "607d2d543f52a4ecc116c0b912c499a83cd1c740244323c81fdfe89ba27a55eb"
 
 [metadata.files]
 atomicwrites = []

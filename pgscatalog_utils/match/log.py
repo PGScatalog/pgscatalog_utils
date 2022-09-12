@@ -48,7 +48,9 @@ def _prettify_log(df: pl.DataFrame) -> pl.DataFrame:
     keep_cols = ["row_nr", "accession", "chr_name", "chr_position", "effect_allele", "other_allele", "effect_weight",
                  "effect_type", "ID", "REF", "ALT", "matched_effect_allele", "match_type", "is_multiallelic",
                  "ambiguous", "duplicate_best_match", "duplicate_ID", "match_status", "dataset"]
-    pretty_df = (df.select(keep_cols).select(pl.exclude("^.*_right")))
+    pretty_df = (df.select(keep_cols)
+                 .select(pl.exclude("^.*_right"))
+                 .sort(["accession", "row_nr", "chr_name", "chr_position"]))
     return pretty_df
 
 

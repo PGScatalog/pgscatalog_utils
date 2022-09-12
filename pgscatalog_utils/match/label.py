@@ -22,8 +22,12 @@ def label_matches(df: pl.DataFrame, remove_ambiguous, keep_first_match) -> pl.Da
                 .pipe(_label_biallelic_ambiguous, remove_ambiguous)
                 .with_column(pl.lit(True).alias('match_candidate')))
 
-    # encode a new column called match status containing matched, unmatched, excluded, and not_best
-    return (labelled.with_columns([
+    return _encode_match_priority(labelled)
+
+
+def _encode_match_priority(df: pl.DataFrame) -> pl.DataFrame:
+    """ Encode a new column called match status containing matched, unmatched, excluded, and not_best """
+    return (df.with_columns([
         # set false best match to not_best
         pl.col('best_match').apply(lambda x: {None: 0, True: 1, False: 3}[x]).alias('match_priority'),
         pl.col('exclude').apply(lambda x: {None: 0, True: 2, False: 0}[x]).alias('excluded_match_priority')
@@ -31,7 +35,8 @@ def label_matches(df: pl.DataFrame, remove_ambiguous, keep_first_match) -> pl.Da
             .with_column(pl.max(["match_priority", "excluded_match_priority"]))
             .with_column(pl.col("max")
                          .apply(lambda x: {0: 'unmatched', 1: 'matched', 2: 'excluded', 3: 'not_best'}[x])
-                         .alias('match_status'))).drop(["max", "excluded_match_priority", "match_priority"])
+                         .alias('match_status')
+                         .cast(pl.Categorical)).drop(["max", "excluded_match_priority", "match_priority"]))
 
 
 def _label_best_match(df: pl.DataFrame) -> pl.DataFrame:

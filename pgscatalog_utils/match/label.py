@@ -72,9 +72,9 @@ def _label_duplicate_best_match(df: pl.DataFrame) -> pl.DataFrame:
     │ 38557  ┆ PGS000012_hmPOS_GRCh37 ┆ no_oa_alt  ┆ 3:29588979:T:G ┆ T   ┆ true       │
     └────────┴────────────────────────┴────────────┴────────────────┴─────┴────────────┘
 
-    Label the first row with exclude = false, and duplicate rows with exclude = true and best_match = false
+    Label the first row with best_match = true, and duplicate rows with best_match = false
     """
-    logger.debug("Labelling duplicated best match: flagging first instance with exclude = false")
+    logger.debug("Labelling duplicated best match: keeping first instance as best_match = True")
     labelled: pl.DataFrame = (df.with_column(pl.col('best_match')
                                              .count()
                                              .over(['accession', 'row_nr', 'best_match'])
@@ -86,12 +86,6 @@ def _label_duplicate_best_match(df: pl.DataFrame) -> pl.DataFrame:
                               .drop('count')
                               .rename({'row_nr': 'score_row_nr'})
                               .with_row_count()  # add temporary row count to get first variant
-                              .with_column(pl.when((pl.col("duplicate_best_match") == True) &
-                                                   (pl.col("row_nr") != pl.min("row_nr")
-                                                    .over(["accession", "score_row_nr"])))
-                                           .then(True)
-                                           .otherwise(False)
-                                           .alias('exclude_duplicate_best_match'))
                               .with_column(pl.when((pl.col("best_match") == True) &
                                                    (pl.col("duplicate_best_match") == True) &
                                                    (pl.col("row_nr") > pl.min("row_nr")).over(
@@ -102,10 +96,7 @@ def _label_duplicate_best_match(df: pl.DataFrame) -> pl.DataFrame:
                               .drop(['row_nr', 'best_match'])
                               .rename({'score_row_nr': 'row_nr', 'best_match_duplicate_row_nr': 'best_match'}))
 
-    # get the horizontal maximum to combine the exclusion columns for each variant
-    return (labelled.with_column(pl.max(["exclude", "exclude_duplicate_best_match"]))
-            .drop(["exclude", "exclude_duplicate_best_match"])
-            .rename({"max": "exclude"}))
+    return labelled
 
 
 def _label_duplicate_id(df: pl.DataFrame, keep_first_match: bool) -> pl.DataFrame:

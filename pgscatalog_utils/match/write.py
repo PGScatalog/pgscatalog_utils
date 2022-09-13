@@ -76,7 +76,7 @@ def _split_effect_type(df: pl.DataFrame) -> dict[str, pl.DataFrame]:
 def _deduplicate_variants(effect_type: str, df: pl.DataFrame) -> list[pl.DataFrame]:
     """ Find variant matches that have duplicate identifiers
     When merging a lot of scoring files, sometimes a variant might be duplicated
-    this can happen when the effect allele differs at the same position, e.g.:
+    this can happen when the matched effect allele differs at the same position, e.g.:
         - chr1: chr2:20003:A:C A 0.3 NA
         - chr1: chr2:20003:A:C C NA 0.7
     where the last two columns represent different scores.  plink demands
@@ -85,20 +85,20 @@ def _deduplicate_variants(effect_type: str, df: pl.DataFrame) -> list[pl.DataFra
     df: A dataframe containing all matches, with columns ID, effect_allele, and
         effect_weight
     Returns:
-        A list of dataframes, with unique ID - effect allele combinations
+        A list of dataframes, with unique ID - matched effect allele combinations
     """
     # 1. unique ID - EA is important because normal duplicates are already
     #   handled by pivoting, and it's pointless to split them unnecessarily
     # 2. use cumcount to number duplicate IDs
     # 3. join cumcount data on original DF, use this data for splitting
-    ea_count: pl.DataFrame = (df.select(["ID", "effect_allele"])
+    ea_count: pl.DataFrame = (df.select(["ID", "matched_effect_allele"])
     .unique()
     .with_columns([
         pl.col("ID").cumcount().over(["ID"]).alias("cumcount"),
         pl.col("ID").count().over(["ID"]).alias("count")
     ]))
 
-    dup_label: pl.DataFrame = df.join(ea_count, on=["ID", "effect_allele"], how="left")
+    dup_label: pl.DataFrame = df.join(ea_count, on=["ID", "matched_effect_allele"], how="left")
 
     # now split the matched variants, and make sure we don't lose any
     n_splits: int = ea_count.select("cumcount").max()[0, 0] + 1  # cumcount = ngroup-1

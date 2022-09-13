@@ -42,7 +42,7 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, pvar: bool)
                 logger.warning("--remove_multiallelic requested for bim format, which already contains biallelic "
                                "variant representations only")
             logger.debug('Dropping multiallelic variants')
-            return df[~df['is_multiallelic']]
+            return df.filter(~df['is_multiallelic'])
         else:
             logger.debug("Exploding dataframe to handle multiallelic variants")
             df.replace('ALT', df['ALT'].str.split(by=','))  # turn ALT to list of variants

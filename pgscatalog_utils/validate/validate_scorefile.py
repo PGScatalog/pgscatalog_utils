@@ -38,55 +38,42 @@ def _file_validation_state(filename: str, log_file: str) -> None:
 
 def _run_validator(validator: object, file: str, check_filename: bool, logfile: str, validator_type: str) -> None:
     ''' Main method to run the PGS file validator '''
-    validator.logger.propagate = False
+    if check_filename:
+        validator.run_validator()
+    else:
+        validator.run_validator_skip_check_filename()
+    # validator.logger.propagate = False
 
-    is_ok_to_continue_validation = 1
+    # # Check files exist
+    # if not file or not logfile:
+    #     validator.logger.info("Missing file and/or logfile")
+    #     validator.set_file_is_invalid()
+    # elif file and not os.path.exists(file):
+    #     validator.logger.info("Error: the file '"+file+"' can't be found")
+    #     validator.set_file_is_invalid()
 
-    # Check files exist
-    if not file or not logfile:
-        validator.logger.info("Missing file and/or logfile")
-        is_ok_to_continue_validation = 0
-    elif file and not os.path.exists(file):
-        validator.logger.info("Error: the file '"+file+"' can't be found")
-        is_ok_to_continue_validation = 0
+    # # Validate file extension
+    # validator.validate_file_extension()
 
-    # Validate file extension
-    validator.logger.info("Validating file extension...")
-    if not validator.validate_file_extension():
-        validator.logger.info("Invalid file extension: {}".format(file))
-        is_ok_to_continue_validation = 0
-    # Validate file name nomenclature
-    if is_ok_to_continue_validation and check_filename:
-        validator.logger.info("Validating file name...")
-        if not validator.validate_filename():
-            validator.logger.info("Invalid filename: {}".format(file))
-            is_ok_to_continue_validation = 0
+    # # Validate file name nomenclature
+    # if validator.is_file_valid() and check_filename:
+    #     validator.validate_filename()
 
-    # Only for harmonized files
-    if is_ok_to_continue_validation and validator_type != 'formatted':
-        validator.logger.info("Comparing filename with metadata...")
-        if not validator.compare_with_filename():
-            validator.logger.info("Discrepancies between filename information and metadata: {}".format(file))
-            is_ok_to_continue_validation = 0
+    # # Only for harmonized files
+    # if validator.is_file_valid() and validator_type != 'formatted':
+    #     validator.compare_with_filename()
 
-    # Validate column headers
-    if is_ok_to_continue_validation:
-        validator.logger.info("Validating headers...")
-        if not validator.validate_headers():
-            validator.logger.info("Invalid headers...exiting before any further checks")
-            is_ok_to_continue_validation = 0
+    # # Validate column headers
+    # if validator.is_file_valid():
+    #     validator.validate_headers()
 
-    # Validate data content
-    if is_ok_to_continue_validation:
-        validator.logger.info("Validating data...")
-        validator.validate_data()
+    # # Validate data content
+    # if validator.is_file_valid():
+    #     validator.validate_data()
 
-    if is_ok_to_continue_validation == 0:
-        validator.logger.info("Exiting before any further checks")
-
-    # Close log handler
-    validator.logger.removeHandler(validator.handler)
-    validator.handler.close()
+    # # Close log handler
+    # validator.logger.removeHandler(validator.handler)
+    # validator.handler.close()
 
 
 def _check_args(args):

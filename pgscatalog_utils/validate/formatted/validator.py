@@ -81,7 +81,9 @@ class ValidatorFormatted(ValidatorBase):
                 self.bad_rows.append(index)
 
 
-    def validate_data(self):
+    def validate_data(self) -> bool:
+        ''' Validate the file: data format and data content '''
+        self.logger.info("Validating data...")
         if not self.open_file_and_check_for_squareness():
             self.logger.error("Please fix the table. Some rows have different numbers of columns to the header")
             self.logger.info("Rows with different numbers of columns to the header are not validated")
@@ -119,24 +121,33 @@ class ValidatorFormatted(ValidatorBase):
             if len(self.bad_rows) >= self.error_limit:
                 break
         if not self.bad_rows and not self.global_errors:
-            self.logger.info("File is valid")
-            return True
-
+            if self.is_file_valid():
+                self.logger.info("File is valid")
+            else:
+                self.logger.info("File is invalid")
         else:
             self.logger.info("File is invalid - {} bad rows, limit set to {}".format(len(self.bad_rows), self.error_limit))
-            return False
+            self.set_file_is_invalid()
+        return self.is_file_valid()
 
 
-    def validate_filename(self):
+    def validate_filename(self) -> bool:
+        ''' Validate the file name structure. '''
+        self.logger.info("Validating file name...")
         filename = self.file.split('/')[-1].split('.')[0]
-        if re.match(r'^PGS\d{6}$', filename):
-            return True
-        else:
+        is_valid_filename = True
+        if not re.match(r'^PGS\d{6}$', filename):
+            self.logger.info("Invalid filename: {}".format(self.file))
             self.logger.error("Filename: {} should follow the pattern 'PGSXXXXXX.txt.gz', where the 'X' are the 6 digits of the PGS identifier (e.g. PGS000001)".format(filename))
-            return False
+            is_valid_filename = False
+            self.set_file_is_invalid()
+
+        return is_valid_filename
 
 
-    def validate_headers(self):
+    def validate_headers(self) -> bool:
+        ''' Validate the list of column names. '''
+        self.logger.info("Validating headers...")
         self.detect_genomebuild_with_rsid()
         required_is_subset = set(STD_COLS_VAR_FORMATTED).issubset(self.header)
         if not required_is_subset:
@@ -156,6 +167,10 @@ class ValidatorFormatted(ValidatorBase):
         if not has_effect_col:
             self.logger.error("Required headers: at least one of the columns '{}' must be in the file header: {}".format(STD_COLS_EFFECT_FORMATTED, self.header))
             required_is_subset = None
+
+        if not required_is_subset:
+            self.logger.info("Invalid headers...exiting before any further checks")
+            self.set_file_is_invalid()
 
         return required_is_subset
 
@@ -186,45 +201,3 @@ class ValidatorFormatted(ValidatorBase):
 def init_validator(file, logfile, score_dir=None) -> ValidatorFormatted:
     validator = ValidatorFormatted(file=file, score_dir=score_dir, logfile=logfile)
     return validator
-
-# def run_validator(file, check_filename, logfile, score_dir=None):
-
-#     validator = ValidatorFormatted(file=file, score_dir=score_dir, logfile=logfile)
-
-#     validator.logger.propagate = False
-
-#     if not file or not logfile:
-#         validator.logger.info("Missing file and/or logfile")
-#         validator.logger.info("Exiting before any further checks")
-#         sys.exit()
-#     if not os.path.exists(file):
-#         validator.logger.info("Error: the file '"+file+"' can't be found")
-#         validator.logger.info("Exiting before any further checks")
-#         sys.exit()
-
-#     is_ok_to_run_validation = 1
-#     validator.logger.info("Validating file extension...")
-#     if not validator.validate_file_extension():
-#         validator.logger.info("Invalid file extension: {}".format(file))
-#         validator.logger.info("Exiting before any further checks")
-#         is_ok_to_run_validation = 0
-
-#     if is_ok_to_run_validation and check_filename:
-#         validator.logger.info("Validating file name...")
-#         if not validator.validate_filename():
-#             validator.logger.info("Invalid filename: {}".format(file))
-#             is_ok_to_run_validation = 0
-
-#     if is_ok_to_run_validation:
-#         validator.logger.info("Validating headers...")
-#         if not validator.validate_headers():
-#             validator.logger.info("Invalid headers...exiting before any further checks")
-#             is_ok_to_run_validation = 0
-
-#     if is_ok_to_run_validation:
-#         validator.logger.info("Validating data...")
-#         validator.validate_data()
-
-#     # Close log handler
-#     validator.logger.removeHandler(validator.handler)
-#     validator.handler.close()

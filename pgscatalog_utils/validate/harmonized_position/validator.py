@@ -43,28 +43,33 @@ class ValidatorPos(ValidatorBase):
                 self.logger.error(f"- Variant line {var_line_number} | 'hm_match_pos' should be 'True': same position ('chr_position={line_dict['chr_position']}' vs 'hm_pos={line_dict['hm_pos']}')")
 
 
-    def validate_filename(self):
+    def validate_filename(self) -> bool:
         ''' Validate the file name structure. '''
+        self.logger.info("Validating file name...")
         pgs_id, build = None, None
+        is_valid_filename = True
         # hmPOS
         filename = self.file.split('/')[-1].split('.')[0]
         filename_parts = filename.split('_hmPOS_')
         if len(filename_parts) != 2:
             self.logger.error("Filename: {} should follow the pattern <pgs_id>_hmPOS_<build>.txt.gz [build=GRChXX]".format(filename))
-            return False
+            self.set_file_is_invalid()
+            is_valid_filename = False
         else:
             pgs_id, build = filename_parts
         self.file_pgs_id = pgs_id
         self.file_genomebuild = build
         if not self.check_build_is_legit(build):
             self.logger.error("Build: {} is not an accepted build value".format(build))
-            return False
-        self.logger.info("Filename looks good!")
-        return True
+            self.set_file_is_invalid()
+            is_valid_filename = False
+
+        return is_valid_filename
 
 
-    def validate_headers(self):
+    def validate_headers(self) -> bool:
         ''' Validate the list of column names. '''
+        self.logger.info("Validating headers...")
         # Check if it has at least a "SNP" column or a "chromosome" column
         required_is_subset = set(STD_COLS_VAR_POS).issubset(self.header)
         if not required_is_subset:
@@ -78,7 +83,11 @@ class ValidatorPos(ValidatorBase):
             if not required_pos:
                 self.logger.error("One of the following required header is missing: '{}' and/or '{}' are not in the file header: {}".format(SNP_COLS_VAR_POS, CHR_COLS_VAR_POS, self.header))
                 required_is_subset = required_pos
-        
+
+        if not required_is_subset:
+            self.logger.info("Invalid headers...exiting before any further checks")
+            self.set_file_is_invalid()
+
         return required_is_subset
 
 
@@ -87,51 +96,3 @@ class ValidatorPos(ValidatorBase):
 def init_validator(file, logfile, score_dir=None) -> ValidatorPos:
     validator = ValidatorPos(file=file, score_dir=score_dir, logfile=logfile)
     return validator
-
-# def run_validator(file, check_filename, logfile, score_dir=None):
-
-#     validator = ValidatorPos(file=file, score_dir=score_dir, logfile=logfile)
-
-#     validator.logger.propagate = False
-
-#     if not file or not logfile:
-#         validator.logger.info("Missing file and/or logfile")
-#         validator.logger.info("Exiting before any further checks")
-#         sys.exit()
-#     if not os.path.exists(file):
-#         validator.logger.info("Error: the file '"+file+"' can't be found")
-#         validator.logger.info("Exiting before any further checks")
-#         sys.exit()
-
-#     is_ok_to_run_validation = 1
-#     validator.logger.info("Validating file extension...")
-#     if not validator.validate_file_extension():
-#         validator.logger.info("Invalid file extension: {}".format(file))
-#         validator.logger.info("Exiting before any further checks")
-#         is_ok_to_run_validation = 0
-
-#     if is_ok_to_run_validation and check_filename:
-#         validator.logger.info("Validating file name...")
-#         if not validator.validate_filename():
-#             validator.logger.info("Invalid filename: {}".format(file))
-#             is_ok_to_run_validation = 0
-
-#     if is_ok_to_run_validation:
-#         validator.logger.info("Comparing filename with metadata...")
-#         if not validator.compare_with_filename():
-#             validator.logger.info("Discrepancies between filename information and metadata: {}".format(file))
-#             is_ok_to_run_validation = 0
-
-#     if is_ok_to_run_validation:
-#         validator.logger.info("Validating headers...")
-#         if not validator.validate_headers():
-#             validator.logger.info("Invalid headers...exiting before any further checks")
-#             is_ok_to_run_validation = 0
-
-#     if is_ok_to_run_validation:
-#         validator.logger.info("Validating data...")
-#         validator.validate_data()
-
-#     # Close log handler
-#     validator.logger.removeHandler(validator.handler)
-#     validator.handler.close()

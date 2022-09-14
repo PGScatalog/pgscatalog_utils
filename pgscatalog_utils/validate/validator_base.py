@@ -42,6 +42,7 @@ class ValidatorBase:
         self.errors_seen = {}
         self.logfile = logfile
         self.error_limit = int(error_limit)
+        self.is_valid = True
 
         # Logging variables
         self.logger = logging.getLogger(__name__)
@@ -135,8 +136,9 @@ class ValidatorBase:
             self.global_errors += 1
 
 
-    def validate_data(self):
+    def validate_data(self) -> bool:
         ''' Validate the file: data format and data content '''
+        self.logger.info("Validating data...")
         if not self.open_file_and_check_for_squareness():
             self.logger.error("Please fix the table. Some rows have different numbers of columns to the header")
             self.logger.info("Rows with different numbers of columns to the header are not validated")
@@ -156,12 +158,21 @@ class ValidatorBase:
             if len(self.bad_rows) >= self.error_limit:
                 break
 
-        if not self.bad_rows and not self.global_errors:
+        if not self.bad_rows and not self.global_errors and self.is_valid:
             self.logger.info("File is valid")
-            return True
         else:
             self.logger.info("File is invalid - {} bad rows, limit set to {}".format(len(self.bad_rows), self.error_limit))
-            return False
+            self.set_file_is_invalid()
+        return self.is_valid
+
+
+    def is_file_valid(self) -> bool:
+        ''' Method returning the boolean value: True if the file is valid, False if the file is invalid. '''
+        return self.is_valid
+
+    def set_file_is_invalid(self):
+        ''' Set the flag "is_valid" to False. '''
+        self.is_valid = False
 
 
     def process_errors(self):
@@ -196,14 +207,16 @@ class ValidatorBase:
 
     def validate_file_extension(self):
         ''' Check/validate the file name extension. '''
+        self.logger.info("Validating file extension...")
         check_exts = [self.check_ext(ext) for ext in self.valid_extensions]
         if not any(check_exts):
             self.valid_ext = False
+            self.set_file_is_invalid()
+            self.logger.info("Invalid file extension: {}".format(self.file))
             self.logger.error("File extension should be in {}".format(self.valid_extensions))
-            return False
         else:
             self.valid_ext = True
-        return True
+        return self.valid_ext
 
 
     def compare_number_of_rows(self):
@@ -234,6 +247,7 @@ class ValidatorBase:
 
     def compare_with_filename(self):
         ''' Check that the filename matches the information present in the file metadata (PGS ID, genome build). '''
+        self.logger.info("Comparing filename with metadata...")
         comparison_status = True
         if hasattr(self,'file_genomebuild') and hasattr(self,'file_pgs_id'):
             # Extract some metadata
@@ -242,10 +256,10 @@ class ValidatorBase:
             # Compare metadata with filename information
             if self.file_genomebuild != self.genomebuild:
                 self.logger.error("Build: the genome build in the HmPOS_build header ({}) is different from the one on the filename ({})".format(self.genomebuild,self.file_genomebuild))
-                check_status = False
+                comparison_status = False
             if self.file_pgs_id != self.pgs_id:
                 self.logger.error("ID: the PGS ID of the header ({}) is different from the one on the filename ({})".format(self.pgs_id,self.file_pgs_id))
-                check_status = False
+                comparison_status = False
             # Compare number of rows with Scoring file
             if self.score_dir:
                 row_comparison_status = self.compare_number_of_rows()
@@ -253,6 +267,9 @@ class ValidatorBase:
                     comparison_status = row_comparison_status
             else:
                 self.logger.info("Comparison of the number of rows between Harmonized and Scoring file skipped!")
+            if not comparison_status:
+                self.logger.info("Discrepancies between filename information and metadata: {}".format(self.file))                
+                self.set_file_is_invalid()
         return comparison_status
 
 
@@ -337,6 +354,46 @@ class ValidatorBase:
                 if line.startswith(type):
                     info = (line.split('='))[1]
                     return info.strip()
+
+    def run_generic_validator(self,check_filename):
+        self.logger.propagate = False
+
+        # Check files exist
+        if not self.file or not self.logfile:
+            self.logger.info("Missing file and/or logfile")
+            self.set_file_is_invalid()
+        elif self.file and not os.path.exists(self.file):
+            self.logger.info("Error: the file '"+self.file+"' can't be found")
+            self.set_file_is_invalid()
+
+        # Validate file extension
+        self.validate_file_extension()
+
+        # Validate file name nomenclature
+        if self.is_file_valid() and check_filename:
+            self.validate_filename()
+
+        # Only for harmonized files
+        if self.is_file_valid() and type(self).__name__ != 'ValidatorFormatted':
+            self.compare_with_filename()
+
+        # Validate column headers
+        if self.is_file_valid():
+            self.validate_headers()
+
+        # Validate data content
+        if self.is_file_valid():
+            self.validate_data()
+
+        # Close log handler
+        self.logger.removeHandler(self.handler)
+        self.handler.close()
+
+    def run_validator(self):
+        self.run_generic_validator(True)
+
+    def run_validator_skip_check_filename(self):
+        self.run_generic_validator(False)
 
 
     def validate_filename(self):

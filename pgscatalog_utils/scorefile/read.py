@@ -1,19 +1,46 @@
-import os
-import pandas as pd
+import gzip
+import io
 import logging
-from .harmonised import remap_harmonised
-from .qc import quality_control
+import os
+
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-def load_scorefile(path: str, use_harmonised: bool = True, drop_missing: bool = False) -> pd.DataFrame:
+def load_scorefile(path: str) -> tuple[dict, pd.DataFrame]:
     logger.debug(f'Reading scorefile {path}')
-    return (pd.read_table(path, dtype=_scorefile_dtypes(), comment='#', na_values=['None'], low_memory=False)
-            .pipe(remap_harmonised, use_harmonised=use_harmonised)
-            .assign(filename_prefix=_get_basename(path),
-                    filename=path)
-            .pipe(quality_control, drop_missing=drop_missing))
+    df = pd.read_table(path, dtype=_scorefile_dtypes(), comment='#', na_values=['None'], low_memory=False)
+    return (_read_header(path),
+            df.assign(filename_prefix=_get_basename(path), filename=path, row_nr=df.index))
+
+
+def _read_header(path: str) -> dict:
+    """Parses the header of a PGS Catalog format scorefle into a dictionary"""
+    f = io.TextIOWrapper(gzip.open(path, 'r'))
+    try:
+        f.readline()
+    except gzip.BadGzipFile:
+        f = open(path, 'r')
+
+    header = {}
+    lastline = '#'
+    while lastline.startswith('#'):
+        lastline = f.readline()
+        line = lastline.strip()
+        if line.startswith('#'):
+            if '=' in line:
+                line = line[1:].split('=')
+                field, val = [x.strip() for x in line]
+                if field in remap_header:
+                    header[remap_header[field]] = val
+                else:
+                    header[field] = val
+
+    if ('genome_build' in header) and (header['genome_build'] == 'NR'):
+        header['genome_build'] = None
+    f.close()
+    return header
 
 
 def _scorefile_dtypes() -> dict[str]:
@@ -27,3 +54,21 @@ def _get_basename(path: str) -> str:
     """ Return the basename of a scoring file without extension """
     return os.path.basename(path).split('.')[0]
 
+
+remap_header = {
+    'PGS ID': 'pgs_id',
+    'PGS Name': 'pgs_name',
+    'Reported Trait': 'trait_reported',
+    'Original Genome Build': 'genome_build',
+    'Number of Variants': 'variants_number',
+    'PGP ID': 'pgp_id',
+    'Citation': 'citation',
+    'LICENSE': 'license',
+    # Harmonization related
+    'HmPOS Build': 'HmPOS_build',
+    'HmPOS Date': 'HmPOS_date',
+    'HmVCF Reference': 'HmVCF_ref',
+    'HmVCF Date': 'HmVCF_date',
+    'HmVCF N Matched Variants': 'HmVCF_n_matched',
+    'HmVCF N Unmapped Variants': 'HmVCF_n_unmapped'
+}  # Used to maintain reverse compatibility to old scoring files

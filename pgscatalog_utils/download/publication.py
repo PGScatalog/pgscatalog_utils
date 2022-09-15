@@ -1,6 +1,7 @@
-import requests
 import logging
 from functools import reduce
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,3 @@ def query_publication(pgp: str) -> list[str]:
     pgs: dict[str, list[str]] = r.json().get('associated_pgs_ids')
     logger.debug(f"Valid response from PGS Catalog for PGP ID: {pgp}")
     return list(reduce(lambda x, y: set(x).union(set(y)), pgs.values()))
-
-
-

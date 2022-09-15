@@ -1,11 +1,12 @@
 import os
-import pytest
 from unittest.mock import patch
 
-from pgscatalog_utils.download.trait import query_trait
+import pytest
+
+from pgscatalog_utils.download.download_scorefile import download_scorefile
 from pgscatalog_utils.download.publication import query_publication
 from pgscatalog_utils.download.score import get_url
-from pgscatalog_utils.download.download_scorefile import download_scorefile
+from pgscatalog_utils.download.trait import query_trait
 
 
 @pytest.fixture(params=[["PGS000001"], ["PGS000001", "PGS000802"]])
@@ -31,6 +32,7 @@ def test_download_scorefile_author(tmp_path):
     with patch('sys.argv', args):
         download_scorefile()
         assert os.listdir(out_dir) == ['PGS000001.txt.gz']
+
 
 def test_download_scorefile_hmPOS(tmp_path):
     out_dir = str(tmp_path.resolve())

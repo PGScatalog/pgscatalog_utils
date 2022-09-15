@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pgscatalog_utils"
-version = "0.1.1"
+version = "0.1.2"
 description = "Utilities for working with PGS Catalog API and scoring files"
 homepage = "https://github.com/PGScatalog/pgscatalog_utils"
 authors = ["Benjamin Wingfield <bwingfield@ebi.ac.uk>", "Samuel Lambert <sl925@medschl.cam.ac.uk>"]
@@ -18,7 +18,7 @@ pandas = "^1.4.3"
 pyliftover = "^0.4"
 requests = "^2.28.1"
 jq = "^1.2.2"
-polars = "^0.13.59"
+polars = "^0.14.9"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"

@@ -2,9 +2,8 @@
 
 [![CI](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml/badge.svg)](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml)
 
-This repository is a collection of useful tools for working with data from the
-PGS Catalog. This is mostly used internally by the PGS Catalog calculator, but
-other users might find some of these tools helpful.
+This repository is a collection of useful tools for downloading and working with scoring files from the
+PGS Catalog. This is mostly used internally by the PGS Catalog Calculator ([`PGScatalog/pgsc_calc`](https://github.com/PGScatalog/pgsc_calc)); however, other users may find some of these tools helpful.
 
 ## Overview
 

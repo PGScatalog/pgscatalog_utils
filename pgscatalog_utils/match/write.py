@@ -37,9 +37,11 @@ def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, ou
 
         for k, v in df_dict.items():
             chr = k.replace("false", "ALL")
-            path: str = os.path.join(outdir, f"{dataset}_{chr}_{effect_type}_{i}.scorefile")
+            path: str = os.path.join(outdir, f"{dataset}_{chr}_{effect_type}_{i}.scorefile.gz")
             logger.debug(f"Writing matched scorefile to {path}")
-            v.write_csv(path, sep="\t")
+
+            with gzip.open(path, 'wb') as f:
+                v.write_csv(f, sep="\t")
 
 
 def _format_scorefile(df: pl.DataFrame, split: bool) -> dict[str, pl.DataFrame]:

@@ -3,9 +3,11 @@ import logging
 import os
 import shutil
 import textwrap
+import time
 from contextlib import closing
 from functools import reduce
 from urllib import request as request
+from urllib.error import HTTPError, URLError
 
 from pgscatalog_utils.download.publication import query_publication
 from pgscatalog_utils.download.score import get_url
@@ -62,14 +64,26 @@ def _mkdir(outdir: str) -> None:
         os.makedirs(outdir)
 
 
-def _download_ftp(url: str, path: str) -> None:
+def _download_ftp(url: str, path: str, retry:int = 0) -> None:
     if os.path.exists(path):
         logger.warning(f"File already exists at {path}, skipping download")
         return
     else:
-        with closing(request.urlopen(url)) as r:
-            with open(path, 'wb') as f:
-                shutil.copyfileobj(r, f)
+        try:
+            with closing(request.urlopen(url)) as r:
+                with open(path, 'wb') as f:
+                    shutil.copyfileobj(r, f)
+        except (HTTPError, URLError) as error:
+            max_retries = 5
+            print(f'Download failed: {error.reason}')
+            # Retry to download the file if the server is busy
+            if '421' in error.reason and retry < max_retries:
+                print(f'> Retry to download the file ... attempt {retry+1} out of {max_retries}.')
+                retry += 1
+                time.sleep(10)
+                _download_ftp(url,path,retry)
+            else:
+                raise RuntimeError("Failed to download '{}'.\nError message: '{}'".format(url, error.reason))
 
 
 def _check_args(args):

@@ -27,7 +27,7 @@ def complement_valid_alleles(df: pl.DataFrame, flip_cols: list[str]) -> pl.DataF
     return df
 
 
-def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, pvar: bool) -> pl.DataFrame:
+def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, file_format: str) -> pl.DataFrame:
     # plink2 pvar multi-alleles are comma-separated
     df: pl.DataFrame = (df.with_column(
         pl.when(pl.col("ALT").str.contains(','))
@@ -35,10 +35,10 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, pvar: bool)
         .otherwise(pl.lit(False))
         .alias('is_multiallelic')))
 
-    if df['is_multiallelic'].sum() > 0:
+    if df.select('is_multiallelic').sum() > 0:
         logger.debug("Multiallelic variants detected")
         if remove_multiallelic:
-            if not pvar:
+            if file_format == "bim":
                 logger.warning("--remove_multiallelic requested for bim format, which already contains biallelic "
                                "variant representations only")
             logger.debug('Dropping multiallelic variants')

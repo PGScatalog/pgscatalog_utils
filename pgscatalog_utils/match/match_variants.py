@@ -6,9 +6,9 @@ from glob import glob
 import polars as pl
 
 from pgscatalog_utils.log_config import set_logging_level
+from pgscatalog_utils.match.filter import filter_scores
 from pgscatalog_utils.match.log import make_logs
 from pgscatalog_utils.match.match import get_all_matches
-from pgscatalog_utils.match.filter import filter_scores
 from pgscatalog_utils.match.read import read_target, read_scorefile
 from pgscatalog_utils.match.write import write_out, write_log
 
@@ -28,18 +28,12 @@ def match_variants():
         n_target_files = len(glob(args.target))
         matches: pl.DataFrame
 
-        if n_target_files == 1 and not args.fast:
-            match_mode: str = 'single'
-        elif n_target_files > 1 and not args.fast:
+        if n_target_files > 1 and not args.fast:
             match_mode: str = 'multi'
-        elif args.fast:
+        else:
             match_mode: str = 'fast'
 
         match match_mode:
-            case "single":
-                logger.debug(f"Match mode: {match_mode}")
-                matches = _match_single_target(args.target, scorefile, args.remove_multiallelic, args.skip_flip,
-                                               args.remove_ambiguous, args.keep_first_match)
             case "multi":
                 logger.debug(f"Match mode: {match_mode}")
                 matches = _match_multiple_targets(args.target, scorefile, args.remove_multiallelic, args.skip_flip,
@@ -81,8 +75,7 @@ def _fast_match(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: 
     # fast match is fast because:
     #   1) all target files are read into memory
     #   2) matching occurs without iterating through chromosomes
-    target: pl.DataFrame = read_target(path=target_path,
-                                       remove_multiallelic=remove_multiallelic)
+    target: pl.DataFrame = read_target(path=target_path, remove_multiallelic=remove_multiallelic)
     logger.debug("Split target chromosomes not checked with fast match mode")
     return get_all_matches(scorefile, target, skip_filp, remove_ambiguous, keep_first_match)
 
@@ -92,23 +85,9 @@ def _match_multiple_targets(target_path: str, scorefile: pl.DataFrame, remove_mu
     matches = []
     for i, loc_target_current in enumerate(glob(target_path)):
         logger.debug(f'Matching scorefile(s) against target: {loc_target_current}')
-        target: pl.DataFrame = read_target(path=loc_target_current,
-                                           remove_multiallelic=remove_multiallelic)
+        target: pl.DataFrame = read_target(path=loc_target_current, remove_multiallelic=remove_multiallelic)
         _check_target_chroms(target)
         matches.append(get_all_matches(scorefile, target, skip_filp, remove_ambiguous, keep_first_match))
-    return pl.concat(matches)
-
-
-def _match_single_target(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
-                         skip_filp: bool, remove_ambiguous: bool, keep_first_match: bool) -> pl.DataFrame:
-    matches = []
-    for chrom in scorefile['chr_name'].unique().to_list():
-        target = read_target(target_path, remove_multiallelic=remove_multiallelic,
-                             single_file=True, chrom=chrom)  # scans and filters
-        if target:
-            logger.debug(f"Matching chromosome {chrom}")
-            matches.append(get_all_matches(scorefile, target, skip_filp, remove_ambiguous, keep_first_match))
-
     return pl.concat(matches)
 
 

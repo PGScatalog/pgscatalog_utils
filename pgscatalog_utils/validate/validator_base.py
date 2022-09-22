@@ -7,10 +7,8 @@ import re
 from typing import List
 import pandas as pd
 import pandas_schema
-from pgscatalog_utils.validate.schemas import *
 import warnings
-
-warnings.filterwarnings('ignore', category=UserWarning, module='pandas_schema')
+from pgscatalog_utils.validate.schemas import *
 
 '''
 PGS Catalog file validator
@@ -23,7 +21,7 @@ csv.field_size_limit(sys.maxsize)
 class ValidatorBase:
 
     valid_extensions = VALID_FILE_EXTENSIONS
-    validators = GENERIC_VALIDATORS
+    schema_validators = GENERIC_VALIDATORS
     valid_cols = []
     valid_type = ''
     sep = '\t'
@@ -53,6 +51,18 @@ class ValidatorBase:
 
         self.global_errors = 0
         self.variants_number = 0
+
+
+    def validate_schema(self, schema: dict, dataframe_to_validate: pd.core.frame.DataFrame):
+        '''
+        Run the pandas_schema validation using the provided Schema and DataFrame
+        '''
+        self.schema = pandas_schema.Schema([schema[h] for h in self.cols_to_validate])
+        with warnings.catch_warnings():
+            # Ignore python warningd raised in the pandas_schema code
+            warnings.simplefilter('ignore', UserWarning)
+            errors = self.schema.validate(dataframe_to_validate)
+            self.store_errors(errors)
 
 
     def setup_field_validation(self):
@@ -146,13 +156,11 @@ class ValidatorBase:
         # Validate data content and check the consitence between the declared variants number and the actual number of variants in the file
         self.validate_content()
         for chunk in self.df_iterator(self.file):
-            to_validate = chunk[self.cols_to_read]
-            to_validate.columns = self.cols_to_validate # sets the headers to standard format if neeeded
+            dataframe_to_validate = chunk[self.cols_to_read]
+            dataframe_to_validate.columns = self.cols_to_validate # sets the headers to standard format if neeeded
 
             # Schema validation
-            self.schema = pandas_schema.Schema([self.validators[h] for h in self.cols_to_validate])                
-            errors = self.schema.validate(to_validate)
-            self.store_errors(errors)
+            self.validate_schema(self.schema_validators,dataframe_to_validate)
 
             self.process_errors()
             if len(self.bad_rows) >= self.error_limit:

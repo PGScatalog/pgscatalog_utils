@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 from pandas_schema import Column
 from pandas_schema.validation import MatchesPatternValidation, InListValidation, CanConvertValidation, LeadingWhitespaceValidation, TrailingWhitespaceValidation, CustomElementValidation

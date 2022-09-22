@@ -3,8 +3,6 @@ import re
 from pandas_schema import Schema
 from pgscatalog_utils.validate.schemas import *
 from pgscatalog_utils.validate.validator_base import *
-# from schemas import *
-# from validator_base import *
 
 '''
 PGS Catalog Harmonized file validator
@@ -17,7 +15,7 @@ class ValidatorFormatted(ValidatorBase):
         super().__init__(file, score_dir, logfile, error_limit)
         self.score_dir=None
         self.meta_format = FORMATTED_META_GENERIC
-        self.validators = FORMATTED_VALIDATORS
+        self.schema_validators = FORMATTED_VALIDATORS
         self.valid_cols = VALID_COLS_FORMATTED
         self.valid_type = VALID_TYPE_FORMATTED
         self.setup_field_validation()
@@ -91,32 +89,28 @@ class ValidatorFormatted(ValidatorBase):
         self.get_and_check_variants_number()
 
         for chunk in self.df_iterator(self.file):
-            to_validate = chunk[self.cols_to_read]
-            to_validate.columns = self.cols_to_validate # sets the headers to standard format if neeeded
+            dataframe_to_validate = chunk[self.cols_to_read]
+            dataframe_to_validate.columns = self.cols_to_validate # sets the headers to standard format if neeeded
 
             # Detect duplicated rows
-            self.detect_duplicated_rows(to_validate)
+            self.detect_duplicated_rows(dataframe_to_validate)
+
             # validate the snp column if present
             if SNP_DSET in self.header:
+                sub_schema = FORMATTED_VALIDATORS_SNP
                 if CHR_DSET and BP_DSET in self.header:
-                    self.schema = Schema([FORMATTED_VALIDATORS_SNP_EMPTY[h] for h in self.cols_to_validate])
-                else:
-                    self.schema = Schema([FORMATTED_VALIDATORS_SNP[h] for h in self.cols_to_validate])
-                errors = self.schema.validate(to_validate)
-                self.store_errors(errors)
+                    sub_schema = FORMATTED_VALIDATORS_SNP_EMPTY
+                self.validate_schema(sub_schema,dataframe_to_validate)
 
             if CHR_DSET and BP_DSET in self.header:
-                self.schema = Schema([FORMATTED_VALIDATORS_POS[h] for h in self.cols_to_validate])
-                errors = self.schema.validate(to_validate)
-                self.store_errors(errors)
+                self.validate_schema(FORMATTED_VALIDATORS_POS, dataframe_to_validate)
+
             if OR_DSET in self.header:
-                self.schema = Schema([FORMATTED_VALIDATORS_OR[h] for h in self.cols_to_validate])
-                errors = self.schema.validate(to_validate)
-                self.store_errors(errors)
+                self.validate_schema(FORMATTED_VALIDATORS_OR,dataframe_to_validate)
+
             if HR_DSET in self.header:
-                self.schema = Schema([FORMATTED_VALIDATORS_HR[h] for h in self.cols_to_validate])
-                errors = self.schema.validate(to_validate)
-                self.store_errors(errors)
+                self.validate_schema(FORMATTED_VALIDATORS_HR,dataframe_to_validate)
+
             self.process_errors()
             if len(self.bad_rows) >= self.error_limit:
                 break

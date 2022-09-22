@@ -13,7 +13,7 @@ class ValidatorPos(ValidatorBase):
     def __init__(self, file, score_dir=None, logfile="VALIDATE.log", error_limit=0):
         super().__init__(file, score_dir, logfile, error_limit)
         self.meta_format = HM_META_POS
-        self.validators = POS_VALIDATORS
+        self.schema_validators = POS_VALIDATORS
         self.valid_cols = VALID_COLS_POS
         self.valid_type = VALID_TYPE_POS
         self.setup_field_validation()

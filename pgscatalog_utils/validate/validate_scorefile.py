@@ -1,12 +1,62 @@
 import os, glob, re
 import argparse
 import logging
+import textwrap
 
 data_sum = {'valid': [], 'invalid': [], 'other': []}
 
 val_types = ('formatted', 'hm_pos')
 
 logging.basicConfig(level=logging.INFO, format='(%(levelname)s): %(message)s')
+
+
+def validate_scorefile() -> None:
+    global data_sum, score_dir
+    args = _parse_args()
+    _check_args(args)
+
+    # Check PGS Catalog file name nomenclature
+    check_filename = False
+    if args.check_filename:
+        check_filename = True
+    else:
+        print("WARNING: the parameter '--check_filename' is not present in the submitted command line, therefore the validation of the scoring file name(s) won't be performed.")
+
+    validator_type = args.t
+    files_dir = args.dir
+    log_dir = args.log_dir
+
+    ## Select validator class ##
+    if validator_type == 'formatted':
+        import pgscatalog_utils.validate.formatted.validator as validator_package
+    elif validator_type == 'hm_pos':
+        import pgscatalog_utils.validate.harmonized_position.validator as validator_package
+
+    ## Run validator ##
+    # One file
+    if args.f:
+        _run_validator(args.f,log_dir,score_dir,validator_package,check_filename,validator_type)
+    # Content of the directory
+    elif files_dir:
+        count_files = 0
+        # Browse directory: for each file run validator
+        for filepath in sorted(glob.glob(files_dir+"/*.*")):
+            _run_validator(filepath,log_dir,score_dir,validator_package,check_filename,validator_type)
+            count_files += 1
+
+        # Print summary  + results
+        print("\nSummary:")
+        if data_sum['valid']:
+            print(f"- Valid: {len(data_sum['valid'])}/{count_files}")
+        if data_sum['invalid']:
+            print(f"- Invalid: {len(data_sum['invalid'])}/{count_files}")
+        if data_sum['other']:
+            print(f"- Other issues: {len(data_sum['other'])}/{count_files}")
+
+        if data_sum['invalid']:
+            print("Invalid files:")
+            print("\n".join(data_sum['invalid']))
+
 
 def _read_last_line(file: str) -> str:
     '''
@@ -36,47 +86,7 @@ def _file_validation_state(filename: str, log_file: str) -> None:
         data_sum['other'].append(filename)
 
 
-def _run_validator(validator: object, file: str, check_filename: bool, logfile: str, validator_type: str) -> None:
-    ''' Main method to run the PGS file validator '''
-    if check_filename:
-        validator.run_validator()
-    else:
-        validator.run_validator_skip_check_filename()
-    # validator.logger.propagate = False
-
-    # # Check files exist
-    # if not file or not logfile:
-    #     validator.logger.info("Missing file and/or logfile")
-    #     validator.set_file_is_invalid()
-    # elif file and not os.path.exists(file):
-    #     validator.logger.info("Error: the file '"+file+"' can't be found")
-    #     validator.set_file_is_invalid()
-
-    # # Validate file extension
-    # validator.validate_file_extension()
-
-    # # Validate file name nomenclature
-    # if validator.is_file_valid() and check_filename:
-    #     validator.validate_filename()
-
-    # # Only for harmonized files
-    # if validator.is_file_valid() and validator_type != 'formatted':
-    #     validator.compare_with_filename()
-
-    # # Validate column headers
-    # if validator.is_file_valid():
-    #     validator.validate_headers()
-
-    # # Validate data content
-    # if validator.is_file_valid():
-    #     validator.validate_data()
-
-    # # Close log handler
-    # validator.logger.removeHandler(validator.handler)
-    # validator.handler.close()
-
-
-def _check_args(args):
+def _check_args(args: argparse.Namespace) -> None:
     global score_dir
 
     ## Check parameters ##
@@ -112,79 +122,50 @@ def _check_args(args):
         print("WARNING: the parameter '--score_dir' is not present in the submitted command line, therefore the comparison of the number of data rows between the formatted scoring file(s) and the harmonized scoring file(s) won't be performed.")
 
 
-def validate_file(filepath: str, log_dir: str, score_dir: str, validator_package: object, check_filename: bool, validator_type: str) -> None:
+def _run_validator(filepath: str, log_dir: str, score_dir: str, validator_package: object, check_filename: bool, validator_type: str) -> None:
     ''' Run the file validator '''
     file = os.path.basename(filepath)
     filename = file.split('.')[0]
     print(f"# Filename: {file}")
-    log_file = log_dir+'/'+filename+'_log.txt'
+    log_file = f'{log_dir}/{filename}_log.txt'
 
     # Run validator
     validator = validator_package.init_validator(filepath,log_file,score_dir)
-    _run_validator(validator,filepath,check_filename,log_file,validator_type)
+    if check_filename:
+        validator.run_validator()
+    else:
+        validator.run_validator_skip_check_filename()
 
     # Check log
     _file_validation_state(file,log_file)
 
 
-def main():
-    global data_sum, score_dir
+def _description_text() -> str:
+    return textwrap.dedent('''\
+    Validate a set of scoring files to match the PGS Catalog scoring file formats.
+    It can validate:
+    - The formatted scoring file format (https://www.pgscatalog.org/downloads/#dl_ftp_scoring)
+    - The harmonized (Position) scoring file format (https://www.pgscatalog.org/downloads/#dl_ftp_scoring_hm_pos)
+   ''')
 
-    argparser = argparse.ArgumentParser()
-    argparser.add_argument("-t", help=f"Type of validator: {' or '.join(val_types)}", metavar='VALIDATOR_TYPE')
-    argparser.add_argument("-f", help='The path to the polygenic scoring file to be validated (no need to use the [--dir] option)', metavar='SCORING_FILE_NAME')
-    argparser.add_argument('--dir', help='The name of the directory containing the files that need to processed (no need to use the [-f] option')
-    argparser.add_argument('--score_dir', help='<Optional> The name of the directory containing the formatted scoring files to compare with harmonized scoring files')
-    argparser.add_argument('--log_dir', help='The name of the log directory where the log file(s) will be stored', required=True)
-    argparser.add_argument('--check_filename', help='<Optional> Check that the file name match the PGS Catalog nomenclature', required=False, action='store_true')
-   
-    args = argparser.parse_args()
-    
-    ## Check parameters ##
-    _check_args(args)
 
-    # Check PGS Catalog file name nomenclature
-    check_filename = False
-    if args.check_filename:
-        check_filename = True
-    else:
-        print("WARNING: the parameter '--check_filename' is not present in the submitted command line, therefore the validation of the scoring file name(s) won't be performed.")
+def _epilog_text() -> str:
+    return textwrap.dedent(f'''\
+    You need to specify the type of file format to validate, using the paramter '-t' ({' or '.join(val_types)}).
+   ''')
 
-    validator_type = args.t
-    files_dir = args.dir
 
-    log_dir = args.log_dir
+def _parse_args(args=None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=_description_text(), epilog=_epilog_text(),
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("-t", help=f"Type of validator: {' or '.join(val_types)}", metavar='VALIDATOR_TYPE')
+    parser.add_argument("-f", help='The path to the polygenic scoring file to be validated (no need to use the [--dir] option)', metavar='SCORING_FILE_NAME')
+    parser.add_argument('--dir', help='The name of the directory containing the files that need to processed (no need to use the [-f] option')
+    parser.add_argument('--score_dir', help='<Optional> The name of the directory containing the formatted scoring files to compare with harmonized scoring files')
+    parser.add_argument('--log_dir', help='The name of the log directory where the log file(s) will be stored', required=True)
+    parser.add_argument('--check_filename', help='<Optional> Check that the file name match the PGS Catalog nomenclature', required=False, action='store_true')
+    return parser.parse_args(args)
 
-    ## Select validator class ##
-    if validator_type == 'formatted':
-        import pgscatalog_utils.validate.formatted.validator as validator_package
-    elif validator_type == 'hm_pos':
-        import pgscatalog_utils.validate.harmonized_position.validator as validator_package
-
-    ## Run validator ##
-    # One file
-    if args.f:
-        validate_file(args.f,log_dir,score_dir,validator_package,check_filename,validator_type)
-    # Content of the directory
-    elif files_dir:
-        count_files = 0
-        # Browse directory: for each file run validator
-        for filepath in sorted(glob.glob(files_dir+"/*.*")):
-            validate_file(filepath,log_dir,score_dir,validator_package,check_filename,validator_type)
-            count_files += 1
-
-        # Print summary  + results
-        print("\nSummary:")
-        if data_sum['valid']:
-            print(f"- Valid: {len(data_sum['valid'])}/{count_files}")
-        if data_sum['invalid']:
-            print(f"- Invalid: {len(data_sum['invalid'])}/{count_files}")
-        if data_sum['other']:
-            print(f"- Other issues: {len(data_sum['other'])}/{count_files}")
-
-        if data_sum['invalid']:
-            print("Invalid files:")
-            print("\n".join(data_sum['invalid']))
 
 if __name__ == '__main__':
-    main()
+    validate_scorefile()

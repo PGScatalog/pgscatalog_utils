@@ -6,6 +6,7 @@ from pgscatalog_utils.validate.harmonized_position.validator import init_validat
 
 
 log_file = 'VALIDATE.log'
+test_data_dir = './tests/data'
 
 
 ###### Formatted scoring files ######
@@ -109,40 +110,40 @@ def test_valid_formatted_file_pos_only_38(test_hmpos_file_GRCh38_3):
 
 @pytest.fixture
 def test_file_1():
-   return './data/test_scoring_file_1.txt.gz'
+   return f'{test_data_dir}/test_scoring_file_1.txt.gz'
 
 @pytest.fixture
 def test_file_2():
-   return './data/test_scoring_file_2.txt.gz'
+   return f'{test_data_dir}/test_scoring_file_2.txt.gz'
 
 @pytest.fixture
 def test_file_3():
-   return './data/test_scoring_file_3.txt.gz'
+   return f'{test_data_dir}/test_scoring_file_3.txt.gz'
 
 @pytest.fixture
 def test_file_4():
-   return './data/test_scoring_file_4.txt.gz'
+   return f'{test_data_dir}/test_scoring_file_4.txt.gz'
 
 @pytest.fixture
 def test_hmpos_file_GRCh37_1():
-   return './data/test_scoring_file_hmpos_37_1.txt.gz'
+   return f'{test_data_dir}/test_scoring_file_hmpos_37_1.txt.gz'
 
 @pytest.fixture
 def test_hmpos_file_GRCh38_1():
-   return './data/test_scoring_file_hmpos_38_1.txt.gz'
+   return f'{test_data_dir}/test_scoring_file_hmpos_38_1.txt.gz'
 
 @pytest.fixture
 def test_hmpos_file_GRCh37_2():
-   return './data/test_scoring_file_hmpos_37_2.txt.gz'
+   return f'{test_data_dir}/test_scoring_file_hmpos_37_2.txt.gz'
 
 @pytest.fixture
 def test_hmpos_file_GRCh38_2():
-   return './data/test_scoring_file_hmpos_38_2.txt.gz'
+   return f'{test_data_dir}/test_scoring_file_hmpos_38_2.txt.gz'
 
 @pytest.fixture
 def test_hmpos_file_GRCh37_3():
-   return './data/test_scoring_file_hmpos_37_3.txt.gz'
+   return f'{test_data_dir}/test_scoring_file_hmpos_37_3.txt.gz'
 
 @pytest.fixture
 def test_hmpos_file_GRCh38_3():
-   return './data/test_scoring_file_hmpos_38_3.txt.gz'
+   return f'{test_data_dir}/test_scoring_file_hmpos_38_3.txt.gz'

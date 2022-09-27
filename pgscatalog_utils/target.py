@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 class Target:
     """ Class to detect and read a plink1/plink2 variant information file """
     file_format: str = None
-    header: list[str] = None
     path: str = None
     compressed: bool = False
 
@@ -20,7 +19,7 @@ class Target:
         """ Create a Target object from a path. Cheaply detect file format and headers. """
         try:
             with open(path, 'r') as f:
-                file_format, header = _get_header(f)
+                file_format = _get_format(f)
                 compressed = False
         except UnicodeDecodeError:
             logger.error("Can't open target as a text file, so trying to read zstd compressed binary file")
@@ -28,44 +27,61 @@ class Target:
                 dctx = zstandard.ZstdDecompressor()
                 stream_reader = dctx.stream_reader(f)
                 text_stream = io.TextIOWrapper(stream_reader, encoding='utf-8')
-                file_format, header = _get_header(text_stream)
+                file_format = _get_format(text_stream)
                 compressed = True
 
-        return cls(file_format=file_format, path=path, header=header, compressed=compressed)
+        return cls(file_format=file_format, path=path, compressed=compressed)
 
-    # @profile
+    #@profile
     def read(self):
-        # this function is responsible for returning dfs allocated to contiguous memory, so manually rechunk
         if self.compressed:
-            return self._read_compressed_chunks().rechunk()
+            df = self._read_compressed_chunks().rechunk().lazy()
+            return _filter_target(df)
         else:
-            batch_size = 10000000
-            n_rows_read = 0
-            df_lst = []
-            while True:
-                df_lst.append(self._read_batch(batch_size=batch_size, n_skip=n_rows_read))
-                n_rows_read = n_rows_read + batch_size
+            df = self._read_uncompressed_chunks().rechunk().lazy()
+            return _filter_target(df)
 
-                if df_lst[-1].shape[0] < batch_size:
-                    logger.debug("Finished reading final batch")
+    def _read_uncompressed_chunks(self):
+        """ Read a CSV using a BufferedIOReader. This is a bit slower than pl.read_csv() (30s vs 5s).
+
+        Lots of testing showed that lazy scanning and native polars reading used a lot of RAM, then freed a bunch.
+        Plotting RAM usage against time looked like a spiky hedgehog.
+
+        This function linearly consumes RAM in a more linear way by:
+            1. Reading a batch of lines
+            2. Dropping unused columns
+            3. Setting categorical dtypes on read
+            4. Don't rechunk until later
+        """
+        logger.debug("Reading uncompressed chunks")
+
+        df_lst = []
+        dtypes = _get_col_dtypes(self.file_format)
+        col_idxs = _get_default_col_idx(self.file_format)
+        new_col_names = _default_cols()
+
+        with open(self.path, "rb") as f:
+            while True:
+                buffer = b''.join(f.readlines(int(1e6)))
+
+                if not buffer:
                     break
 
-            return pl.concat(df_lst, rechunk=True)
+                df = (pl.read_csv(buffer, sep='\t', has_header=False, comment_char='#', n_threads=1,
+                                  dtype=dtypes,
+                                  columns=col_idxs,
+                                  new_columns=new_col_names,
+                                  rechunk=False))
 
-    def _read_batch(self, batch_size, n_skip):
-        logger.debug(f"{n_skip} target variants read, reading next batch")
-        assert not self.compressed
-        # TODO: lazy frame it
-        logger.debug("Reading uncompressed data")
-        return pl.read_csv(self.path, sep='\t', has_header=False, comment_char='#', n_threads=1,
-                           dtype=_get_col_dtypes(self.file_format),
-                           columns=_get_default_col_idx(self.file_format),
-                           new_columns=_default_cols(),
-                           rechunk=False,
-                           n_rows=batch_size,
-                           skip_rows_after_header=n_skip)
+                df_lst.append(df)
+
+        return pl.concat(df_lst, rechunk=False)
 
     def _read_compressed_chunks(self):
+        """ Like _read_uncompressed_chunks, but read chunks of bytes and handle incomplete rows
+
+        zstd returns chunks of bytes, not lines, but encoding utf-8 will be faster in rust and polars
+         """
         logger.debug("Reading zstd compressed data")
         df_lst = []
         dtypes = _get_col_dtypes(self.file_format)
@@ -76,7 +92,6 @@ class Target:
             dctx = zstandard.ZstdDecompressor()
             chunk_buffer = b''
 
-            # don't decode bytes stream to utf-8 with TextIOWrapper in python, polars + rust will be faster
             for chunk in dctx.read_to_iter(fh, read_size=int(1e+8)):  # read 100MB of compressed data per chunk
                 if not chunk:
                     break
@@ -113,7 +128,7 @@ def _get_default_col_idx(file_format):
 
 
 def _get_col_dtypes(file_format):
-    """ Manually set up categorical dtypes """
+    """ Manually set up dtypes. pl.Categorical saves a lot of RAM vs pl.Utf8 """
     match file_format:
         case 'bim':
             # 1. Chromosome code (either an integer, or 'X'/'Y'/'XY'/'MT'; '0' indicates unknown) or name
@@ -142,36 +157,25 @@ def _get_col_dtypes(file_format):
     return d
 
 
-def _get_header(fh) -> tuple[str, list[str]]:
-    header = None
+def _get_format(fh) -> str:
     file_format = None
-    logger.debug(f"Scanning header to get file format and column names")
+    logger.debug(f"Scanning header to get file format")
     for line in fh:
         if line.startswith('#'):
             logger.debug("pvar format detected")
             file_format = 'pvar'
-            header = _pvar_header(fh)
             break
         else:
             logger.debug("bim format detected")
             file_format = 'bim'
-            header = _bim_header()
             break
 
-    return file_format, header
+    return file_format
 
 
-def _pvar_header(fh) -> list[str]:
-    """ Get the column names from the pvar file (not constrained like bim, especially when converted from VCF) """
-    line: str = '#'
-    while line.startswith('#'):
-        line: str = fh.readline()
-        if line.startswith('#CHROM'):
-            return line.strip().split('\t')
-
-
-def _bim_header() -> list[str]:
-    return ['#CHROM', 'ID', 'CM', 'POS', 'REF', 'ALT']
+def _default_cols() -> list[str]:
+    """ Standardise column names in a target genome """
+    return ['#CHROM', 'POS', 'ID', 'REF', 'ALT']
 
 
 def _default_cols() -> list[str]:

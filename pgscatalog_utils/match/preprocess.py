@@ -35,14 +35,14 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, file_format
         .otherwise(pl.lit(False))
         .alias('is_multiallelic')))
 
-    if df.select('is_multiallelic').sum() > 0:
+    if df.get_column('is_multiallelic').sum() > 0:
         logger.debug("Multiallelic variants detected")
         if remove_multiallelic:
             if file_format == "bim":
                 logger.warning("--remove_multiallelic requested for bim format, which already contains biallelic "
                                "variant representations only")
             logger.debug('Dropping multiallelic variants')
-            return df.filter(~df['is_multiallelic'])
+            return df.filter(~df.get_column('is_multiallelic'))
         else:
             logger.debug("Exploding dataframe to handle multiallelic variants")
             df.replace('ALT', df['ALT'].str.split(by=','))  # turn ALT to list of variants

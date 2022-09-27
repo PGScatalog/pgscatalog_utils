@@ -18,7 +18,7 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, skip_flip: bo
                  'accession', 'effect_allele_FLIP', 'other_allele_FLIP',
                  'ID', 'REF', 'ALT', 'is_multiallelic', 'matched_effect_allele', 'match_type']
 
-    if scorefile_oa:
+    if not scorefile_oa.is_empty():
         logger.debug("Getting matches for scores with effect allele and other allele")
         matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt").select(col_order))
         matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref").select(col_order))
@@ -26,7 +26,7 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, skip_flip: bo
             matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt_flip").select(col_order))
             matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref_flip").select(col_order))
 
-    if scorefile_no_oa:
+    if not scorefile_no_oa.is_empty():
         logger.debug("Getting matches for scores with effect allele only")
         matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref").select(col_order))
         matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt").select(col_order))
@@ -92,7 +92,7 @@ def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: s
 
 def _cast_categorical(scorefile, target) -> tuple[pl.DataFrame, pl.DataFrame]:
     """ Casting important columns to categorical makes polars fast """
-    if scorefile:
+    if not scorefile.is_empty():
         scorefile = scorefile.with_columns([
             pl.col("effect_allele").cast(pl.Categorical),
             pl.col("other_allele").cast(pl.Categorical),
@@ -101,7 +101,7 @@ def _cast_categorical(scorefile, target) -> tuple[pl.DataFrame, pl.DataFrame]:
             pl.col("other_allele_FLIP").cast(pl.Categorical),
             pl.col("accession").cast(pl.Categorical)
         ])
-    if target:
+    if not target.is_empty():
         target = target.with_columns([
             pl.col("ID").cast(pl.Categorical),
             pl.col("REF").cast(pl.Categorical),

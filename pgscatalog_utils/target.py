@@ -35,11 +35,9 @@ class Target:
     #@profile
     def read(self):
         if self.compressed:
-            df = self._read_compressed_chunks().rechunk().lazy()
-            return _filter_target(df)
+            return self._read_compressed_chunks().lazy()
         else:
-            df = self._read_uncompressed_chunks().rechunk().lazy()
-            return _filter_target(df)
+            return self._read_uncompressed_chunks().lazy()
 
     def _read_uncompressed_chunks(self):
         """ Read a CSV using a BufferedIOReader. This is a bit slower than pl.read_csv() (30s vs 5s).
@@ -53,7 +51,7 @@ class Target:
             3. Setting categorical dtypes on read
             4. Don't rechunk until later
         """
-        logger.debug("Reading uncompressed chunks")
+        logger.debug("Started reading uncompressed chunks")
 
         df_lst = []
         dtypes = _get_col_dtypes(self.file_format)
@@ -75,6 +73,8 @@ class Target:
 
                 df_lst.append(df)
 
+        logger.debug("Finished reading uncompressed chunks")
+        logger.debug("Concatenating chunked data frames")
         return pl.concat(df_lst, rechunk=False)
 
     def _read_compressed_chunks(self):
@@ -82,7 +82,7 @@ class Target:
 
         zstd returns chunks of bytes, not lines, but encoding utf-8 will be faster in rust and polars
          """
-        logger.debug("Reading zstd compressed data")
+        logger.debug("Started reading zstd compressed data")
         df_lst = []
         dtypes = _get_col_dtypes(self.file_format)
         columns = _get_default_col_idx(self.file_format)
@@ -111,6 +111,8 @@ class Target:
                 df_lst.append(df)
                 chunk_buffer = b''.join([chunk_buffer, chunk[end:]])
 
+        logger.debug("Finished reading zstd compressed chunks")
+        logger.debug("Concatenating chunked data frames")
         return pl.concat(df_lst, rechunk=False)
 
 
@@ -137,7 +139,7 @@ def _get_col_dtypes(file_format):
             # 4. Base-pair coordinate (1-based; limited to 231-2)
             # 5. Allele 1 (corresponding to clear bits in .bed; usually minor)
             # 6. Allele 2 (corresponding to set bits in .bed; usually major)
-            d = {'column_1': pl.Categorical, 'column_2': str, 'column_3': pl.Float64, 'column_4': pl.UInt64,
+            d = {'column_1': pl.Categorical, 'column_2': pl.Categorical, 'column_3': pl.Float64, 'column_4': pl.UInt64,
                  'column_5': pl.Categorical, 'column_6': pl.Categorical}
         case 'pvar':
             # 1. CHROM
@@ -148,7 +150,7 @@ def _get_col_dtypes(file_format):
             # 6. QUAL (phred-scaled quality score for whether the locus is variable at all)
             # 7. FILTER ('PASS', '.', or semicolon-separated list of failing filter codes)
             # 8. INFO (semicolon-separated list of flags and key-value pairs, with types declared in header)
-            d = {'column_1': pl.Categorical, 'column_2': pl.UInt64, 'column_3': pl.Utf8, 'column_4': pl.Categorical,
+            d = {'column_1': pl.Categorical, 'column_2': pl.UInt64, 'column_3': pl.Categorical, 'column_4': pl.Categorical,
                  'column_5': pl.Utf8, 'column_6': pl.Float32, 'column_7': pl.Utf8, 'column_8': pl.Utf8}
             # can't cast ALT to cat yet, because of multiallelic variants!
         case _:
@@ -177,6 +179,3 @@ def _default_cols() -> list[str]:
     """ Standardise column names in a target genome """
     return ['#CHROM', 'POS', 'ID', 'REF', 'ALT']
 
-
-def _default_cols() -> list[str]:
-    return ['#CHROM', 'POS', 'ID', 'REF', 'ALT']  # only columns we want from a target genome

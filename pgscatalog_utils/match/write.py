@@ -7,18 +7,18 @@ import polars as pl
 logger = logging.getLogger(__name__)
 
 
-def write_log(df: pl.DataFrame, prefix: str) -> None:
+def write_log(df: pl.LazyFrame, prefix: str) -> None:
     logger.debug(f"Compressing and writing log: {prefix}_log.csv.gz")
     with gzip.open(f"{prefix}_log.csv.gz", 'wb') as f:
-        df.write_csv(f)
+        df.collect().write_csv(f)
 
 
-def write_out(df: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
+def write_out(df: pl.LazyFrame, split: bool, outdir: str, dataset: str) -> None:
     if not os.path.isdir(outdir):
         os.mkdir(outdir)
 
     logger.debug("Splitting by effect type")
-    effect_types: dict[str, pl.DataFrame] = _split_effect_type(df)
+    effect_types: dict[str, pl.DataFrame] = _split_effect_type(df.collect())
 
     logger.debug("Deduplicating variants")
     deduplicated: dict[str, pl.DataFrame] = {k: _deduplicate_variants(k, v) for k, v in effect_types.items()}

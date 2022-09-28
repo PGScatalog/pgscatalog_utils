@@ -2,7 +2,19 @@ import logging
 
 import polars as pl
 
+from pgscatalog_utils.target import logger
+
 logger = logging.getLogger(__name__)
+
+
+def filter_target(df):
+    """ Remove variants that won't be matched against the scorefile
+
+    Chromosomes 1 - 22, X, and Y with an efficient join. Remmove variants with missing identifiers also
+    """
+    logger.debug("Filtering target to include chromosomes 1 - 22, X, Y")
+    chroms = [str(x) for x in list(range(1, 23)) + ['X', 'Y']]
+    return df.filter((pl.col('#CHROM').is_in(chroms)) & (pl.col('ID') != '.'))
 
 
 def complement_valid_alleles(df: pl.DataFrame, flip_cols: list[str]) -> pl.DataFrame:
@@ -27,7 +39,7 @@ def complement_valid_alleles(df: pl.DataFrame, flip_cols: list[str]) -> pl.DataF
     return df
 
 
-def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, file_format: str) -> pl.DataFrame:
+def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool) -> pl.DataFrame:
     # plink2 pvar multi-alleles are comma-separated
     df: pl.DataFrame = (df.with_column(
         pl.when(pl.col("ALT").str.contains(','))
@@ -35,14 +47,15 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, file_format
         .otherwise(pl.lit(False))
         .alias('is_multiallelic')))
 
-    if df.get_column('is_multiallelic').sum() > 0:
+    multiallelic_canary = (df.filter(pl.col('is_multiallelic') == True)
+                           .limit(1)  # just detect the first occurring
+                           .collect())
+
+    if not multiallelic_canary.is_empty():
         logger.debug("Multiallelic variants detected")
         if remove_multiallelic:
-            if file_format == "bim":
-                logger.warning("--remove_multiallelic requested for bim format, which already contains biallelic "
-                               "variant representations only")
             logger.debug('Dropping multiallelic variants')
-            return df.filter(~df.get_column('is_multiallelic'))
+            return df.filter(pl.col('is_multiallelic') == False)
         else:
             logger.debug("Exploding dataframe to handle multiallelic variants")
             df.replace('ALT', df['ALT'].str.split(by=','))  # turn ALT to list of variants
@@ -55,3 +68,5 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool, file_format
 def _annotate_multiallelic(df: pl.DataFrame) -> pl.DataFrame:
     df.with_column(
         pl.when(pl.col("ALT").str.contains(',')).then(pl.lit(True)).otherwise(pl.lit(False)).alias('is_multiallelic'))
+
+

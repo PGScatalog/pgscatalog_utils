@@ -9,32 +9,31 @@ logger = logging.getLogger(__name__)
 
 def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, skip_flip: bool, remove_ambiguous: bool,
                     keep_first_match: bool) -> pl.DataFrame:
-    scorefile_cat, target_cat = _cast_categorical(scorefile, target)
-    scorefile_oa = scorefile_cat.filter(pl.col("other_allele") != None)
-    scorefile_no_oa = scorefile_cat.filter(pl.col("other_allele") == None)
+    scorefile_oa = scorefile.filter(pl.col("other_allele") != None)
+    scorefile_no_oa = scorefile.filter(pl.col("other_allele") == None)
 
     matches: list[pl.DataFrame] = []
     col_order = ['row_nr', 'chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type',
                  'accession', 'effect_allele_FLIP', 'other_allele_FLIP',
                  'ID', 'REF', 'ALT', 'is_multiallelic', 'matched_effect_allele', 'match_type']
 
-    if not scorefile_oa.is_empty():
-        logger.debug("Getting matches for scores with effect allele and other allele")
-        matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt").select(col_order))
-        matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref").select(col_order))
-        if skip_flip is False:
-            matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt_flip").select(col_order))
-            matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref_flip").select(col_order))
+    logger.debug("Getting matches for scores with effect allele and other allele")
+    matches.append(_match_variants(scorefile=scorefile_oa, target=target, match_type="refalt").select(col_order))
+    matches.append(_match_variants(scorefile_oa, target, match_type="altref").select(col_order))
+    if skip_flip is False:
+        matches.append(_match_variants(scorefile_oa, target, match_type="refalt_flip").select(col_order))
+        matches.append(_match_variants(scorefile_oa, target, match_type="altref_flip").select(col_order))
 
-    if not scorefile_no_oa.is_empty():
-        logger.debug("Getting matches for scores with effect allele only")
-        matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref").select(col_order))
-        matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt").select(col_order))
-        if skip_flip is False:
-            matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref_flip").select(col_order))
-            matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt_flip").select(col_order))
+    logger.debug("Getting matches for scores with effect allele only")
+    matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_ref").select(col_order))
+    matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_alt").select(col_order))
+    if skip_flip is False:
+        matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_ref_flip").select(col_order))
+        matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_alt_flip").select(col_order))
 
-    return pl.concat(matches).pipe(label_matches, remove_ambiguous, keep_first_match)
+    # manually collect to avoid concat error TODO: try to reproduce and file a bug report
+    logger.debug("Collecting all matches (parallel)")
+    return pl.concat(pl.collect_all(matches)).lazy().pipe(label_matches, remove_ambiguous, keep_first_match)
 
 
 def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: str) -> pl.DataFrame:
@@ -89,23 +88,3 @@ def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: s
                            pl.lit(match_type).alias("match_type")])
             .join(target.select(join_cols), on="ID", how="inner"))  # get REF / ALT back after first join
 
-
-def _cast_categorical(scorefile, target) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """ Casting important columns to categorical makes polars fast """
-    if not scorefile.is_empty():
-        scorefile = scorefile.with_columns([
-            pl.col("effect_allele").cast(pl.Categorical),
-            pl.col("other_allele").cast(pl.Categorical),
-            pl.col("effect_type").cast(pl.Categorical),
-            pl.col("effect_allele_FLIP").cast(pl.Categorical),
-            pl.col("other_allele_FLIP").cast(pl.Categorical),
-            pl.col("accession").cast(pl.Categorical)
-        ])
-    if not target.is_empty():
-        target = target.with_columns([
-            pl.col("ID").cast(pl.Categorical),
-            pl.col("REF").cast(pl.Categorical),
-            pl.col("ALT").cast(pl.Categorical)
-        ])
-
-    return scorefile, target

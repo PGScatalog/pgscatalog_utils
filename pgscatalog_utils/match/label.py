@@ -60,7 +60,7 @@ def _label_best_match(df: pl.DataFrame) -> pl.DataFrame:
                                               .then(pl.lit(True))
                                               .otherwise(pl.lit(False))
                                               .alias('best_match')))
-    assert prioritised.shape[0] == df.shape[0]  # I'm watching you, Wazowski. Always watching. Always.
+
     return prioritised.drop(['match_priority', 'best_match_type'])
 
 

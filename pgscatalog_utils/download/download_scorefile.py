@@ -10,7 +10,7 @@ from urllib import request as request
 from pgscatalog_utils.download.publication import query_publication
 from pgscatalog_utils.download.score import get_url
 from pgscatalog_utils.download.trait import query_trait
-from pgscatalog_utils.log_config import set_logging_level
+from pgscatalog_utils.config import set_logging_level
 
 logger = logging.getLogger(__name__)
 

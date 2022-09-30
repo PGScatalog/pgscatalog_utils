@@ -5,7 +5,7 @@ import textwrap
 
 import pandas as pd
 
-from pgscatalog_utils.log_config import set_logging_level
+from pgscatalog_utils.config import set_logging_level
 from pgscatalog_utils.scorefile.effect_type import set_effect_type
 from pgscatalog_utils.scorefile.effect_weight import melt_effect_weights
 from pgscatalog_utils.scorefile.genome_build import build2GRC

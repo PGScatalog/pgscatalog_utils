@@ -175,5 +175,3 @@ def _label_biallelic_ambiguous(df: pl.DataFrame, remove_ambiguous) -> pl.DataFra
                 .with_column(pl.max(["exclude", "exclude_ambiguous"]))
                 .drop(["exclude", "exclude_ambiguous"])
                 .rename({"max": "exclude"}))
-
-

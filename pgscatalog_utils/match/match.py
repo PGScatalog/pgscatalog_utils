@@ -1,4 +1,7 @@
+import gc
 import logging
+import os
+from tempfile import TemporaryDirectory
 
 import polars as pl
 
@@ -7,12 +10,12 @@ from pgscatalog_utils.match.label import label_matches
 logger = logging.getLogger(__name__)
 
 
-def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, skip_flip: bool, remove_ambiguous: bool,
-                    keep_first_match: bool) -> pl.DataFrame:
+def get_all_matches(scorefile: pl.LazyFrame, target: pl.LazyFrame, skip_flip: bool, remove_ambiguous: bool,
+                    keep_first_match: bool, low_memory: bool) -> pl.DataFrame:
     scorefile_oa = scorefile.filter(pl.col("other_allele") != None)
     scorefile_no_oa = scorefile.filter(pl.col("other_allele") == None)
 
-    matches: list[pl.DataFrame] = []
+    matches: list[pl.LazyFrame()] = []
     col_order = ['row_nr', 'chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type',
                  'accession', 'effect_allele_FLIP', 'other_allele_FLIP',
                  'ID', 'REF', 'ALT', 'is_multiallelic', 'matched_effect_allele', 'match_type']
@@ -31,12 +34,34 @@ def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, skip_flip: bo
         matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_ref_flip").select(col_order))
         matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_alt_flip").select(col_order))
 
-    # manually collect to avoid concat error TODO: try to reproduce and file a bug report
-    logger.debug("Collecting all matches (parallel)")
-    return pl.concat(pl.collect_all(matches)).lazy().pipe(label_matches, remove_ambiguous, keep_first_match)
+    if low_memory:
+        logger.debug("Batch collecting matches (low memory mode)")
+        match_lf = _batch_collect(matches)
+    else:
+        logger.debug("Collecting all matches (parallel)")
+        match_lf = pl.concat(pl.collect_all(matches))
+
+    return match_lf.pipe(label_matches, remove_ambiguous, keep_first_match)
 
 
-def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: str) -> pl.DataFrame:
+def _batch_collect(matches: list[pl.LazyFrame]):
+    """ A slower alternative to pl.collect_all(), but this approach will use less peak memory
+
+    This batches the .collect() and writes intermediate results to a temporary working directory
+
+    IPC files are binary and remember column schema. Reading them can be extremely fast. """
+    with TemporaryDirectory() as temp_dir:
+        n_chunks = 0
+        for i, match in enumerate(matches):
+            out_path = os.path.join(temp_dir, str(i) + ".ipc")
+            match.collect().write_ipc(out_path)
+            n_chunks += 1
+        logger.debug(f"Staged {n_chunks} match chunks to {temp_dir}")
+        gc.collect()
+        return pl.read_ipc(os.path.join(temp_dir, "*.ipc")).lazy()
+
+
+def _match_variants(scorefile: pl.LazyFrame, target: pl.LazyFrame, match_type: str) -> pl.LazyFrame:
     logger.debug(f"Matching strategy: {match_type}")
     match match_type:
         case 'refalt':
@@ -87,4 +112,3 @@ def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: s
                            pl.col(effect_allele_column).alias("matched_effect_allele"),
                            pl.lit(match_type).alias("match_type")])
             .join(target.select(join_cols), on="ID", how="inner"))  # get REF / ALT back after first join
-

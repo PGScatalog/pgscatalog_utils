@@ -1,4 +1,10 @@
 import logging
+import os
+
+try:
+    POLARS_MAX_THREADS: int = int(os.getenv('POLARS_MAX_THREADS'))
+except TypeError:
+    POLARS_MAX_THREADS = 1  # not defined, it's better to be slow than set to n_cores (polars default)
 
 
 def set_logging_level(verbose: bool):

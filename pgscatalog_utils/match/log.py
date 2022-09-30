@@ -14,12 +14,13 @@ def make_logs(scorefile: pl.LazyFrame, match_candidates: pl.LazyFrame, filter_su
 
     # make sure the aggregated best log matches the scoring file accession line count
     summary_count: pl.LazyFrame = (summary_log.groupby(pl.col('accession'))
-                     .agg(pl.sum('count')))
+                                   .agg(pl.sum('count')))
     log_count: pl.DataFrame = (scorefile.groupby("accession")
-                 .agg(pl.count())
-                 .join(summary_count, on='accession')).collect()
+                               .agg(pl.count())
+                               .join(summary_count, on='accession')).collect()
 
-    assert (log_count.get_column('count') == log_count.get_column('count_right')).all(), "Log doesn't match input scoring file"
+    assert (log_count.get_column('count') == log_count.get_column(
+        'count_right')).all(), "Log doesn't match input scoring file"
     logger.debug("Log matches input scoring file")
 
     return _prettify_log(big_log), _prettify_summary(summary_log)

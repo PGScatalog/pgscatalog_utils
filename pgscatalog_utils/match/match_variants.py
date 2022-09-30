@@ -1,11 +1,12 @@
 import argparse
 import logging
+import os
 import textwrap
 from glob import glob
 
 import polars as pl
 
-from pgscatalog_utils.log_config import set_logging_level
+from pgscatalog_utils.config import set_logging_level, POLARS_MAX_THREADS
 from pgscatalog_utils.match.filter import filter_scores
 from pgscatalog_utils.match.log import make_logs
 from pgscatalog_utils.match.match import get_all_matches
@@ -19,29 +20,40 @@ def match_variants():
     args = _parse_args()
 
     set_logging_level(args.verbose)
-
-    logger.debug(f"polars n_threads: {pl.threadpool_size()}")
+    logger.debug(f"POLARS_MAX_THREADS environment variable: {os.getenv('POLARS_MAX_THREADS')}")
+    logger.debug(f"polars threadpool size: {pl.threadpool_size()}")
+    logger.debug(f"Using {POLARS_MAX_THREADS} threads to read CSVs")
 
     with pl.StringCache():
-        scorefile: pl.DataFrame = read_scorefile(path=args.scorefile)
-
+        scorefile: pl.LazyFrame = read_scorefile(path=args.scorefile)
         n_target_files = len(glob(args.target))
         matches: pl.DataFrame
 
-        if n_target_files > 1 and not args.fast:
+        if n_target_files == 1 and not args.fast:
+            low_memory: bool = True
+            match_mode: str = 'single'
+        elif n_target_files > 1 and not args.fast:
+            low_memory: bool = True
             match_mode: str = 'multi'
-        else:
+        elif args.fast:
+            low_memory: bool = False
             match_mode: str = 'fast'
 
         match match_mode:
+            case "single":
+                logger.debug(f"Match mode: {match_mode}")  # read one target in chunks
+                matches: pl.LazyFrame = _match_single_target(args.target, scorefile, args.remove_multiallelic,
+                                                             args.skip_flip, args.remove_ambiguous,
+                                                             args.keep_first_match, low_memory)
             case "multi":
-                logger.debug(f"Match mode: {match_mode}")
-                matches = _match_multiple_targets(args.target, scorefile, args.remove_multiallelic, args.skip_flip,
-                                                  args.remove_ambiguous, args.keep_first_match)
+                logger.debug(f"Match mode: {match_mode}")  # iterate over multiple targets, in chunks
+                matches: pl.LazyFrame = _match_multiple_targets(args.target, scorefile, args.remove_multiallelic,
+                                                                args.skip_flip, args.remove_ambiguous,
+                                                                args.keep_first_match, low_memory)
             case "fast":
-                logger.debug(f"Match mode: {match_mode}")
-                matches = _fast_match(args.target, scorefile, args.remove_multiallelic, args.skip_flip,
-                                      args.remove_ambiguous, args.keep_first_match)
+                logger.debug(f"Match mode: {match_mode}")  # just read everything into memory for speed
+                matches: pl.LazyFrame = _fast_match(args.target, scorefile, args.remove_multiallelic, args.skip_flip,
+                                                    args.remove_ambiguous, args.keep_first_match, low_memory)
             case _:
                 logger.critical(f"Invalid match mode: {match_mode}")
                 raise Exception
@@ -61,8 +73,8 @@ def match_variants():
         write_out(valid_matches, args.split, args.outdir, dataset)
 
 
-def _check_target_chroms(target) -> None:
-    chroms: list[str] = target['#CHROM'].unique().to_list()
+def _check_target_chroms(target: pl.LazyFrame) -> None:
+    chroms: list[str] = target.select(pl.col("#CHROM").unique()).collect().get_column("#CHROM").to_list()
     if len(chroms) > 1:
         logger.critical(f"Multiple chromosomes detected: {chroms}. Check input data.")
         raise Exception
@@ -70,25 +82,34 @@ def _check_target_chroms(target) -> None:
         logger.debug("Split target genome contains one chromosome (good)")
 
 
-def _fast_match(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
-                skip_filp: bool, remove_ambiguous: bool, keep_first_match: bool) -> pl.DataFrame:
+def _fast_match(target_path: str, scorefile: pl.LazyFrame, remove_multiallelic: bool,
+                skip_flip: bool, remove_ambiguous: bool, keep_first_match: bool, low_memory: bool) -> pl.LazyFrame:
     # fast match is fast because:
     #   1) all target files are read into memory
     #   2) matching occurs without iterating through chromosomes
-    target: pl.DataFrame = read_target(path=target_path, remove_multiallelic=remove_multiallelic)
+    target: pl.LazyFrame = read_target(path=target_path, remove_multiallelic=remove_multiallelic, low_memory=low_memory)
     logger.debug("Split target chromosomes not checked with fast match mode")
-    return get_all_matches(scorefile, target, skip_filp, remove_ambiguous, keep_first_match)
+    return get_all_matches(scorefile, target, skip_flip, remove_ambiguous, keep_first_match, low_memory).lazy()
 
 
-def _match_multiple_targets(target_path: str, scorefile: pl.DataFrame, remove_multiallelic: bool,
-                            skip_filp: bool, remove_ambiguous: bool, keep_first_match: bool) -> pl.DataFrame:
+def _match_single_target(target_path: str, scorefile: pl.LazyFrame, remove_multiallelic: bool,
+                         skip_flip: bool, remove_ambiguous: bool, keep_first_match: bool,
+                         low_memory: bool) -> pl.LazyFrame:
+    target: pl.LazyFrame = read_target(path=target_path, remove_multiallelic=remove_multiallelic, low_memory=low_memory)
+    return get_all_matches(scorefile, target, skip_flip, remove_ambiguous, keep_first_match, low_memory).lazy()
+
+
+def _match_multiple_targets(target_path: str, scorefile: pl.LazyFrame, remove_multiallelic: bool,
+                            skip_flip: bool, remove_ambiguous: bool, keep_first_match: bool,
+                            low_memory: bool) -> pl.LazyFrame:
     matches = []
     for i, loc_target_current in enumerate(glob(target_path)):
         logger.debug(f'Matching scorefile(s) against target: {loc_target_current}')
-        target: pl.DataFrame = read_target(path=loc_target_current, remove_multiallelic=remove_multiallelic)
+        target: pl.LazyFrame = read_target(path=loc_target_current, remove_multiallelic=remove_multiallelic,
+                                           low_memory=low_memory)
         _check_target_chroms(target)
-        matches.append(get_all_matches(scorefile, target, skip_filp, remove_ambiguous, keep_first_match))
-    return pl.concat(matches)
+        matches.append(get_all_matches(scorefile, target, skip_flip, remove_ambiguous, keep_first_match, low_memory))
+    return pl.concat(matches).lazy()
 
 
 def _description_text() -> str:

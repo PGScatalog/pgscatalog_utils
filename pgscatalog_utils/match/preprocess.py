@@ -2,8 +2,6 @@ import logging
 
 import polars as pl
 
-from pgscatalog_utils.target import logger
-
 logger = logging.getLogger(__name__)
 
 
@@ -68,5 +66,3 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool) -> pl.DataF
 def _annotate_multiallelic(df: pl.DataFrame) -> pl.DataFrame:
     df.with_column(
         pl.when(pl.col("ALT").str.contains(',')).then(pl.lit(True)).otherwise(pl.lit(False)).alias('is_multiallelic'))
-
-

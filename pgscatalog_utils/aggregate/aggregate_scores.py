@@ -3,7 +3,7 @@ import textwrap
 
 import pandas as pd
 
-from pgscatalog_utils.log_config import set_logging_level
+from pgscatalog_utils.config import set_logging_level
 import glob
 import logging
 

@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import sys
 import textwrap
 from glob import glob
 
@@ -28,6 +29,10 @@ def match_variants():
         scorefile: pl.LazyFrame = read_scorefile(path=args.scorefile)
         n_target_files = len(glob(args.target))
         matches: pl.DataFrame
+
+        if n_target_files == 0:
+            logger.critical("No target genomes found, check the path")
+            sys.exit(1)
 
         if n_target_files == 1 and not args.fast:
             low_memory: bool = True

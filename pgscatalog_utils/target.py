@@ -40,6 +40,7 @@ class Target:
 
         return cls(file_format=file_format, path=path, compressed=compressed, low_memory=low_memory)
 
+    # @profile  # decorator needed to annotate memory profiles, but will cause NameErrors outside of profiling
     def read(self):
         if self.low_memory:
             if self.compressed:
@@ -62,8 +63,7 @@ class Target:
             dctx = zstandard.ZstdDecompressor()
             with dctx.stream_reader(fh) as reader:
                 dtypes = _get_col_dtypes(self.file_format)
-                col_idxs = _get_default_col_idx(self.file_format)
-                new_col_names = _default_cols()
+                col_idxs, new_col_names = _default_cols(self.file_format)
                 return (pl.read_csv(reader, sep='\t', has_header=False, comment_char='#',
                                     dtype=dtypes,
                                     columns=col_idxs,
@@ -73,8 +73,7 @@ class Target:
     def _read_uncompressed(self) -> pl.DataFrame:
         """ Read an uncompressed target as quickly as possible. Uses up to 16GB RAM on 1000 genomes pvar. """
         dtypes = _get_col_dtypes(self.file_format)
-        col_idxs = _get_default_col_idx(self.file_format)
-        new_col_names = _default_cols()
+        col_idxs, new_col_names = _default_cols(self.file_format)
         return (pl.read_csv(self.path, sep='\t', has_header=False, comment_char='#',
                             dtype=dtypes,
                             columns=col_idxs,
@@ -91,8 +90,7 @@ class Target:
         Uses ~ 2GB
         """
         dtypes = _get_col_dtypes(self.file_format)
-        col_idxs = _get_default_col_idx(self.file_format)
-        new_col_names = _default_cols()
+        col_idxs, new_col_names = _default_cols(self.file_format)
         with TemporaryDirectory() as temp_dir:
             batch_n = 0
             batch_size = int(1e6)
@@ -122,8 +120,7 @@ class Target:
          """
         logger.debug("Started reading zstd compressed data")
         dtypes = _get_col_dtypes(self.file_format)
-        columns = _get_default_col_idx(self.file_format)
-        new_col_names = _default_cols()
+        columns, new_col_names = _default_cols(self.file_format)
 
         n_chunks = 0
 
@@ -160,20 +157,6 @@ class Target:
                 return pl.read_ipc(os.path.join(temp_dir, "*.ipc"))
 
 
-def _get_default_col_idx(file_format):
-    """ Return a list of column integers to keep, assuming plink default column sets """
-    # import default columns:
-    #  ['#CHROM', 'POS', 'ID', 'REF', 'ALT']
-    match file_format:
-        case 'bim':
-            return [0, 1, 3, 4, 5]  # see _get_col_dtypes, dropping centimorgans
-        case 'pvar':
-            return [0, 1, 2, 3, 4]  # dropping QUAL FILTER INFO etc
-        case _:
-            logger.critical("Trying to get column idx for an invalid file format, TWENTY THREE NINETEEN")
-            raise Exception
-
-
 def _get_col_dtypes(file_format):
     """ Manually set up dtypes to save memory. Repeated strings like REF / ALT / CHROM work best as pl.Categorical.
 
@@ -187,7 +170,7 @@ def _get_col_dtypes(file_format):
             # 5. Allele 1 (corresponding to clear bits in .bed; usually minor)
             # 6. Allele 2 (corresponding to set bits in .bed; usually major)
             d = {'column_1': pl.Categorical, 'column_2': pl.Utf8, 'column_3': pl.Float64, 'column_4': pl.UInt64,
-                 'column_5': pl.Categorical, 'column_6': pl.Categorical}
+                 'column_5': pl.Categorical, 'column_6': pl.Utf8}
         case 'pvar':
             # 1. CHROM
             # 2. POS (base-pair coordinate)
@@ -222,6 +205,17 @@ def _get_format(fh) -> str:
     return file_format
 
 
-def _default_cols() -> list[str]:
-    """ Standardise column names in a target genome """
-    return ['#CHROM', 'POS', 'ID', 'REF', 'ALT']
+def _default_cols(file_format) -> tuple[list[int], list[str]]:
+    """ Return a list of column integers to keep, assuming plink default column sets """
+    match file_format:
+        case 'bim':
+            idxs = [0, 1, 3, 4, 5]  # see _get_col_dtypes, dropping centimorgans
+            names = ['#CHROM', 'ID', 'POS', 'REF', 'ALT']  # technically A1/A2, but it's ok
+            return idxs, names
+        case 'pvar':
+            idxs = [0, 1, 2, 3, 4]  # dropping QUAL FILTER INFO etc
+            names = ['#CHROM', 'POS', 'ID', 'REF', 'ALT']
+            return idxs, names
+        case _:
+            logger.critical("Trying to get column idx for an invalid file format, TWENTY THREE NINETEEN")
+            raise Exception

@@ -10,6 +10,7 @@ from pgscatalog_utils.match.label import label_matches
 logger = logging.getLogger(__name__)
 
 
+# @profile  # decorator needed to annotate memory profiles, but will cause NameErrors outside of profiling
 def get_all_matches(scorefile: pl.LazyFrame, target: pl.LazyFrame, skip_flip: bool, remove_ambiguous: bool,
                     keep_first_match: bool, low_memory: bool) -> pl.DataFrame:
     scorefile_oa = scorefile.filter(pl.col("other_allele") != None)

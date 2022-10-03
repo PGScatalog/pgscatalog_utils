@@ -5,7 +5,7 @@ import polars as pl
 logger = logging.getLogger(__name__)
 
 
-def filter_target(df):
+def filter_target(df: pl.DataFrame) -> pl.DataFrame:
     """ Remove variants that won't be matched against the scorefile
 
     Chromosomes 1 - 22, X, and Y with an efficient join. Remmove variants with missing identifiers also
@@ -45,11 +45,7 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool) -> pl.DataF
         .otherwise(pl.lit(False))
         .alias('is_multiallelic')))
 
-    multiallelic_canary = (df.filter(pl.col('is_multiallelic') == True)
-                           .limit(1)  # just detect the first occurring
-                           .collect())
-
-    if not multiallelic_canary.is_empty():
+    if (df.get_column('is_multiallelic')).any():
         logger.debug("Multiallelic variants detected")
         if remove_multiallelic:
             logger.debug('Dropping multiallelic variants')
@@ -61,8 +57,3 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool) -> pl.DataF
     else:
         logger.debug("No multiallelic variants detected")
         return df
-
-
-def _annotate_multiallelic(df: pl.DataFrame) -> pl.DataFrame:
-    df.with_column(
-        pl.when(pl.col("ALT").str.contains(',')).then(pl.lit(True)).otherwise(pl.lit(False)).alias('is_multiallelic'))

@@ -25,10 +25,9 @@ def read_target(path: str, remove_multiallelic: bool, low_memory: bool) -> pl.La
     logger.debug("Reading all target data complete")
     # handling multiallelic requires str methods, so don't forget to cast back or matching will break
     return (pl.concat([x.read() for x in targets])
-            .lazy()
             .pipe(filter_target)
             .pipe(handle_multiallelic, remove_multiallelic=remove_multiallelic)
-            .with_column(pl.col('ALT').cast(pl.Categorical)))
+            .with_column(pl.col('ALT').cast(pl.Categorical))).lazy()
 
 
 def read_scorefile(path: str) -> pl.LazyFrame:

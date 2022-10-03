@@ -29,7 +29,7 @@ def test_label(small_scorefile, small_target):
     scorefile, target = _cast_cat(small_scorefile, small_target)
 
     # get_all_matches calls label_matches
-    labelled = get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=True, keep_first_match=False)
+    labelled = get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=True, keep_first_match=False).collect()
 
     logger.debug(labelled.select(['ID', 'match_type', 'best_match', 'ambiguous', 'match_status', 'exclude']))
 
@@ -43,7 +43,7 @@ def test_ambiguous_label(small_flipped_scorefile, small_target):
     """ Test ambiguous variant labels change when they're kept for match candidates with one match per position """
     scorefile, target = _cast_cat(small_flipped_scorefile, small_target)
 
-    no_ambiguous = get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=True, keep_first_match=False)
+    no_ambiguous = get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=True, keep_first_match=False).collect()
 
     assert no_ambiguous['best_match'].to_list() == [True]
     assert no_ambiguous['ambiguous'].to_list() == [True]
@@ -51,7 +51,7 @@ def test_ambiguous_label(small_flipped_scorefile, small_target):
     assert no_ambiguous['match_status'].to_list() == ["excluded"]
 
     # otherwise, ambiguous variants are kept
-    labelled = get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=False, keep_first_match=False)
+    labelled = get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=False, keep_first_match=False).collect()
 
     assert labelled['best_match'].to_list() == [True]
     assert labelled['ambiguous'].to_list() == [True]
@@ -105,7 +105,7 @@ def duplicated_matches(small_scorefile, small_target, request):
 
     scorefile, target = _cast_cat(dups, small_target)
 
-    return get_all_matches(scorefile, target, skip_flip=False, remove_ambiguous=False, keep_first_match=request.param)
+    return get_all_matches(scorefile, target, skip_flip=False, remove_ambiguous=False, keep_first_match=request.param).collect()
 
 
 @pytest.fixture
@@ -113,7 +113,7 @@ def multiple_match_types(small_target, small_scorefile):
     # skip flip will return two candidate matches for one target position: refalt + refalt_flip
     scorefile, target = _cast_cat(small_scorefile, small_target)
     return (get_all_matches(scorefile, target, skip_flip=False, remove_ambiguous=False, keep_first_match=False)
-            .filter(pl.col('chr_name') == 2))
+            .filter(pl.col('chr_name') == '2')).collect()
 
 
 @pytest.fixture
@@ -122,4 +122,4 @@ def duplicate_best_match(small_target, small_scorefile_no_oa):
     odd_target = {'#CHROM': [1, 1], 'POS': [1, 1], 'REF': ['T', 'C'], 'ALT': ['A', 'A'], 'ID': ['1:1:T:C', '1:1:A:A'],
                   'is_multiallelic': [False, False]}
     scorefile, target = _cast_cat(small_scorefile_no_oa, pl.DataFrame(odd_target))
-    return get_all_matches(scorefile, target, skip_flip=False, remove_ambiguous=False, keep_first_match=False)
+    return get_all_matches(scorefile, target, skip_flip=False, remove_ambiguous=False, keep_first_match=False).collect()

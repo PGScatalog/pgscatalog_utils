@@ -33,13 +33,17 @@ def download_scorefile() -> None:
 
     pgs_lst: list[list[str]] = []
 
+    pgsc_calc_info = None
+    if args.pgsc_calc:
+        pgsc_calc_info = args.pgsc_calc
+
     if args.efo:
         logger.debug("--trait set, querying traits")
-        pgs_lst = pgs_lst + [query_trait(x) for x in args.efo]
+        pgs_lst = pgs_lst + [query_trait(x, pgsc_calc_info) for x in args.efo]
 
     if args.pgp:
         logger.debug("--pgp set, querying publications")
-        pgs_lst = pgs_lst + [query_publication(x) for x in args.pgp]
+        pgs_lst = pgs_lst + [query_publication(x, pgsc_calc_info) for x in args.pgp]
 
     if args.pgs:
         logger.debug("--id set, querying scores")
@@ -47,7 +51,7 @@ def download_scorefile() -> None:
 
     pgs_id: list[str] = list(set(reduce(lambda x, y: x + y, pgs_lst)))
 
-    urls: dict[str, str] = get_url(pgs_id, args.build)
+    urls: dict[str, str] = get_url(pgs_id, args.build, pgsc_calc_info)
 
     for pgsid, url in urls.items():
         logger.debug(f"Downloading {pgsid} from {url}")
@@ -135,6 +139,8 @@ def _parse_args(args=None) -> argparse.Namespace:
     parser.add_argument('-o', '--outdir', dest='outdir', required=True,
                         default='scores/',
                         help='<Required> Output directory to store downloaded files')
+    parser.add_argument('-c', '--pgsc_calc', dest='pgsc_calc',
+                        help='<Optional> Provide information about downloading scoring files via pgsc_calc')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)

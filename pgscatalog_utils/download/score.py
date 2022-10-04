@@ -1,6 +1,7 @@
 import logging
 import sys
 
+import pgscatalog_utils
 import jq
 import requests
 import time
@@ -8,13 +9,13 @@ import time
 logger = logging.getLogger(__name__)
 
 
-def get_url(pgs: list[str], build: str) -> dict[str, str]:
+def get_url(pgs: list[str], build: str, user_agent:str = None) -> dict[str, str]:
     pgs_result: list[str] = []
     url_result: list[str] = []
 
     for chunk in _chunker(pgs):
         try:
-            response = _parse_json_query(query_score(chunk), build)
+            response = _parse_json_query(query_score(chunk,user_agent), build)
             pgs_result = pgs_result + list(response.keys())
             url_result = url_result + list(response.values())
         except TypeError:
@@ -29,13 +30,17 @@ def get_url(pgs: list[str], build: str) -> dict[str, str]:
     return dict(zip(pgs_result, url_result))
 
 
-def query_api(api: str, retry:int = 0) -> dict:
+def query_api(api: str, user_agent:str = None, retry:int = 0) -> dict:
     max_retries = 5
     wait = 60
     results_json = None
     rest_url_root = 'https://www.pgscatalog.org/rest'
+    # Set pgscatalog_utils user agent if none provided
+    if not user_agent:
+        user_agent = 'pgscatalog_utils/'+pgscatalog_utils.__version__
     try:
-        r: requests.models.Response = requests.get(rest_url_root+api)
+        headers = {'User-Agent': user_agent}
+        r: requests.models.Response = requests.get(rest_url_root+api, headers=headers)
         r.raise_for_status()
         results_json = r.json()
     except requests.exceptions.HTTPError as e:
@@ -54,10 +59,10 @@ def query_api(api: str, retry:int = 0) -> dict:
     return results_json
 
 
-def query_score(pgs_id: list[str]) -> dict:
+def query_score(pgs_id: list[str], user_agent:str = None) -> dict:
     pgs: str = ','.join(pgs_id)
     api: str = f'/score/search?pgs_ids={pgs}'
-    results_json = query_api(api)
+    results_json = query_api(api, user_agent)
     return results_json
 
 

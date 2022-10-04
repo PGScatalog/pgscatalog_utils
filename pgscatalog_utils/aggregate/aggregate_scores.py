@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def aggregate_scores():
     args = _parse_args()
     set_logging_level(args.verbose)
-    df = aggregate(glob.glob(args.scores))
+    df = aggregate(list(set(args.scores)))
     logger.debug("Compressing and writing combined scores")
     df.to_csv('aggregated_scores.txt.gz', sep='\t', compression='gzip')
 
@@ -78,8 +78,8 @@ def _description_text() -> str:
 def _parse_args(args=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=_description_text(),
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('-s', '--scores', dest='scores', required=True,
-                        help='<Required> Path to scorefiles. Use a wildcard (*) to select multiple files.')
+    parser.add_argument('-s', '--scores', dest='scores', required=True, nargs='+',
+                        help='<Required> List of scorefile paths. Use a wildcard (*) to select multiple files.')
     parser.add_argument('-o', '--outdir', dest='outdir', required=True,
                         default='scores/', help='<Required> Output directory to store downloaded files')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',

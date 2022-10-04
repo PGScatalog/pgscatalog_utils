@@ -1,8 +1,7 @@
-import glob
+
 import logging
 
 import polars as pl
-
 from pgscatalog_utils.config import POLARS_MAX_THREADS
 from pgscatalog_utils.match.preprocess import handle_multiallelic, complement_valid_alleles, filter_target
 from pgscatalog_utils.target import Target
@@ -10,16 +9,7 @@ from pgscatalog_utils.target import Target
 logger = logging.getLogger(__name__)
 
 
-def read_target(path: str, remove_multiallelic: bool, low_memory: bool) -> pl.LazyFrame:
-    """ Read one or more targets from a path (may contain a wildcard) """
-
-    if '*' in path:
-        logger.debug("Wildcard detected in target path: finding all matching files")
-        paths: list[str] = glob.glob(path)
-    else:
-        logger.debug("Found one matching target")
-        paths: list[str] = [path]
-
+def read_target(paths: list[str], remove_multiallelic: bool, low_memory: bool) -> pl.LazyFrame:
     targets: list[Target] = [Target.from_path(x, low_memory) for x in paths]
 
     logger.debug("Reading all target data complete")

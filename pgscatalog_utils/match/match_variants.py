@@ -27,7 +27,8 @@ def match_variants():
 
     with pl.StringCache():
         scorefile: pl.LazyFrame = read_scorefile(path=args.scorefile)
-        n_target_files = len(glob(args.target))
+        target_paths = list(set(args.target))
+        n_target_files = len(target_paths)
         matches: pl.DataFrame
 
         if n_target_files == 0:
@@ -46,18 +47,20 @@ def match_variants():
 
         match match_mode:
             case "single":
-                logger.debug(f"Match mode: {match_mode}")  # read one target in chunks
-                matches: pl.LazyFrame = _match_single_target(args.target, scorefile, args.remove_multiallelic,
+                logger.debug(f"Match mode: {match_mode}")
+                # _fast_match with low_memory = True reads one target in chunks
+                matches: pl.LazyFrame = _fast_match(target_paths, scorefile, args.remove_multiallelic,
                                                              args.skip_flip, args.remove_ambiguous,
                                                              args.keep_first_match, low_memory)
             case "multi":
                 logger.debug(f"Match mode: {match_mode}")  # iterate over multiple targets, in chunks
-                matches: pl.LazyFrame = _match_multiple_targets(args.target, scorefile, args.remove_multiallelic,
+                matches: pl.LazyFrame = _match_multiple_targets(target_paths, scorefile, args.remove_multiallelic,
                                                                 args.skip_flip, args.remove_ambiguous,
                                                                 args.keep_first_match, low_memory)
             case "fast":
-                logger.debug(f"Match mode: {match_mode}")  # just read everything into memory for speed
-                matches: pl.LazyFrame = _fast_match(args.target, scorefile, args.remove_multiallelic, args.skip_flip,
+                logger.debug(f"Match mode: {match_mode}")
+                # _fast_match with low_memory = False just read everything into memory for speed
+                matches: pl.LazyFrame = _fast_match(target_paths, scorefile, args.remove_multiallelic, args.skip_flip,
                                                     args.remove_ambiguous, args.keep_first_match, low_memory)
             case _:
                 logger.critical(f"Invalid match mode: {match_mode}")
@@ -87,30 +90,23 @@ def _check_target_chroms(target: pl.LazyFrame) -> None:
         logger.debug("Split target genome contains one chromosome (good)")
 
 
-def _fast_match(target_path: str, scorefile: pl.LazyFrame, remove_multiallelic: bool,
+def _fast_match(target_paths: list[str], scorefile: pl.LazyFrame, remove_multiallelic: bool,
                 skip_flip: bool, remove_ambiguous: bool, keep_first_match: bool, low_memory: bool) -> pl.LazyFrame:
     # fast match is fast because:
-    #   1) all target files are read into memory
+    #   1) all target files are read into memory without batching
     #   2) matching occurs without iterating through chromosomes
-    target: pl.LazyFrame = read_target(path=target_path, remove_multiallelic=remove_multiallelic, low_memory=low_memory)
-    logger.debug("Split target chromosomes not checked with fast match mode")
+    # when low memory is true and n_targets = 1, fast match is the same as "single" match mode
+    target: pl.LazyFrame = read_target(paths=target_paths, remove_multiallelic=remove_multiallelic, low_memory=low_memory)
     return get_all_matches(scorefile, target, skip_flip, remove_ambiguous, keep_first_match, low_memory).lazy()
 
 
-def _match_single_target(target_path: str, scorefile: pl.LazyFrame, remove_multiallelic: bool,
-                         skip_flip: bool, remove_ambiguous: bool, keep_first_match: bool,
-                         low_memory: bool) -> pl.LazyFrame:
-    target: pl.LazyFrame = read_target(path=target_path, remove_multiallelic=remove_multiallelic, low_memory=low_memory)
-    return get_all_matches(scorefile, target, skip_flip, remove_ambiguous, keep_first_match, low_memory).lazy()
-
-
-def _match_multiple_targets(target_path: str, scorefile: pl.LazyFrame, remove_multiallelic: bool,
+def _match_multiple_targets(target_paths: list[str], scorefile: pl.LazyFrame, remove_multiallelic: bool,
                             skip_flip: bool, remove_ambiguous: bool, keep_first_match: bool,
                             low_memory: bool) -> pl.LazyFrame:
     matches = []
-    for i, loc_target_current in enumerate(glob(target_path)):
+    for i, loc_target_current in enumerate(target_paths):
         logger.debug(f'Matching scorefile(s) against target: {loc_target_current}')
-        target: pl.LazyFrame = read_target(path=loc_target_current, remove_multiallelic=remove_multiallelic,
+        target: pl.LazyFrame = read_target(paths=[loc_target_current], remove_multiallelic=remove_multiallelic,
                                            low_memory=low_memory)
         _check_target_chroms(target)
         matches.append(get_all_matches(scorefile, target, skip_flip, remove_ambiguous, keep_first_match, low_memory))
@@ -171,8 +167,8 @@ def _parse_args(args=None):
                         help='<Required> Label for target genomic dataset')
     parser.add_argument('-s', '--scorefiles', dest='scorefile', required=True,
                         help='<Required> Combined scorefile path (output of read_scorefiles.py)')
-    parser.add_argument('-t', '--target', dest='target', required=True,
-                        help='<Required> A table of target genomic variants (.bim format)')
+    parser.add_argument('-t', '--target', dest='target', required=True, nargs='+',
+                        help='<Required> A list of paths of target genomic variants (.bim format)')
     parser.add_argument('-f', '--fast', dest='fast', action='store_true',
                         help='<Optional> Enable faster matching at the cost of increased RAM usage')
     parser.add_argument('--split', dest='split', default=False, action='store_true',

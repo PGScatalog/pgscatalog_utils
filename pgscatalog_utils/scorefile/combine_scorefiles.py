@@ -75,7 +75,7 @@ def combine_scorefiles():
             logger.debug("Annotating scorefile with liftover parameters")
             score = liftover(score, args.chain_dir, args.min_lift, args.target_build)
 
-        if score.empty:
+        if score.empty and (args.drop_missing is False):
             logger.critical("Empty output score detected, something went wrong while combining")
             raise Exception
 

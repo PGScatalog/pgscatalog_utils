@@ -32,6 +32,10 @@ def combine_scorefiles():
         # Read scorefile df and header
         h, score = load_scorefile(x)
 
+        if score.empty:
+            logger.critical(f"Empty scorefile {x} detected! Please check the input data")
+            raise Exception
+
         # Check if we should use the harmonized positions
         use_harmonised = False
         current_build = None
@@ -70,6 +74,10 @@ def combine_scorefiles():
         if args.liftover:
             logger.debug("Annotating scorefile with liftover parameters")
             score = liftover(score, args.chain_dir, args.min_lift, args.target_build)
+
+        if score.empty:
+            logger.critical("Empty output score detected, something went wrong while combining")
+            raise Exception
 
         write_scorefile(score, args.outfile)
 

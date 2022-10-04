@@ -1,10 +1,10 @@
 import logging
 import sys
 
-import pgscatalog_utils
 import jq
 import requests
 import time
+from pgscatalog_utils import __version__ as pgscatalog_utils_version
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def query_api(api: str, user_agent:str = None, retry:int = 0) -> dict:
     rest_url_root = 'https://www.pgscatalog.org/rest'
     # Set pgscatalog_utils user agent if none provided
     if not user_agent:
-        user_agent = 'pgscatalog_utils/'+pgscatalog_utils.__version__
+        user_agent = 'pgscatalog_utils/'+pgscatalog_utils_version
     try:
         headers = {'User-Agent': user_agent}
         r: requests.models.Response = requests.get(rest_url_root+api, headers=headers)

@@ -12,10 +12,13 @@ combine_scorefiles = "pgscatalog_utils.scorefile.combine_scorefiles:combine_scor
 download_scorefiles = "pgscatalog_utils.download.download_scorefile:download_scorefile"
 match_variants = "pgscatalog_utils.match.match_variants:match_variants"
 aggregate_scores = "pgscatalog_utils.aggregate.aggregate_scores:aggregate_scores"
+validate_scorefiles = "pgscatalog_utils.validate.validate_scorefile:validate_scorefile"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+numpy = "^1.23.3"
 pandas = "^1.4.3"
+pandas-schema = "^0.3.6"
 pyliftover = "^0.4"
 requests = "^2.28.1"
 jq = "^1.2.2"

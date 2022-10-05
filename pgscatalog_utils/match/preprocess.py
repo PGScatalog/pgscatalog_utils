@@ -37,7 +37,8 @@ def complement_valid_alleles(df: pl.DataFrame, flip_cols: list[str]) -> pl.DataF
     return df
 
 
-def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool) -> pl.DataFrame:
+def annotate_multiallelic(df: pl.DataFrame) -> pl.DataFrame:
+    """ Identify variants that are multiallelic with a column flag """
     # plink2 pvar multi-alleles are comma-separated
     df: pl.DataFrame = (df.with_column(
         pl.when(pl.col("ALT").str.contains(','))
@@ -46,14 +47,9 @@ def handle_multiallelic(df: pl.DataFrame, remove_multiallelic: bool) -> pl.DataF
         .alias('is_multiallelic')))
 
     if (df.get_column('is_multiallelic')).any():
-        logger.debug("Multiallelic variants detected")
-        if remove_multiallelic:
-            logger.debug('Dropping multiallelic variants')
-            return df.filter(pl.col('is_multiallelic') == False)
-        else:
-            logger.debug("Exploding dataframe to handle multiallelic variants")
-            df.replace('ALT', df['ALT'].str.split(by=','))  # turn ALT to list of variants
-            return df.explode('ALT')  # expand the DF to have all the variants in different rows
+        logger.debug("Exploding dataframe to handle multiallelic variants")
+        df.replace('ALT', df['ALT'].str.split(by=','))  # turn ALT to list of variants
+        return df.explode('ALT')  # expand the DF to have all the variants in different rows
     else:
         logger.debug("No multiallelic variants detected")
         return df

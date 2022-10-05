@@ -18,8 +18,9 @@ def label_matches(df: pl.DataFrame, remove_ambiguous, keep_first_match) -> pl.Da
     labelled = (df.with_column(pl.lit(False).alias('exclude'))  # set up dummy exclude column for _label_*
                 .pipe(_label_best_match)
                 .pipe(_label_duplicate_best_match)
-                .pipe(_label_duplicate_id, keep_first_match)
-                .pipe(_label_biallelic_ambiguous, remove_ambiguous)
+                .pipe(_label_duplicate_id, params['keep_first_match'])
+                .pipe(_label_biallelic_ambiguous, params['remove_ambiguous'])
+                .pipe(_label_multiallelic, params['remove_multiallelic'])
                 .with_column(pl.lit(True).alias('match_candidate')))
 
     return _encode_match_priority(labelled)
@@ -175,3 +176,20 @@ def _label_biallelic_ambiguous(df: pl.DataFrame, remove_ambiguous) -> pl.DataFra
                 .with_column(pl.max(["exclude", "exclude_ambiguous"]))
                 .drop(["exclude", "exclude_ambiguous"])
                 .rename({"max": "exclude"}))
+
+
+def _label_multiallelic(df: pl.LazyFrame, remove_multiallelic: bool) -> pl.LazyFrame:
+    """ Label multiallelic variants with exclude flag
+
+    (Multiallelic variants are already labelled with the "is_multiallelic" column in match.preprocess)
+    """
+    if remove_multiallelic:
+        logger.debug("Labelling multiallelic matches with exclude flag")
+        return df.with_column(pl.when(pl.col('is_multiallelic') == True)
+                              .then(True)
+                              .otherwise(pl.col('exclude'))  # don't overwrite existing exclude flags
+                              .alias('exclude'))
+    else:
+        logger.debug("Not excluding multiallelic variants")
+        return df
+

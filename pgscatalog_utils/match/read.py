@@ -2,21 +2,21 @@
 import logging
 
 import polars as pl
-from pgscatalog_utils.match.preprocess import handle_multiallelic, complement_valid_alleles, filter_target
 import pgscatalog_utils.config as config
+from pgscatalog_utils.match.preprocess import annotate_multiallelic, complement_valid_alleles, filter_target
 from pgscatalog_utils.target import Target
 
 logger = logging.getLogger(__name__)
 
 
-def read_target(paths: list[str], remove_multiallelic: bool, low_memory: bool) -> pl.LazyFrame:
+def read_target(paths: list[str], low_memory: bool) -> pl.LazyFrame:
     targets: list[Target] = [Target.from_path(x, low_memory) for x in paths]
 
     logger.debug("Reading all target data complete")
     # handling multiallelic requires str methods, so don't forget to cast back or matching will break
     return (pl.concat([x.read() for x in targets])
             .pipe(filter_target)
-            .pipe(handle_multiallelic, remove_multiallelic=remove_multiallelic)
+            .pipe(annotate_multiallelic)
             .with_column(pl.col('ALT').cast(pl.Categorical))).lazy()
 
 

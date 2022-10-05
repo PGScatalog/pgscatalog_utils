@@ -3,11 +3,10 @@ import logging
 import os
 import sys
 import textwrap
-from glob import glob
 
 import polars as pl
 
-from pgscatalog_utils.config import set_logging_level, POLARS_MAX_THREADS
+import pgscatalog_utils.config as config
 from pgscatalog_utils.match.filter import filter_scores
 from pgscatalog_utils.match.log import make_logs
 from pgscatalog_utils.match.match import get_all_matches
@@ -19,11 +18,14 @@ logger = logging.getLogger(__name__)
 
 def match_variants():
     args = _parse_args()
+    config.set_logging_level(args.verbose)
 
-    set_logging_level(args.verbose)
-    logger.debug(f"POLARS_MAX_THREADS environment variable: {os.getenv('POLARS_MAX_THREADS')}")
+    config.POLARS_MAX_THREADS = args.n_threads
+    os.environ['POLARS_MAX_THREADS'] = str(config.POLARS_MAX_THREADS)
+    # now the environment variable, parsed argument args.n_threads, and threadpool should agree
+    logger.debug(f"Setting POLARS_MAX_THREADS environment variable: {os.getenv('POLARS_MAX_THREADS')}")
+    logger.debug(f"Using {config.POLARS_MAX_THREADS} threads to read CSVs")
     logger.debug(f"polars threadpool size: {pl.threadpool_size()}")
-    logger.debug(f"Using {POLARS_MAX_THREADS} threads to read CSVs")
 
     with pl.StringCache():
         scorefile: pl.LazyFrame = read_scorefile(path=args.scorefile)
@@ -171,6 +173,7 @@ def _parse_args(args=None):
                         help='<Required> A list of paths of target genomic variants (.bim format)')
     parser.add_argument('-f', '--fast', dest='fast', action='store_true',
                         help='<Optional> Enable faster matching at the cost of increased RAM usage')
+    parser.add_argument('-n', dest='n_threads', default=1, help='<Optional> n threads for matching', type=int)
     parser.add_argument('--split', dest='split', default=False, action='store_true',
                         help='<Optional> Split scorefile per chromosome?')
     parser.add_argument('--outdir', dest='outdir', required=True,

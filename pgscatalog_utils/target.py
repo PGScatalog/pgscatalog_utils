@@ -9,7 +9,7 @@ from tempfile import TemporaryDirectory
 import polars as pl
 import zstandard
 
-from pgscatalog_utils.config import POLARS_MAX_THREADS
+import pgscatalog_utils.config as config
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class Target:
                                     dtype=dtypes,
                                     columns=col_idxs,
                                     new_columns=new_col_names,
-                                    n_threads=POLARS_MAX_THREADS))
+                                    n_threads=config.POLARS_MAX_THREADS))
 
     def _read_uncompressed(self) -> pl.DataFrame:
         """ Read an uncompressed target as quickly as possible. Uses up to 16GB RAM on 1000 genomes pvar. """
@@ -78,7 +78,7 @@ class Target:
                             dtype=dtypes,
                             columns=col_idxs,
                             new_columns=new_col_names,
-                            n_threads=POLARS_MAX_THREADS))
+                            n_threads=config.POLARS_MAX_THREADS))
 
     def _read_uncompressed_chunks(self) -> pl.DataFrame:
         """ Read a CSV using a BufferedReader in batches to reduce memory usage.

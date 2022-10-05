@@ -2,8 +2,8 @@
 import logging
 
 import polars as pl
-from pgscatalog_utils.config import POLARS_MAX_THREADS
 from pgscatalog_utils.match.preprocess import handle_multiallelic, complement_valid_alleles, filter_target
+import pgscatalog_utils.config as config
 from pgscatalog_utils.target import Target
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def read_scorefile(path: str) -> pl.LazyFrame:
               'other_allele': pl.Utf8,
               'effect_type': pl.Categorical,
               'accession': pl.Categorical}
-    return (pl.read_csv(path, sep='\t', dtype=dtypes, n_threads=POLARS_MAX_THREADS)
+    return (pl.read_csv(path, sep='\t', dtype=dtypes, n_threads=config.POLARS_MAX_THREADS)
             .lazy()
             .pipe(complement_valid_alleles, flip_cols=['effect_allele', 'other_allele'])).with_columns([
         pl.col("effect_allele").cast(pl.Categorical),

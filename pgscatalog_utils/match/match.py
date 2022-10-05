@@ -24,16 +24,14 @@ def get_all_matches(scorefile: pl.LazyFrame, target: pl.LazyFrame, label_params:
     logger.debug("Getting matches for scores with effect allele and other allele")
     matches.append(_match_variants(scorefile=scorefile_oa, target=target, match_type="refalt").select(col_order))
     matches.append(_match_variants(scorefile_oa, target, match_type="altref").select(col_order))
-    if skip_flip is False:
-        matches.append(_match_variants(scorefile_oa, target, match_type="refalt_flip").select(col_order))
-        matches.append(_match_variants(scorefile_oa, target, match_type="altref_flip").select(col_order))
+    matches.append(_match_variants(scorefile_oa, target, match_type="refalt_flip").select(col_order))
+    matches.append(_match_variants(scorefile_oa, target, match_type="altref_flip").select(col_order))
 
     logger.debug("Getting matches for scores with effect allele only")
     matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_ref").select(col_order))
     matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_alt").select(col_order))
-    if skip_flip is False:
-        matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_ref_flip").select(col_order))
-        matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_alt_flip").select(col_order))
+    matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_ref_flip").select(col_order))
+    matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_alt_flip").select(col_order))
 
     if low_memory:
         logger.debug("Batch collecting matches (low memory mode)")

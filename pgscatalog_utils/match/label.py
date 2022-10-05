@@ -7,7 +7,7 @@ from pgscatalog_utils.match.preprocess import complement_valid_alleles
 logger = logging.getLogger(__name__)
 
 
-def label_matches(df: pl.DataFrame, remove_ambiguous, keep_first_match) -> pl.DataFrame:
+def label_matches(df: pl.DataFrame, params: dict[str, bool]) -> pl.DataFrame:
     """ Label match candidates with additional metadata. Column definitions:
 
     - match_candidate: All input variants that were returned from match.get_all_matches() (always True in this function)
@@ -21,6 +21,7 @@ def label_matches(df: pl.DataFrame, remove_ambiguous, keep_first_match) -> pl.Da
                 .pipe(_label_duplicate_id, params['keep_first_match'])
                 .pipe(_label_biallelic_ambiguous, params['remove_ambiguous'])
                 .pipe(_label_multiallelic, params['remove_multiallelic'])
+                .pipe(_label_flips, params['skip_flip'])
                 .with_column(pl.lit(True).alias('match_candidate')))
 
     return _encode_match_priority(labelled)
@@ -193,3 +194,18 @@ def _label_multiallelic(df: pl.LazyFrame, remove_multiallelic: bool) -> pl.LazyF
         logger.debug("Not excluding multiallelic variants")
         return df
 
+
+def _label_flips(df: pl.LazyFrame, skip_flip: bool) -> pl.LazyFrame:
+    df = df.with_column(pl.when(pl.col('match_type').str.contains('_FLIP'))
+                        .then(True)
+                        .otherwise(False)
+                        .alias('is_flipped'))
+    if skip_flip:
+        logger.debug("Labelling flipped matches with exclude flag")
+        return df.with_column(pl.when(pl.col('is_flipped') == True)
+                              .then(True)
+                              .otherwise(pl.col('exclude'))  # don't overwrite existing exclude flags
+                              .alias('exclude'))
+    else:
+        logger.debug("Not excluding flipped matches")
+        return df

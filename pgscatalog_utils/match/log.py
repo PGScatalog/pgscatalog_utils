@@ -30,8 +30,8 @@ def make_summary_log(best_matches: pl.LazyFrame, filter_summary: pl.LazyFrame) -
     """ Make an aggregated table """
     logger.debug("Aggregating best match log into a summary table")
     return (best_matches
-            .groupby(['dataset', 'accession', 'match_status', 'ambiguous', 'is_multiallelic', 'duplicate_best_match',
-                      'duplicate_ID'])
+            .groupby(['dataset', 'accession', 'match_status', 'ambiguous', 'is_multiallelic', 'is_flipped',
+                      'duplicate_best_match', 'duplicate_ID'])
             .agg(pl.count())
             .join(filter_summary, how='left', on='accession'))
 

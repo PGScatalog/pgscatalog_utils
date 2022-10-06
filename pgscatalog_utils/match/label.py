@@ -196,13 +196,13 @@ def _label_multiallelic(df: pl.LazyFrame, remove_multiallelic: bool) -> pl.LazyF
 
 
 def _label_flips(df: pl.LazyFrame, skip_flip: bool) -> pl.LazyFrame:
-    df = df.with_column(pl.when(pl.col('match_type').str.contains('_FLIP'))
+    df = df.with_column(pl.when(pl.col('match_type').str.contains('_flip'))
                         .then(True)
                         .otherwise(False)
-                        .alias('is_flipped'))
+                        .alias('match_flipped'))
     if skip_flip:
         logger.debug("Labelling flipped matches with exclude flag")
-        return df.with_column(pl.when(pl.col('is_flipped') == True)
+        return df.with_column(pl.when(pl.col('match_flipped') == True)
                               .then(True)
                               .otherwise(pl.col('exclude'))  # don't overwrite existing exclude flags
                               .alias('exclude'))

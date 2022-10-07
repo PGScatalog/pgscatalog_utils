@@ -8,6 +8,7 @@ import polars as pl
 
 import pgscatalog_utils.config as config
 from pgscatalog_utils.match.filter import filter_scores
+from pgscatalog_utils.match.label import label_matches
 from pgscatalog_utils.match.log import make_logs
 from pgscatalog_utils.match.match import get_all_matches
 from pgscatalog_utils.match.read import read_target, read_scorefile
@@ -95,7 +96,8 @@ def _fast_match(target_paths: list[str], scorefile: pl.LazyFrame,
     # when low memory is true and n_targets = 1, fast match is the same as "single" match mode
     params: dict[str, bool] = _make_params_dict(args)
     target: pl.LazyFrame = read_target(paths=target_paths, low_memory=low_memory)
-    return get_all_matches(scorefile=scorefile, target=target, label_params=params, low_memory=low_memory).lazy()
+    return (get_all_matches(scorefile=scorefile, target=target, low_memory=low_memory)
+            .pipe(label_matches, params=params))
 
 
 def _match_multiple_targets(target_paths: list[str], scorefile: pl.LazyFrame, args: argparse.Namespace,
@@ -106,8 +108,9 @@ def _match_multiple_targets(target_paths: list[str], scorefile: pl.LazyFrame, ar
         logger.debug(f'Matching scorefile(s) against target: {loc_target_current}')
         target: pl.LazyFrame = read_target(paths=[loc_target_current], low_memory=low_memory)
         _check_target_chroms(target)
-        matches.append(get_all_matches(scorefile=scorefile, target=target, label_params=params, low_memory=low_memory))
-    return pl.concat(matches).lazy()
+        matches.append(get_all_matches(scorefile=scorefile, target=target, low_memory=low_memory))
+    return (pl.concat(matches)
+            .pipe(label_params=params))
 
 
 def _description_text() -> str:

@@ -5,14 +5,11 @@ from tempfile import TemporaryDirectory
 
 import polars as pl
 
-from pgscatalog_utils.match.label import label_matches
-
 logger = logging.getLogger(__name__)
 
 
 # @profile  # decorator needed to annotate memory profiles, but will cause NameErrors outside of profiling
-def get_all_matches(scorefile: pl.LazyFrame, target: pl.LazyFrame, label_params: dict[str: bool],
-                    low_memory: bool = True) -> pl.LazyFrame:
+def get_all_matches(scorefile: pl.LazyFrame, target: pl.LazyFrame, low_memory: bool = True) -> pl.LazyFrame:
     scorefile_oa = scorefile.filter(pl.col("other_allele") != None)
     scorefile_no_oa = scorefile.filter(pl.col("other_allele") == None)
 
@@ -40,7 +37,7 @@ def get_all_matches(scorefile: pl.LazyFrame, target: pl.LazyFrame, label_params:
         logger.debug("Collecting all matches (parallel)")
         match_lf = pl.concat(pl.collect_all(matches))
 
-    return match_lf.lazy().pipe(label_matches, label_params)
+    return match_lf.lazy()
 
 
 def _batch_collect(matches: list[pl.LazyFrame]) -> pl.DataFrame:

@@ -7,7 +7,7 @@ from pgscatalog_utils.match.preprocess import complement_valid_alleles
 logger = logging.getLogger(__name__)
 
 
-def label_matches(df: pl.DataFrame, params: dict[str, bool]) -> pl.DataFrame:
+def label_matches(df: pl.LazyFrame, params: dict[str, bool]) -> pl.LazyFrame:
     """ Label match candidates with additional metadata. Column definitions:
 
     - match_candidate: All input variants that were returned from match.get_all_matches() (always True in this function)
@@ -15,6 +15,7 @@ def label_matches(df: pl.DataFrame, params: dict[str, bool]) -> pl.DataFrame:
     - duplicate: True if more than one best match exists for the same accession and ID
     - ambiguous: True if ambiguous
     """
+    assert set(params.keys()) == {'keep_first_match', 'remove_ambiguous', 'remove_multiallelic', 'skip_flip'}
     labelled = (df.with_column(pl.lit(False).alias('exclude'))  # set up dummy exclude column for _label_*
                 .pipe(_label_best_match)
                 .pipe(_label_duplicate_best_match)
@@ -27,7 +28,7 @@ def label_matches(df: pl.DataFrame, params: dict[str, bool]) -> pl.DataFrame:
     return _encode_match_priority(labelled)
 
 
-def _encode_match_priority(df: pl.DataFrame) -> pl.DataFrame:
+def _encode_match_priority(df: pl.LazyFrame) -> pl.LazyFrame:
     """ Encode a new column called match status containing matched, unmatched, excluded, and not_best """
     return (df.with_columns([
         # set false best match to not_best
@@ -41,7 +42,7 @@ def _encode_match_priority(df: pl.DataFrame) -> pl.DataFrame:
                          .cast(pl.Categorical)).drop(["max", "excluded_match_priority", "match_priority"]))
 
 
-def _label_best_match(df: pl.DataFrame) -> pl.DataFrame:
+def _label_best_match(df: pl.LazyFrame) -> pl.LazyFrame:
     """ Best matches have the lowest match priority type. Find the best matches and label them.  """
     logger.debug("Labelling best match type (refalt > altref > ...)")
     match_priority = {'refalt': 0, 'altref': 1, 'refalt_flip': 2, 'altref_flip': 3, 'no_oa_ref': 4, 'no_oa_alt': 5,
@@ -50,7 +51,7 @@ def _label_best_match(df: pl.DataFrame) -> pl.DataFrame:
 
     # use a groupby aggregation to guarantee the number of rows stays the same
     # rows were being lost using an anti join + reduce approach
-    prioritised: pl.DataFrame = (df.with_column(pl.col('match_type')
+    prioritised: pl.LazyFrame = (df.with_column(pl.col('match_type')
                                                 .apply(lambda x: match_priority[x])
                                                 .alias('match_priority'))
                                  .with_column(pl.col("match_priority")
@@ -66,7 +67,7 @@ def _label_best_match(df: pl.DataFrame) -> pl.DataFrame:
     return prioritised.drop(['match_priority', 'best_match_type'])
 
 
-def _label_duplicate_best_match(df: pl.DataFrame) -> pl.DataFrame:
+def _label_duplicate_best_match(df: pl.LazyFrame) -> pl.LazyFrame:
     """ A scoring file row_nr in an accession group can be duplicated if a target position has different REF, e.g.:
 
     ┌────────┬────────────────────────┬────────────┬────────────────┬─────┬────────────┐
@@ -82,7 +83,7 @@ def _label_duplicate_best_match(df: pl.DataFrame) -> pl.DataFrame:
     Label the first row with best_match = true, and duplicate rows with best_match = false
     """
     logger.debug("Labelling duplicated best match: keeping first instance as best_match = True")
-    labelled: pl.DataFrame = (df.with_column(pl.col('best_match')
+    labelled: pl.LazyFrame = (df.with_column(pl.col('best_match')
                                              .count()
                                              .over(['accession', 'row_nr', 'best_match'])
                                              .alias('count'))
@@ -106,7 +107,7 @@ def _label_duplicate_best_match(df: pl.DataFrame) -> pl.DataFrame:
     return labelled
 
 
-def _label_duplicate_id(df: pl.DataFrame, keep_first_match: bool) -> pl.DataFrame:
+def _label_duplicate_id(df: pl.LazyFrame, keep_first_match: bool) -> pl.LazyFrame:
     """ Label best match duplicates made when the scoring file is remapped to a different genome build
 
     ┌─────────┬────────────────────────┬─────────────┬────────────────┬─────┬────────────┐
@@ -153,7 +154,7 @@ def _label_duplicate_id(df: pl.DataFrame, keep_first_match: bool) -> pl.DataFram
             .rename({"max": "exclude"}))
 
 
-def _label_biallelic_ambiguous(df: pl.DataFrame, remove_ambiguous) -> pl.DataFrame:
+def _label_biallelic_ambiguous(df: pl.LazyFrame, remove_ambiguous) -> pl.LazyFrame:
     logger.debug("Labelling ambiguous variants")
     ambig = ((df.with_columns([
         pl.col(["effect_allele", "other_allele", "REF", "ALT", "effect_allele_FLIP", "other_allele_FLIP"]).cast(str),

@@ -106,7 +106,7 @@ class Target:
                                  dtype=dtypes,
                                  columns=col_idxs,
                                  new_columns=new_col_names,
-                                 n_threads=POLARS_MAX_THREADS).write_ipc(out_path))
+                                 n_threads=config.POLARS_MAX_THREADS).write_ipc(out_path))
                     batch_n += 1
 
             gc.collect()  # just to be safe
@@ -146,7 +146,7 @@ class Target:
                                  dtype=dtypes,
                                  columns=columns,
                                  new_columns=new_col_names,
-                                 n_threads=POLARS_MAX_THREADS)
+                                 n_threads=config.POLARS_MAX_THREADS)
                      .write_ipc(out_path))
 
                     chunk_buffer = b''.join([chunk_buffer, chunk[end:]])

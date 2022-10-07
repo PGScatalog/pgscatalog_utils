@@ -4,6 +4,7 @@ import logging
 import pytest
 import polars as pl
 
+from pgscatalog_utils.match.label import label_matches
 from pgscatalog_utils.match.match import get_all_matches
 from tests.match.test_match import _cast_cat
 
@@ -29,37 +30,54 @@ def test_label(small_scorefile, small_target):
     scorefile, target = _cast_cat(small_scorefile, small_target)
 
     # get_all_matches calls label_matches
-    labelled = get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=True, keep_first_match=False).collect()
+    params = {'skip_flip': True, 'remove_ambiguous': True, 'remove_multiallelic': False, 'keep_first_match': False}
+    labelled: pl.DataFrame = (get_all_matches(scorefile=scorefile, target=target)
+                              .pipe(label_matches, params=params)
+                              .collect())
 
     logger.debug(labelled.select(['ID', 'match_type', 'best_match', 'ambiguous', 'match_status', 'exclude']))
 
-    assert labelled['best_match'].to_list() == [True, True, True]
-    assert labelled['ambiguous'].to_list() == [False, True, False]
-    assert labelled['exclude'].to_list() == [False, True, False]
-    assert labelled['match_status'].to_list() == ["matched", "excluded", "matched"]
+    assert labelled['best_match'].to_list() == [True, True, True, False]
+    assert labelled['ambiguous'].to_list() == [False, True, False, True]
+    assert labelled['exclude'].to_list() == [False, True, False, True]
+    assert labelled['match_status'].to_list() == ["matched", "excluded", "matched", "not_best"]
 
 
 def test_ambiguous_label(small_flipped_scorefile, small_target):
     """ Test ambiguous variant labels change when they're kept for match candidates with one match per position """
     scorefile, target = _cast_cat(small_flipped_scorefile, small_target)
+    no_flip = {'skip_flip': True, 'remove_ambiguous': True, 'remove_multiallelic': False, 'keep_first_match': False}
+    no_ambiguous: pl.DataFrame = (get_all_matches(scorefile=scorefile, target=target)
+                                  .pipe(label_matches, params=no_flip)
+                                  .collect())
 
-    no_ambiguous = get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=True, keep_first_match=False).collect()
-
-    assert no_ambiguous['best_match'].to_list() == [True]
-    assert no_ambiguous['ambiguous'].to_list() == [True]
-    assert no_ambiguous['exclude'].to_list() == [True]
-    assert no_ambiguous['match_status'].to_list() == ["excluded"]
+    # 2:2:T:A -> refalt      -> ambiguous     -> excluded (best match but ambiguous)
+    # 1:1:A:C -> refalt_flip -> not ambiguous -> excluded (best match but skip_flip)
+    # 2:2:T:A -> refalt_flip -> ambiguous     -> not_best (refalt priority so not best and excluded)
+    # 3:3:T:G -> refalt_flip -> not ambiguous -> excluded (best match but skip_flip)
+    assert no_ambiguous['best_match'].to_list() == [True, True, False, True]
+    assert no_ambiguous['ambiguous'].to_list() == [True, False, True, False]
+    assert no_ambiguous['exclude'].to_list() == [True, True, True, True]
+    assert no_ambiguous['match_status'].to_list() == ["excluded", "excluded", "not_best", "excluded"]
 
     # otherwise, ambiguous variants are kept
-    labelled = get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=False, keep_first_match=False).collect()
+    flip_params = {'skip_flip': True, 'remove_ambiguous': False, 'remove_multiallelic': False,
+                   'keep_first_match': False}
+    labelled = (get_all_matches(scorefile=scorefile, target=target)
+                .pipe(label_matches, params=flip_params)
+                .collect())
 
-    assert labelled['best_match'].to_list() == [True]
-    assert labelled['ambiguous'].to_list() == [True]
-    assert labelled['exclude'].to_list() == [False]
-    assert labelled['match_status'].to_list() == ["matched"]
+    # 2:2:T:A -> refalt      -> ambiguous     -> matched
+    # 1:1:A:C -> refalt_flip -> not ambiguous -> excluded (best match but skip_flip)
+    # 2:2:T:A -> refalt_flip -> ambiguous     -> not_best (refalt priority so not best and excluded)
+    # 3:3:T:G -> refalt_flip -> not ambiguous -> excluded (best match but skip_flip)
+    assert labelled['best_match'].to_list() == [True, True, False, True]
+    assert labelled['ambiguous'].to_list() == [True, False, True, False]
+    assert labelled['exclude'].to_list() ==  [False, True, True, True]
+    assert labelled['match_status'].to_list() == ["matched", "excluded", "not_best", "excluded"]
 
 
-def test_duplicate_best_match(duplicated_matches, request):
+def test_duplicate_ID(duplicated_matches, request):
     # these matches come from different lines in the original scoring file
     assert duplicated_matches["row_nr"].to_list() == [1, 4]
     # but they have the same ID!
@@ -94,7 +112,7 @@ def test_duplicate_best_match(duplicate_best_match):
 
 
 @pytest.fixture(params=[True, False], ids=["keep_first_match", "delete_both"])
-def duplicated_matches(small_scorefile, small_target, request):
+def duplicated_matches(small_scorefile, small_target, request) -> pl.DataFrame:
     # pgs catalog scorefiles can contain the same variant remapped to multiple rows
     # this happens after liftover to a different genome build
     # row_nrs will be different, but other information may be the same
@@ -105,21 +123,33 @@ def duplicated_matches(small_scorefile, small_target, request):
 
     scorefile, target = _cast_cat(dups, small_target)
 
-    return get_all_matches(scorefile, target, skip_flip=False, remove_ambiguous=False, keep_first_match=request.param).collect()
+    params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False,
+              'keep_first_match': request.param}
+    return (get_all_matches(scorefile=scorefile, target=target)
+            .pipe(label_matches, params=params)
+            .collect())
 
 
 @pytest.fixture
-def multiple_match_types(small_target, small_scorefile):
+def multiple_match_types(small_target, small_scorefile) -> pl.DataFrame:
     # skip flip will return two candidate matches for one target position: refalt + refalt_flip
     scorefile, target = _cast_cat(small_scorefile, small_target)
-    return (get_all_matches(scorefile, target, skip_flip=False, remove_ambiguous=False, keep_first_match=False)
-            .filter(pl.col('chr_name') == '2')).collect()
+
+    params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False, 'keep_first_match': False}
+    return (get_all_matches(scorefile=scorefile, target=target)
+            .pipe(label_matches, params=params)
+            .filter(pl.col('chr_name') == '2')
+            .collect())
 
 
 @pytest.fixture
-def duplicate_best_match(small_target, small_scorefile_no_oa):
+def duplicate_best_match(small_target, small_scorefile_no_oa) -> pl.DataFrame:
     # this type of target genome can sometimes occur when the REF is different at the same position
     odd_target = {'#CHROM': [1, 1], 'POS': [1, 1], 'REF': ['T', 'C'], 'ALT': ['A', 'A'], 'ID': ['1:1:T:C', '1:1:A:A'],
                   'is_multiallelic': [False, False]}
     scorefile, target = _cast_cat(small_scorefile_no_oa, pl.DataFrame(odd_target))
-    return get_all_matches(scorefile, target, skip_flip=False, remove_ambiguous=False, keep_first_match=False).collect()
+
+    params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False, 'keep_first_match': False}
+    return (get_all_matches(scorefile=scorefile, target=target)
+            .pipe(label_matches, params=params)
+            .collect())

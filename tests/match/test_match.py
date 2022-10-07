@@ -5,6 +5,7 @@ from unittest.mock import patch
 import polars as pl
 import pytest
 
+from pgscatalog_utils.match.label import label_matches
 from pgscatalog_utils.match.match import get_all_matches
 from pgscatalog_utils.match.match_variants import match_variants
 
@@ -60,15 +61,21 @@ def _cast_cat(scorefile, target) -> tuple[pl.LazyFrame, pl.LazyFrame]:
 def test_match_strategies(small_scorefile, small_target):
     scorefile, target = _cast_cat(small_scorefile, small_target)
 
+    params = {'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
     # check unambiguous matches
-    df = (get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=False, keep_first_match=False)
-          .filter(pl.col('ambiguous') == False)).collect()
+    df: pl.DataFrame = (get_all_matches(scorefile, target)
+                        .pipe(label_matches, params=params)
+                        .filter(pl.col('ambiguous') == False)
+                        .collect())
     assert set(df['ID'].to_list()).issubset({'3:3:T:G', '1:1:A:C'})
     assert set(df['match_type'].to_list()).issubset(['altref', 'refalt'])
 
     # when keeping ambiguous and flipping alleles
-    flip = (get_all_matches(scorefile, target, skip_flip=False, remove_ambiguous=False, keep_first_match=False)
-            .filter(pl.col('ambiguous') == True)).collect()
+    flip_params = {'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
+    flip: pl.DataFrame = (get_all_matches(scorefile, target)
+                          .pipe(label_matches, params=flip_params)
+                          .filter(pl.col('ambiguous') == True)
+                          .collect())
 
     assert set(flip['ID'].to_list()).issubset({'2:2:T:A'})
     assert set(flip['match_type'].to_list()).issubset({'altref', 'refalt_flip'})
@@ -77,28 +84,42 @@ def test_match_strategies(small_scorefile, small_target):
 def test_no_oa_match(small_scorefile_no_oa, small_target):
     scorefile, target = _cast_cat(small_scorefile_no_oa, small_target)
 
-    df = (get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=False, keep_first_match=False)
-          .filter(pl.col('ambiguous') == False)).collect()
+    no_ambig = {'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
+    df: pl.DataFrame = (get_all_matches(scorefile, target)
+                        .pipe(label_matches, params=no_ambig)
+                        .filter(pl.col('ambiguous') == False)
+                        .collect())
 
     assert set(df['ID'].to_list()).issubset(['3:3:T:G', '1:1:A:C'])
     assert set(df['match_type'].to_list()).issubset(['no_oa_alt', 'no_oa_ref'])
 
     # check ambiguous matches
-    flip = (get_all_matches(scorefile, target, skip_flip=False, remove_ambiguous=False, keep_first_match=False)
-            .filter(pl.col('ambiguous') == True)).collect()
+    ambig = {'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
+    flip: pl.DataFrame = (get_all_matches(scorefile, target)
+                          .pipe(label_matches, ambig)
+                          .filter(pl.col('ambiguous') == True)
+                          .collect())
     assert set(flip['ID'].to_list()).issubset({'2:2:T:A'})
     assert set(flip['match_type'].to_list()).issubset({'no_oa_alt', 'no_oa_ref_flip'})
 
 
 def test_flip_match(small_flipped_scorefile, small_target):
     scorefile, target = _cast_cat(small_flipped_scorefile, small_target)
+    params = {'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
+    df: pl.DataFrame = (get_all_matches(scorefile, target)
+                        .pipe(label_matches, params=params)
+                        .collect())
 
-    df = get_all_matches(scorefile, target, skip_flip=True, remove_ambiguous=False, keep_first_match=False).collect()
-    assert set(df['ambiguous']) == {True}
-    assert set(df['match_type']) == {'refalt'}
+    assert df['ambiguous'].to_list() == [True, False, True, False]
+    assert df['match_type'].to_list() == ['refalt', 'refalt_flip', 'altref_flip', 'altref_flip']
+    assert df['match_status'].to_list() == ['matched', 'excluded', 'not_best', 'excluded']  # flipped -> excluded
 
-    flip = (get_all_matches(scorefile, target, skip_flip=False, remove_ambiguous=False, keep_first_match=False)
-            .filter(pl.col('ambiguous') == False)).collect()
+    no_flip_params = {'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False,
+                      'remove_multiallelic': False}
+    flip: pl.DataFrame = (get_all_matches(scorefile, target)
+                          .pipe(label_matches, params=no_flip_params)
+                          .filter(pl.col('ambiguous') == False)
+                          .collect())
     assert flip['match_type'].str.contains('flip').all()
     assert set(flip['ID'].to_list()).issubset(['3:3:T:G', '1:1:A:C'])
 

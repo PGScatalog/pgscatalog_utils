@@ -110,7 +110,7 @@ def _match_multiple_targets(target_paths: list[str], scorefile: pl.LazyFrame, ar
         _check_target_chroms(target)
         matches.append(get_all_matches(scorefile=scorefile, target=target, low_memory=low_memory))
     return (pl.concat(matches)
-            .pipe(label_params=params))
+            .pipe(label_matches, params=params))
 
 
 def _description_text() -> str:

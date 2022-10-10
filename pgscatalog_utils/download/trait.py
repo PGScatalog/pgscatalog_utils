@@ -6,10 +6,10 @@ from pgscatalog_utils.download.score import query_api
 logger = logging.getLogger(__name__)
 
 
-def query_trait(trait: str) -> list[str]:
+def query_trait(trait: str, user_agent:str = None) -> list[str]:
     logger.debug(f"Querying PGS Catalog with trait {trait}")
     api: str = f'/trait/{trait}?include_children=1'
-    results_json = query_api(api)
+    results_json = query_api(api, user_agent)
 
     if results_json == {} or results_json == None:
         logger.critical(f"Bad response from PGS Catalog for EFO term: {trait}")

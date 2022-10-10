@@ -51,7 +51,7 @@ def _prettify_log(df: pl.LazyFrame) -> pl.LazyFrame:
                  "ambiguous", "duplicate_best_match", "duplicate_ID", "match_status", "dataset"]
     pretty_df = (df.select(keep_cols)
                  .select(pl.exclude("^.*_right"))
-                 .sort(["accession", "row_nr", "chr_name", "chr_position", "match_type"]))
+                 .sort(["accession", "row_nr", "chr_name", "chr_position", "match_status"]))
     return pretty_df
 
 

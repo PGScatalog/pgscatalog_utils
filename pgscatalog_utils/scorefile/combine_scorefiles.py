@@ -1,11 +1,10 @@
 import argparse
 import logging
+import os
 import sys
 import textwrap
 
-import pandas as pd
-
-from pgscatalog_utils.log_config import set_logging_level
+from pgscatalog_utils.config import set_logging_level
 from pgscatalog_utils.scorefile.effect_type import set_effect_type
 from pgscatalog_utils.scorefile.effect_weight import melt_effect_weights
 from pgscatalog_utils.scorefile.genome_build import build2GRC
@@ -25,10 +24,17 @@ def combine_scorefiles():
     paths: list[str] = list(set(args.scorefiles))  # unique paths only
     logger.debug(f"Input scorefiles: {paths}")
 
-    scorefiles = []
+    if os.path.exists(args.outfile):
+        logger.critical(f"Output file {args.outfile} already exists")
+        raise Exception
+
     for x in paths:
         # Read scorefile df and header
         h, score = load_scorefile(x)
+
+        if score.empty:
+            logger.critical(f"Empty scorefile {x} detected! Please check the input data")
+            raise Exception
 
         # Check if we should use the harmonized positions
         use_harmonised = False
@@ -65,19 +71,15 @@ def combine_scorefiles():
             logger.error("Try running with --liftover and specifying the --chain_dir")
             raise Exception
 
-        scorefiles.append(score)
+        if args.liftover:
+            logger.debug("Annotating scorefile with liftover parameters")
+            score = liftover(score, args.chain_dir, args.min_lift, args.target_build)
 
-    if len(scorefiles) > 0:
-        scorefiles: pd.DataFrame = pd.concat(scorefiles)
-    else:
-        logger.error("No valid scorefiles could be combined")
-        raise Exception
+        if score.empty and (args.drop_missing is False):
+            logger.critical("Empty output score detected, something went wrong while combining")
+            raise Exception
 
-    if args.liftover:
-        logger.debug("Annotating scorefiles with liftover parameters")
-        scorefiles = liftover(scorefiles, args.chain_dir, args.min_lift, args.target_build)
-
-    write_scorefile(scorefiles, args.outfile)
+        write_scorefile(score, args.outfile)
 
 
 def _description_text() -> str:

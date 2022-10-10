@@ -7,18 +7,18 @@ import polars as pl
 logger = logging.getLogger(__name__)
 
 
-def write_log(df: pl.DataFrame, prefix: str) -> None:
+def write_log(df: pl.LazyFrame, prefix: str) -> None:
     logger.debug(f"Compressing and writing log: {prefix}_log.csv.gz")
     with gzip.open(f"{prefix}_log.csv.gz", 'wb') as f:
-        df.write_csv(f)
+        df.collect().write_csv(f)
 
 
-def write_out(df: pl.DataFrame, split: bool, outdir: str, dataset: str) -> None:
+def write_out(df: pl.LazyFrame, split: bool, outdir: str, dataset: str) -> None:
     if not os.path.isdir(outdir):
         os.mkdir(outdir)
 
     logger.debug("Splitting by effect type")
-    effect_types: dict[str, pl.DataFrame] = _split_effect_type(df)
+    effect_types: dict[str, pl.DataFrame] = _split_effect_type(df.collect())
 
     logger.debug("Deduplicating variants")
     deduplicated: dict[str, pl.DataFrame] = {k: _deduplicate_variants(k, v) for k, v in effect_types.items()}
@@ -37,9 +37,11 @@ def _write_scorefile(effect_type: str, scorefiles: pl.DataFrame, split: bool, ou
 
         for k, v in df_dict.items():
             chr = k.replace("false", "ALL")
-            path: str = os.path.join(outdir, f"{dataset}_{chr}_{effect_type}_{i}.scorefile")
+            path: str = os.path.join(outdir, f"{dataset}_{chr}_{effect_type}_{i}.scorefile.gz")
             logger.debug(f"Writing matched scorefile to {path}")
-            v.write_csv(path, sep="\t")
+
+            with gzip.open(path, 'wb') as f:
+                v.write_csv(f, sep="\t")
 
 
 def _format_scorefile(df: pl.DataFrame, split: bool) -> dict[str, pl.DataFrame]:

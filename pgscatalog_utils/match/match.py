@@ -1,43 +1,63 @@
+import gc
 import logging
+import os
+from tempfile import TemporaryDirectory
 
 import polars as pl
-
-from pgscatalog_utils.match.label import label_matches
 
 logger = logging.getLogger(__name__)
 
 
-def get_all_matches(scorefile: pl.DataFrame, target: pl.DataFrame, skip_flip: bool, remove_ambiguous: bool,
-                    keep_first_match: bool) -> pl.DataFrame:
-    scorefile_cat, target_cat = _cast_categorical(scorefile, target)
-    scorefile_oa = scorefile_cat.filter(pl.col("other_allele") != None)
-    scorefile_no_oa = scorefile_cat.filter(pl.col("other_allele") == None)
+# @profile  # decorator needed to annotate memory profiles, but will cause NameErrors outside of profiling
+def get_all_matches(scorefile: pl.LazyFrame, target: pl.LazyFrame, low_memory: bool = True) -> pl.LazyFrame:
+    scorefile_oa = scorefile.filter(pl.col("other_allele") != None)
+    scorefile_no_oa = scorefile.filter(pl.col("other_allele") == None)
 
-    matches: list[pl.DataFrame] = []
+    matches: list[pl.LazyFrame()] = []
     col_order = ['row_nr', 'chr_name', 'chr_position', 'effect_allele', 'other_allele', 'effect_weight', 'effect_type',
                  'accession', 'effect_allele_FLIP', 'other_allele_FLIP',
                  'ID', 'REF', 'ALT', 'is_multiallelic', 'matched_effect_allele', 'match_type']
 
-    if scorefile_oa:
-        logger.debug("Getting matches for scores with effect allele and other allele")
-        matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt").select(col_order))
-        matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref").select(col_order))
-        if skip_flip is False:
-            matches.append(_match_variants(scorefile_cat, target_cat, match_type="refalt_flip").select(col_order))
-            matches.append(_match_variants(scorefile_cat, target_cat, match_type="altref_flip").select(col_order))
+    logger.debug("Getting matches for scores with effect allele and other allele")
+    matches.append(_match_variants(scorefile=scorefile_oa, target=target, match_type="refalt").select(col_order))
+    matches.append(_match_variants(scorefile_oa, target, match_type="altref").select(col_order))
+    matches.append(_match_variants(scorefile_oa, target, match_type="refalt_flip").select(col_order))
+    matches.append(_match_variants(scorefile_oa, target, match_type="altref_flip").select(col_order))
 
-    if scorefile_no_oa:
-        logger.debug("Getting matches for scores with effect allele only")
-        matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref").select(col_order))
-        matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt").select(col_order))
-        if skip_flip is False:
-            matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_ref_flip").select(col_order))
-            matches.append(_match_variants(scorefile_no_oa, target_cat, match_type="no_oa_alt_flip").select(col_order))
+    logger.debug("Getting matches for scores with effect allele only")
+    matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_ref").select(col_order))
+    matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_alt").select(col_order))
+    matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_ref_flip").select(col_order))
+    matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_alt_flip").select(col_order))
 
-    return pl.concat(matches).pipe(label_matches, remove_ambiguous, keep_first_match)
+    if low_memory:
+        logger.debug("Batch collecting matches (low memory mode)")
+        match_lf = _batch_collect(matches)
+    else:
+        logger.debug("Collecting all matches (parallel)")
+        match_lf = pl.concat(pl.collect_all(matches))
+
+    return match_lf.lazy()
 
 
-def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: str) -> pl.DataFrame:
+def _batch_collect(matches: list[pl.LazyFrame]) -> pl.DataFrame:
+    """ A slower alternative to pl.collect_all(), but this approach will use less peak memory
+
+    This batches the .collect() and writes intermediate results to a temporary working directory
+
+    IPC files are binary and remember column schema. Reading them can be extremely fast. """
+    with TemporaryDirectory() as temp_dir:
+        n_chunks = 0
+        for i, match in enumerate(matches):
+            out_path = os.path.join(temp_dir, str(i) + ".ipc")
+            match.collect().write_ipc(out_path)
+            n_chunks += 1
+        logger.debug(f"Staged {n_chunks} match chunks to {temp_dir}")
+        gc.collect()
+        return pl.read_ipc(os.path.join(temp_dir, "*.ipc"))
+
+
+def _match_variants(scorefile: pl.LazyFrame, target: pl.LazyFrame, match_type: str) -> pl.LazyFrame:
     logger.debug(f"Matching strategy: {match_type}")
     match match_type:
         case 'refalt':
@@ -88,24 +108,3 @@ def _match_variants(scorefile: pl.DataFrame, target: pl.DataFrame, match_type: s
                            pl.col(effect_allele_column).alias("matched_effect_allele"),
                            pl.lit(match_type).alias("match_type")])
             .join(target.select(join_cols), on="ID", how="inner"))  # get REF / ALT back after first join
-
-
-def _cast_categorical(scorefile, target) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """ Casting important columns to categorical makes polars fast """
-    if scorefile:
-        scorefile = scorefile.with_columns([
-            pl.col("effect_allele").cast(pl.Categorical),
-            pl.col("other_allele").cast(pl.Categorical),
-            pl.col("effect_type").cast(pl.Categorical),
-            pl.col("effect_allele_FLIP").cast(pl.Categorical),
-            pl.col("other_allele_FLIP").cast(pl.Categorical),
-            pl.col("accession").cast(pl.Categorical)
-        ])
-    if target:
-        target = target.with_columns([
-            pl.col("ID").cast(pl.Categorical),
-            pl.col("REF").cast(pl.Categorical),
-            pl.col("ALT").cast(pl.Categorical)
-        ])
-
-    return scorefile, target

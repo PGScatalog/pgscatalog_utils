@@ -1,9 +1,9 @@
 [tool.poetry]
 name = "pgscatalog_utils"
-version = "0.1.2"
+version = "0.2.0"
 description = "Utilities for working with PGS Catalog API and scoring files"
 homepage = "https://github.com/PGScatalog/pgscatalog_utils"
-authors = ["Benjamin Wingfield <bwingfield@ebi.ac.uk>", "Samuel Lambert <sl925@medschl.cam.ac.uk>"]
+authors = ["Benjamin Wingfield <bwingfield@ebi.ac.uk>", "Samuel Lambert <sl925@medschl.cam.ac.uk>", "Laurent Gil <lg10@sanger.ac.uk>"]
 license = "Apache-2.0"
 readme = "README.md"
 
@@ -11,19 +11,26 @@ readme = "README.md"
 combine_scorefiles = "pgscatalog_utils.scorefile.combine_scorefiles:combine_scorefiles"
 download_scorefiles = "pgscatalog_utils.download.download_scorefile:download_scorefile"
 match_variants = "pgscatalog_utils.match.match_variants:match_variants"
+aggregate_scores = "pgscatalog_utils.aggregate.aggregate_scores:aggregate_scores"
+validate_scorefiles = "pgscatalog_utils.validate.validate_scorefile:validate_scorefile"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+numpy = "^1.23.3"
 pandas = "^1.4.3"
+pandas-schema = "^0.3.6"
 pyliftover = "^0.4"
 requests = "^2.28.1"
 jq = "^1.2.2"
-polars = "0.14.9"
+polars = "^0.14.9"
+zstandard = "^0.18.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"
 pytest-cov = "^3.0.0"
 pysqlar = "^0.1.2"
+memory-profiler = "^0.60.0"
+matplotlib = "^3.6.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

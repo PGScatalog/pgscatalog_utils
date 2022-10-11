@@ -2,9 +2,8 @@
 
 [![CI](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml/badge.svg)](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml)
 
-This repository is a collection of useful tools for working with data from the
-PGS Catalog. This is mostly used internally by the PGS Catalog calculator, but
-other users might find some of these tools helpful.
+This repository is a collection of useful tools for downloading and working with scoring files from the
+PGS Catalog. This is mostly used internally by the PGS Catalog Calculator ([`PGScatalog/pgsc_calc`](https://github.com/PGScatalog/pgsc_calc)); however, other users may find some of these tools helpful.
 
 ## Overview
 
@@ -13,6 +12,7 @@ other users might find some of these tools helpful.
 in 'long' format
 * `match_variants`: Match target variants (bim or pvar files) against the output
 of `combine_scorefile` to produce scoring files for plink 2
+* `validate_scorefiles`: Check/validate that the scoring files and harmonized scoring files match the PGS Catalog scoring file formats.
 
 ## Installation
 
@@ -26,6 +26,7 @@ $ pip install pgscatalog-utils
 $ download_scorefiles -i PGS000922 PGS001229 -o . -b GRCh37
 $ combine_scorefiles -s PGS*.txt.gz -o combined.txt 
 $ match_variants -s combined.txt -t <example.pvar> --min_overlap 0.75 --outdir .
+$ validate_scorefiles -t formatted --dir <scoringfiles_directory> --log_dir <logs_directory>
 ```
 
 More details are available using the `--help` parameter.

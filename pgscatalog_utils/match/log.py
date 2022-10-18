@@ -13,14 +13,19 @@ def make_logs(scorefile: pl.LazyFrame, match_candidates: pl.LazyFrame, dataset: 
     return _prettify_log(big_log)
 
 
-def make_summary_log(best_matches: pl.LazyFrame, filter_summary: pl.LazyFrame) -> pl.LazyFrame:
+def make_summary_log(best_matches: pl.LazyFrame, scorefile: pl.LazyFrame, filter_summary: pl.LazyFrame,
+                     dataset: str) -> pl.LazyFrame:
     """ Make an aggregated table """
-    logger.debug("Aggregating best match log into a summary table")
-    return (best_matches
+    logger.debug("Aggregating best matches into a summary table")
+    return (scorefile.join(best_matches, on=['row_nr', 'accession'], how='outer')
+            .select(pl.exclude("^.*_right$"))
+            .with_columns([pl.col('match_status').fill_null(value='unmatched'),
+                           pl.lit(dataset).alias('dataset')])  # fill in unmatched variants
             .groupby(['dataset', 'accession', 'match_status', 'ambiguous', 'is_multiallelic', 'match_flipped',
                       'duplicate_best_match', 'duplicate_ID'])
             .agg(pl.count())
-            .join(filter_summary, how='left', on='accession'))
+            .join(filter_summary, how='left', on='accession')
+            .pipe(_prettify_summary))
 
 
 def _prettify_summary(df: pl.LazyFrame) -> pl.LazyFrame:

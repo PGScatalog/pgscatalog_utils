@@ -36,9 +36,9 @@ def aggregate_matches():
             logger.error("Error: no target variants match any variants in scoring files")
             raise Exception
 
-        summary_log = make_summary_log(best_matches=valid_matches, filter_summary=filter_summary)
-
         dataset = args.dataset.replace('_', '-')
+        summary_log = make_summary_log(best_matches=valid_matches, filter_summary=filter_summary, dataset=dataset,
+                                       scorefile=scorefile)
         write_log(df=logs, prefix=dataset, chrom=None, outdir=args.outdir, file_format="csv")
         summary_log.collect().write_csv(f"{dataset}_summary.csv")
         write_out(valid_matches, args.split, args.outdir, dataset)

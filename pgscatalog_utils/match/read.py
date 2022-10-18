@@ -1,5 +1,6 @@
 
 import logging
+import typing
 
 import polars as pl
 import pgscatalog_utils.config as config
@@ -20,7 +21,7 @@ def read_target(paths: list[str], low_memory: bool) -> pl.LazyFrame:
             .with_column(pl.col('ALT').cast(pl.Categorical))).lazy()
 
 
-def read_scorefile(path: str) -> pl.LazyFrame:
+def read_scorefile(path: str, chrom: typing.Union[str, None]) -> pl.LazyFrame:
     logger.debug("Reading scorefile")
     dtypes = {'chr_name': pl.Categorical,
               'chr_position': pl.UInt64,
@@ -28,10 +29,17 @@ def read_scorefile(path: str) -> pl.LazyFrame:
               'other_allele': pl.Utf8,
               'effect_type': pl.Categorical,
               'accession': pl.Categorical}
-    return (pl.read_csv(path, sep='\t', dtype=dtypes, n_threads=config.POLARS_MAX_THREADS)
-            .lazy()
-            .pipe(complement_valid_alleles, flip_cols=['effect_allele', 'other_allele'])).with_columns([
+    ldf = pl.read_csv(path, sep = '\t', dtype=dtypes).lazy()
+    if chrom is not None:
+        logger.debug(f"--chrom set, filtering scoring file to chromosome {chrom}")
+        ldf = ldf.filter(pl.col('chr_name') == chrom)  # add filter to query plan
+    else:
+        logger.debug("--chrom parameter not set, using all variants in scoring file")
+
+    return (ldf.pipe(complement_valid_alleles, flip_cols=['effect_allele', 'other_allele'])).with_columns([
         pl.col("effect_allele").cast(pl.Categorical),
         pl.col("other_allele").cast(pl.Categorical),
         pl.col("effect_allele_FLIP").cast(pl.Categorical),
         pl.col("other_allele_FLIP").cast(pl.Categorical)])
+
+

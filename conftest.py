@@ -12,6 +12,8 @@ from pgscatalog_utils.download.download_scorefile import download_scorefile
 from pgscatalog_utils.match.preprocess import complement_valid_alleles
 from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
 
+pl.toggle_string_cache(True)
+
 
 @pytest.fixture(scope="session")
 def pgs_accessions():

@@ -3,26 +3,9 @@
 from unittest.mock import patch
 
 import polars as pl
-import pytest
-
 from pgscatalog_utils.match.label import label_matches
 from pgscatalog_utils.match.match import get_all_matches
 from pgscatalog_utils.match.match_variants import match_variants
-
-
-def test_match_fail(combined_scorefile, target_path, tmp_path):
-    out_dir = str(tmp_path.resolve())
-
-    args: list[str] = ['match_variants', '-s', combined_scorefile,
-                       '-t', target_path,
-                       '-m', 1,
-                       '-d', 'test',
-                       '--outdir', out_dir,
-                       '--keep_ambiguous', '--keep_multiallelic']
-
-    with pytest.raises(Exception):
-        with patch('sys.argv', args):
-            match_variants()
 
 
 def test_match_pass(mini_scorefile, target_path, tmp_path):
@@ -30,7 +13,6 @@ def test_match_pass(mini_scorefile, target_path, tmp_path):
 
     args: list[str] = ['match_variants', '-s', mini_scorefile,
                        '-t', target_path,
-                       '-m', 0,
                        '-d', 'test',
                        '--outdir', out_dir,
                        '--keep_ambiguous', '--keep_multiallelic']
@@ -63,7 +45,7 @@ def test_match_strategies(small_scorefile, small_target):
 
     params = {'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
     # check unambiguous matches
-    df: pl.DataFrame = (get_all_matches(scorefile, target)
+    df: pl.DataFrame = (get_all_matches(scorefile, target, low_memory=False)
                         .pipe(label_matches, params=params)
                         .filter(pl.col('ambiguous') == False)
                         .collect())
@@ -72,7 +54,7 @@ def test_match_strategies(small_scorefile, small_target):
 
     # when keeping ambiguous and flipping alleles
     flip_params = {'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
-    flip: pl.DataFrame = (get_all_matches(scorefile, target)
+    flip: pl.DataFrame = (get_all_matches(scorefile, target, low_memory=False)
                           .pipe(label_matches, params=flip_params)
                           .filter(pl.col('ambiguous') == True)
                           .collect())
@@ -85,7 +67,7 @@ def test_no_oa_match(small_scorefile_no_oa, small_target):
     scorefile, target = _cast_cat(small_scorefile_no_oa, small_target)
 
     no_ambig = {'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
-    df: pl.DataFrame = (get_all_matches(scorefile, target)
+    df: pl.DataFrame = (get_all_matches(scorefile, target, low_memory=False)
                         .pipe(label_matches, params=no_ambig)
                         .filter(pl.col('ambiguous') == False)
                         .collect())
@@ -95,7 +77,7 @@ def test_no_oa_match(small_scorefile_no_oa, small_target):
 
     # check ambiguous matches
     ambig = {'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
-    flip: pl.DataFrame = (get_all_matches(scorefile, target)
+    flip: pl.DataFrame = (get_all_matches(scorefile, target, low_memory=False)
                           .pipe(label_matches, ambig)
                           .filter(pl.col('ambiguous') == True)
                           .collect())
@@ -106,7 +88,7 @@ def test_no_oa_match(small_scorefile_no_oa, small_target):
 def test_flip_match(small_flipped_scorefile, small_target):
     scorefile, target = _cast_cat(small_flipped_scorefile, small_target)
     params = {'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
-    df: pl.DataFrame = (get_all_matches(scorefile, target)
+    df: pl.DataFrame = (get_all_matches(scorefile, target, low_memory=False)
                         .pipe(label_matches, params=params)
                         .collect())
 
@@ -116,7 +98,7 @@ def test_flip_match(small_flipped_scorefile, small_target):
 
     no_flip_params = {'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False,
                       'remove_multiallelic': False}
-    flip: pl.DataFrame = (get_all_matches(scorefile, target)
+    flip: pl.DataFrame = (get_all_matches(scorefile, target, low_memory=False)
                           .pipe(label_matches, params=no_flip_params)
                           .filter(pl.col('ambiguous') == False)
                           .collect())

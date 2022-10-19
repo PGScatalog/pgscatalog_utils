@@ -14,7 +14,7 @@ from pgscatalog_utils.match.write import write_log, write_out
 logger = logging.getLogger(__name__)
 
 
-def aggregate_matches():
+def combine_matches():
     args = _parse_args()
     config.set_logging_level(args.verbose)
 
@@ -67,4 +67,4 @@ def _parse_args(args=None):
 
 
 if __name__ == "__main__":
-    aggregate_matches()
+    combine_matches()

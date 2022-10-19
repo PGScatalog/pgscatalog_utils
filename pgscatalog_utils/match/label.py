@@ -25,19 +25,7 @@ def label_matches(df: pl.LazyFrame, params: dict[str, bool]) -> pl.LazyFrame:
                 .pipe(_label_flips, params['skip_flip'])
                 .with_column(pl.lit(True).alias('match_candidate')))
 
-    return _encode_match_priority(labelled).pipe(_reset_coltypes)
-
-
-def _reset_coltypes(df: pl.LazyFrame):
-    """ Set up categorical columns after labelling is finished """
-    return df.with_columns([
-        pl.col('effect_allele').cast(pl.Categorical),
-        pl.col('effect_allele_FLIP').cast(pl.Categorical),
-        pl.col('other_allele_FLIP').cast(pl.Categorical),
-        pl.col('REF').cast(pl.Categorical),
-        pl.col('ALT').cast(pl.Categorical),
-        pl.col('match_type').cast(pl.Categorical)
-    ])
+    return _encode_match_priority(labelled)
 
 
 def _encode_match_priority(df: pl.LazyFrame) -> pl.LazyFrame:

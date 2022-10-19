@@ -11,7 +11,7 @@ readme = "README.md"
 combine_scorefiles = "pgscatalog_utils.scorefile.combine_scorefiles:combine_scorefiles"
 download_scorefiles = "pgscatalog_utils.download.download_scorefile:download_scorefile"
 match_variants = "pgscatalog_utils.match.match_variants:match_variants"
-aggregate_matches = "pgscatalog_utils.aggregate.aggregate_matches:aggregate_matches"
+combine_matches = "pgscatalog_utils.match.combine_matches:combine_matches"
 aggregate_scores = "pgscatalog_utils.aggregate.aggregate_scores:aggregate_scores"
 validate_scorefiles = "pgscatalog_utils.validate.validate_scorefile:validate_scorefile"
 

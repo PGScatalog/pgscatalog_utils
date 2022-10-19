@@ -3,7 +3,6 @@ import logging
 import typing
 
 import polars as pl
-import pgscatalog_utils.config as config
 from pgscatalog_utils.match.preprocess import annotate_multiallelic, complement_valid_alleles, filter_target
 from pgscatalog_utils.target import Target
 

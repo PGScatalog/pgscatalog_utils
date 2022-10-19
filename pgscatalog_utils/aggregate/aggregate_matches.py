@@ -7,7 +7,7 @@ import polars as pl
 from pgscatalog_utils import config
 
 from pgscatalog_utils.match.filter import filter_scores
-from pgscatalog_utils.match.log import make_summary_log
+from pgscatalog_utils.match.log import make_summary_log, check_log_count
 from pgscatalog_utils.match.read import read_scorefile
 from pgscatalog_utils.match.write import write_log, write_out
 
@@ -37,8 +37,10 @@ def aggregate_matches():
             raise Exception
 
         dataset = args.dataset.replace('_', '-')
-        summary_log = make_summary_log(best_matches=valid_matches, filter_summary=filter_summary, dataset=dataset,
-                                       scorefile=scorefile)
+        summary_log: pl.LazyFrame = make_summary_log(match_candidates=logs, filter_summary=filter_summary, dataset=dataset,
+                                                     scorefile=scorefile)
+        check_log_count(summary_log=summary_log, scorefile=scorefile)
+
         write_log(df=logs, prefix=dataset, chrom=None, outdir=args.outdir, file_format="csv")
         summary_log.collect().write_csv(f"{dataset}_summary.csv")
         write_out(valid_matches, args.split, args.outdir, dataset)

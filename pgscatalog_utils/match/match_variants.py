@@ -7,11 +7,12 @@ import textwrap
 import polars as pl
 
 import pgscatalog_utils.config as config
+from pgscatalog_utils.match.filter import filter_scores
 from pgscatalog_utils.match.label import label_matches
-from pgscatalog_utils.match.log import make_logs
+from pgscatalog_utils.match.log import make_logs, make_summary_log, check_log_count
 from pgscatalog_utils.match.match import get_all_matches
 from pgscatalog_utils.match.read import read_target, read_scorefile
-from pgscatalog_utils.match.write import write_log
+from pgscatalog_utils.match.write import write_log, write_out
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +65,37 @@ def match_variants():
                 raise Exception
 
         dataset = args.dataset.replace('_', '-')  # underscores are delimiters in pgs catalog calculator
-        big_log = make_logs(scorefile=scorefile, match_candidates=matches, dataset=dataset)
 
-        write_log(df=big_log, prefix=dataset, chrom=args.chrom, outdir=args.outdir, file_format="ipc")
+        if args.only_match:
+            fout: str = f"{dataset}_{args.chrom}_matches.ipc.zst"
+            logger.debug(f"--only_match set, writing out match candidates {fout} and exiting")
+            matches.collect().write_ipc(fout, compression="zstd")
+            logger.debug("Intermediate files can be processed with combine_matches")
+            sys.exit(0)
+        else:
+            logger.debug("Picking best match candidates and making scoring files")
+            log_and_write(matches=matches, scorefile=scorefile, dataset=dataset, args=args)
 
-        # write_out(valid_matches, args.split, args.outdir, dataset)
+
+def log_and_write(matches: pl.LazyFrame, scorefile: pl.LazyFrame, dataset: str, args):
+    """ Make match logs and write """
+    valid_matches, filter_summary = filter_scores(scorefile=scorefile, matches=matches, dataset=dataset,
+                                                  min_overlap=args.min_overlap)
+
+    if valid_matches.fetch().is_empty():  # this can happen if args.min_overlap = 0
+        logger.critical("Error: no target variants match any variants in scoring files")
+        raise Exception("No valid matches found")
+
+    big_log: pl.LazyFrame = make_logs(scorefile=scorefile, match_candidates=matches, dataset=dataset)
+    summary_log: pl.LazyFrame = make_summary_log(match_candidates=matches, filter_summary=filter_summary,
+                                                 dataset=dataset,
+                                                 scorefile=scorefile)
+
+    check_log_count(summary_log=summary_log, scorefile=scorefile)
+
+    write_log(df=big_log, prefix=dataset, chrom=None, outdir=args.outdir, file_format="csv")
+    summary_log.collect().write_csv(f"{dataset}_summary.csv")
+    write_out(valid_matches, args.split, args.outdir, dataset)
 
 
 def _check_target_chroms(target: pl.LazyFrame) -> None:
@@ -165,6 +192,10 @@ def _parse_args(args=None):
                         help='<Optional> Set which chromosome is in the target variant file to speed up matching ')
     parser.add_argument('-f', '--fast', dest='fast', action='store_true',
                         help='<Optional> Enable faster matching at the cost of increased RAM usage')
+    parser.add_argument('--only_match', dest='only_match', action='store_true',
+                        help="<Optional> Only match, then write intermediate files, don't make scoring files")
+    parser.add_argument('--min_overlap', dest='min_overlap', required=False,
+                        type=float, help='<Optional> Minimum proportion of variants to match before error')
     parser.add_argument('-n', dest='n_threads', default=1, help='<Optional> n threads for matching', type=int)
     parser.add_argument('--split', dest='split', default=False, action='store_true',
                         help='<Optional> Split scorefile per chromosome?')
@@ -188,7 +219,34 @@ def _parse_args(args=None):
                          keep the first match candidate (default: drop all candidates)''')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
-    return parser.parse_args(args)
+    return _check_args(parser.parse_args(args))
+
+
+def _check_args(args):
+    if args.chrom is not None and not args.only_match:
+        # filtering the scoring file will break overlap assumptions and calculations
+        # e.g.:
+        #   what if one chromosome matches well but another chromosome matches poorly?
+        #   what if the poorly matching chromosome only has 5 variants to match?
+        #
+        # pgsc_calc uses global overlap % to decide if a score fails matching
+        # --only_match skips overlap calculations (done in combine_matches instead)
+        logger.critical("--chrom requires --only_match")
+        sys.exit(1)
+    if args.only_match and args.min_overlap is not None:
+        # can't calculate min_overlap properly if just checking matches
+        logger.critical("Invalid arguments: --only_match and --min_overlap (pick one!)")
+        sys.exit(1)
+    if not args.only_match and args.min_overlap is None:
+        # need to calculate min_overlap before making scoring files
+        logger.critical("Invalid arguments: set --min_overlap or --only_match")
+        sys.exit(1)
+    if args.split and args.only_match:
+        # not writing scoring files, so split output doesn't make sense
+        logger.critical("Invalid arguments: --only_match and --split (pick one!)")
+        sys.exit(1)
+
+    return args
 
 
 def _make_params_dict(args) -> dict[str, bool]:

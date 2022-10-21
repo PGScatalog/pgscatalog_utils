@@ -73,7 +73,7 @@ def match_variants():
             logger.debug("Intermediate files can be processed with combine_matches")
             sys.exit(0)
         else:
-            logger.debug("Picking best match candidates and making scoring files")
+            logger.debug("Filtering match candidates and making scoring files")
             log_and_write(matches=matches, scorefile=scorefile, dataset=dataset, args=args)
 
 

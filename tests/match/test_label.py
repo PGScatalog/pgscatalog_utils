@@ -125,7 +125,7 @@ def duplicated_matches(small_scorefile, small_target, request) -> pl.DataFrame:
 
     params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False,
               'keep_first_match': request.param}
-    return (get_all_matches(scorefile=scorefile, target=target)
+    return (get_all_matches(scorefile=scorefile, target=target, low_memory=False)
             .pipe(label_matches, params=params)
             .collect())
 
@@ -136,7 +136,7 @@ def multiple_match_types(small_target, small_scorefile) -> pl.DataFrame:
     scorefile, target = _cast_cat(small_scorefile, small_target)
 
     params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False, 'keep_first_match': False}
-    return (get_all_matches(scorefile=scorefile, target=target)
+    return (get_all_matches(scorefile=scorefile, target=target, low_memory=False)
             .pipe(label_matches, params=params)
             .filter(pl.col('chr_name') == '2')
             .collect())
@@ -147,9 +147,10 @@ def duplicate_best_match(small_target, small_scorefile_no_oa) -> pl.DataFrame:
     # this type of target genome can sometimes occur when the REF is different at the same position
     odd_target = {'#CHROM': [1, 1], 'POS': [1, 1], 'REF': ['T', 'C'], 'ALT': ['A', 'A'], 'ID': ['1:1:T:C', '1:1:A:A'],
                   'is_multiallelic': [False, False]}
+
     scorefile, target = _cast_cat(small_scorefile_no_oa, pl.DataFrame(odd_target))
 
     params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False, 'keep_first_match': False}
-    return (get_all_matches(scorefile=scorefile, target=target)
+    return (get_all_matches(scorefile=scorefile, target=target, low_memory=False)
             .pipe(label_matches, params=params)
             .collect())

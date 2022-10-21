@@ -1,16 +1,34 @@
 import gzip
 import logging
 import os
+import typing
 
 import polars as pl
 
 logger = logging.getLogger(__name__)
 
 
-def write_log(df: pl.LazyFrame, prefix: str) -> None:
-    logger.debug(f"Compressing and writing log: {prefix}_log.csv.gz")
-    with gzip.open(f"{prefix}_log.csv.gz", 'wb') as f:
-        df.collect().write_csv(f)
+def write_log(df: pl.LazyFrame, prefix: str, chrom: typing.Union[str, None], file_format: str, outdir: str) -> None:
+    # feather file preserves dtypes and is small
+    # don't compress the feather file to allow memory mapping
+    if chrom is None:
+        log_name: str = os.path.join(os.path.abspath(outdir), f"{prefix}_log")
+    else:
+        log_name: str = os.path.join(os.path.abspath(outdir), f"{prefix}_chrom{chrom}_log")
+
+    match file_format:
+        case 'ipc':
+            fout: str = ''.join([log_name, ".ipc.zst"])
+            logger.debug(f"Writing {fout} in format: {file_format}")
+            df.collect().write_ipc(fout, compression='zstd')  # gzip compression not supported
+        case 'csv':
+            fout: str = ''.join([log_name, ".csv.gz"])
+            logger.debug(f"Writing {fout} in format: {file_format}")
+            with gzip.open(fout, 'wb') as f:
+                df.collect().write_csv(f)
+        case _:
+            logger.critical(f"Invalid format: {file_format}")
+            raise Exception
 
 
 def write_out(df: pl.LazyFrame, split: bool, outdir: str, dataset: str) -> None:

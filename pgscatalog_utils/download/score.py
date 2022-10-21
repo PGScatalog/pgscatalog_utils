@@ -18,7 +18,7 @@ def get_url(pgs: list[str], build: str, user_agent:str = None) -> dict[str, str]
             response = _parse_json_query(query_score(chunk,user_agent), build)
             pgs_result = pgs_result + list(response.keys())
             url_result = url_result + list(response.values())
-        except TypeError:
+        except (AttributeError, TypeError):
             logger.error(f"Bad response from PGS Catalog API. Is {pgs} a valid ID?")
             sys.exit(1)
 

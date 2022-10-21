@@ -26,12 +26,10 @@ def combine_matches():
         scorefile = read_scorefile(path=args.scorefile, chrom=None)  # chrom=None to read all variants
         matches = pl.concat(pl.collect_all([pl.scan_ipc(x, memory_map=False) for x in args.matches]))
 
-        # make sure there's no duplicate variant_ids across pvars
+        # make sure there's no duplicate variant_ids across matches in multiple pvars
         # processing batched chromosomes with overlapping variants might cause problems
         # e.g. chr1 1-100000, chr1 100001-500000
-        n_matched = matches.filter(pl.col('match_status') == 'matched').shape[0]
-        n_unique = matches.filter(pl.col('match_status') == 'matched').select(pl.col('ID')).unique().shape[0]
-        assert n_matched == n_unique, "Duplicate IDs in final matches"
+        assert matches.filter(pl.col('match_status') == 'matched').groupby(['accession', 'ID']).count()['count'] == 1, "Duplicate IDs in final matches"
 
         dataset = args.dataset.replace('_', '-')  # _ used as delimiter in pgsc_calc
         log_and_write(matches=matches.lazy(), scorefile=scorefile, dataset=dataset, args=args)

@@ -29,7 +29,7 @@ def combine_matches():
         # make sure there's no duplicate variant_ids across matches in multiple pvars
         # processing batched chromosomes with overlapping variants might cause problems
         # e.g. chr1 1-100000, chr1 100001-500000
-        assert matches.filter(pl.col('match_status') == 'matched').groupby(['accession', 'ID']).count()['count'] == 1, "Duplicate IDs in final matches"
+        assert matches.filter(pl.col('match_status') == 'matched').groupby(['accession', 'ID']).count()['count'].max() == 1, "Duplicate IDs in final matches"
 
         dataset = args.dataset.replace('_', '-')  # _ used as delimiter in pgsc_calc
         log_and_write(matches=matches.lazy(), scorefile=scorefile, dataset=dataset, args=args)

@@ -52,7 +52,12 @@ def _scorefile_dtypes() -> dict[str]:
 
 def _get_basename(path: str) -> str:
     """ Return the basename of a scoring file without extension """
-    return os.path.basename(path).split('.')[0]
+    filename = os.path.basename(path)
+    if filename.endswith('.txt.gz'):
+        filename = filename.replace('.txt.gz', '')
+    elif filename.endswith('.txt'):
+        filename = filename.replace('.txt', '')
+    return filename
 
 
 remap_header = {

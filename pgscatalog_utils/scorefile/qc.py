@@ -86,7 +86,7 @@ def _check_shape(df: pd.DataFrame) -> None:
 
 
 def _check_columns(df: pd.DataFrame) -> None:
-    assert {'chr_name', 'chr_position'}.issubset(df.columns), "Missing chromsomal positions. If you're " \
+    assert {'chr_name', 'chr_position'}.issubset(df.columns), "Missing chromosomal positions. If you're " \
                                                               "using PGS Catalog files with rsIDs you should request " \
                                                               "harmonised data files (HmPOS) instead."
     assert 'effect_allele' in df, "ERROR: Missing effect allele column"

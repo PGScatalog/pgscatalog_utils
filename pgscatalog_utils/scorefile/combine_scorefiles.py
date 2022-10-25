@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import textwrap
+import json
 
 from pgscatalog_utils.config import set_logging_level
 from pgscatalog_utils.scorefile.effect_type import set_effect_type
@@ -13,6 +14,17 @@ from pgscatalog_utils.scorefile.liftover import liftover
 from pgscatalog_utils.scorefile.qc import quality_control
 from pgscatalog_utils.scorefile.read import load_scorefile
 from pgscatalog_utils.scorefile.write import write_scorefile
+
+
+json_logs_filename = 'combined_log.json'
+headers2logs = [
+    'pgs_name',
+    'genome_build',
+    'variants_number',
+    'trait_efo',
+    'trait_mapped',
+    'citation'
+]
 
 
 def combine_scorefiles():
@@ -27,6 +39,10 @@ def combine_scorefiles():
     if os.path.exists(args.outfile):
         logger.critical(f"Output file {args.outfile} already exists")
         raise Exception
+
+    # Score header logs - init
+    score_logs = {}
+    json_logs_file = os.path.dirname(args.outfile)+'/'+json_logs_filename
 
     for x in paths:
         # Read scorefile df and header
@@ -47,6 +63,24 @@ def combine_scorefiles():
                 logger.error(
                     f"Cannot combine {x} (harmonized to {h.get('HmPOS_build')}) in target build {args.target_build}")
                 raise Exception
+
+        # Build Score header logs
+        pgs_id = h.get('pgs_id')
+        score_header = score_logs[pgs_id] = {}
+        # Scoring file headers
+        for header in headers2logs:
+            header_val = h.get(header)
+            if header.startswith('trait'):
+                header_val = header_val.split(',')
+            score_header[header] = header_val
+        # Other header information
+        score_header['columns'] = list(score.columns)
+        score_header['use_harmonised'] = use_harmonised
+        score_header['use_liftover'] = False
+        if use_harmonised:
+            score_header['sources'] = sorted(score['hm_source'].unique().tolist())
+        if args.liftover:
+             score_header['use_liftover'] = True
 
         # Process/QC score and check variant columns
         score = (score.pipe(remap_harmonised, use_harmonised=use_harmonised)
@@ -80,6 +114,10 @@ def combine_scorefiles():
             raise Exception
 
         write_scorefile(score, args.outfile)
+
+    # Write Score header logs file
+    with open(json_logs_file, 'w') as fp:
+        json.dump(score_logs, fp)
 
 
 def _description_text() -> str:

@@ -12,7 +12,7 @@ def load_scorefile(path: str) -> tuple[dict, pd.DataFrame]:
     logger.debug(f'Reading scorefile {path}')
     df = pd.read_table(path, dtype=_scorefile_dtypes(), comment='#', na_values=['None'], low_memory=False)
     return (_read_header(path),
-            df.assign(filename_prefix=_get_basename(path), filename=path, row_nr=df.index))
+            df.assign(filename_prefix=get_scorefile_basename(path), filename=path, row_nr=df.index))
 
 
 def _read_header(path: str) -> dict:
@@ -50,7 +50,7 @@ def _scorefile_dtypes() -> dict[str]:
             'hm_chr': str, 'hm_pos': pd.UInt64Dtype(), 'hm_inferOtherAllele': str}
 
 
-def _get_basename(path: str) -> str:
+def get_scorefile_basename(path: str) -> str:
     """ Return the basename of a scoring file without extension """
     filename = os.path.basename(path)
     if filename.endswith('.txt.gz'):

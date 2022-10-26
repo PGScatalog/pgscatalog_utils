@@ -12,12 +12,13 @@ from pgscatalog_utils.scorefile.genome_build import build2GRC
 from pgscatalog_utils.scorefile.harmonised import remap_harmonised
 from pgscatalog_utils.scorefile.liftover import liftover
 from pgscatalog_utils.scorefile.qc import quality_control
-from pgscatalog_utils.scorefile.read import load_scorefile
+from pgscatalog_utils.scorefile.read import load_scorefile, get_scorefile_basename
 from pgscatalog_utils.scorefile.write import write_scorefile
 
 
 json_logs_filename = 'combined_log.json'
 headers2logs = [
+    'pgs_id',
     'pgs_name',
     'genome_build',
     'variants_number',
@@ -25,7 +26,12 @@ headers2logs = [
     'trait_mapped',
     'citation'
 ]
-
+headers2logs_harmonisation = [
+    'HmPOS_build',
+    'HmPOS_date',
+    'HmPOS_match_chr',
+    'HmPOS_match_pos'
+]
 
 def combine_scorefiles():
     args = _parse_args()
@@ -64,24 +70,6 @@ def combine_scorefiles():
                     f"Cannot combine {x} (harmonized to {h.get('HmPOS_build')}) in target build {args.target_build}")
                 raise Exception
 
-        # Build Score header logs
-        pgs_id = h.get('pgs_id')
-        score_header = score_logs[pgs_id] = {}
-        # Scoring file headers
-        for header in headers2logs:
-            header_val = h.get(header)
-            if header.startswith('trait'):
-                header_val = header_val.split(',')
-            score_header[header] = header_val
-        # Other header information
-        score_header['columns'] = list(score.columns)
-        score_header['use_harmonised'] = use_harmonised
-        score_header['use_liftover'] = False
-        if use_harmonised:
-            score_header['sources'] = sorted(score['hm_source'].unique().tolist())
-        if args.liftover:
-             score_header['use_liftover'] = True
-
         # Process/QC score and check variant columns
         score = (score.pipe(remap_harmonised, use_harmonised=use_harmonised)
                  .pipe(quality_control, drop_missing=args.drop_missing)
@@ -114,6 +102,31 @@ def combine_scorefiles():
             raise Exception
 
         write_scorefile(score, args.outfile)
+
+        # Build Score header logs
+        score_id = get_scorefile_basename(x)
+        score_header = score_logs[score_id] = {}
+        # Scoring file header information
+        for header in headers2logs:
+            header_val = h.get(header)
+            if header.startswith('trait'):
+                header_val = header_val.split(',')
+            score_header[header] = header_val
+        # Other header information
+        score_header['columns'] = list(score.columns)
+        score_header['use_liftover'] = False
+        if args.liftover:
+             score_header['use_liftover'] = True
+        # Harmonized header information
+        score_header['use_harmonised'] = use_harmonised
+        if use_harmonised:
+            score_header['sources'] = sorted(score['hm_source'].unique().tolist())
+            for hm_header in headers2logs_harmonisation:
+                hm_header_val = h.get(hm_header)
+                if hm_header_val:
+                    if hm_header.startswith('HmPOS_match'):
+                        hm_header_val = json.loads(hm_header_val)
+                    score_header[hm_header] = hm_header_val
 
     # Write Score header logs file
     with open(json_logs_file, 'w') as fp:

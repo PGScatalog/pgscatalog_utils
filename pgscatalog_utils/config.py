@@ -1,6 +1,7 @@
 import logging
 
-POLARS_MAX_THREADS = 1  # dummy value, is reset by args.n_threads (default: 1)
+POLARS_MAX_THREADS: int = 1  # dummy value, is reset by args.n_threads (default: 1)
+OUTDIR: str = "."  # dummy value, reset by args.outdir
 
 
 def set_logging_level(verbose: bool):

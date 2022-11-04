@@ -25,6 +25,7 @@ requests = "^2.28.1"
 jq = "^1.2.2"
 polars = "^0.14.9"
 zstandard = "^0.18.0"
+pgzip = "^0.3.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"

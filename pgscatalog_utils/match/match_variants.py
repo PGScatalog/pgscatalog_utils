@@ -86,16 +86,17 @@ def log_and_write(matches: pl.LazyFrame, scorefile: pl.LazyFrame, dataset: str, 
         logger.critical("Error: no target variants match any variants in scoring files")
         raise Exception("No valid matches found")
 
+    write_out(valid_matches, args.split, dataset)
+    del valid_matches
+
     big_log: pl.LazyFrame = make_logs(scorefile=scorefile, match_candidates=matches, dataset=dataset)
     summary_log: pl.LazyFrame = make_summary_log(match_candidates=matches, filter_summary=filter_summary,
                                                  dataset=dataset,
                                                  scorefile=scorefile)
 
     check_log_count(summary_log=summary_log, scorefile=scorefile)
-
     write_log(df=big_log, prefix=dataset, chrom=None, outdir=args.outdir, file_format="csv")
     summary_log.collect().write_csv(f"{dataset}_summary.csv")
-    write_out(valid_matches, args.split, args.outdir, dataset)
 
 
 def _check_target_chroms(target: pl.LazyFrame) -> None:

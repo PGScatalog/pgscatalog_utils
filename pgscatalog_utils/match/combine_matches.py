@@ -16,7 +16,8 @@ def combine_matches():
     config.set_logging_level(args.verbose)
 
     config.POLARS_MAX_THREADS = args.n_threads
-    os.environ['POLARS_MAX_THREADS'] = str(config.POLARS_MAX_THREADS)
+    config.OUTDIR = args.outdir
+    os.environ['POLARS_MAX_THREADS'] = str(config.POLARS_MAX_THREADS) # TODO: this won't work (after import)
     # now the environment variable, parsed argument args.n_threads, and threadpool should agree
     logger.debug(f"Setting POLARS_MAX_THREADS environment variable: {os.getenv('POLARS_MAX_THREADS')}")
     logger.debug(f"Using {config.POLARS_MAX_THREADS} threads to read CSVs")
@@ -24,7 +25,10 @@ def combine_matches():
 
     with pl.StringCache():
         scorefile = read_scorefile(path=args.scorefile, chrom=None)  # chrom=None to read all variants
-        matches = pl.concat(pl.collect_all([pl.scan_ipc(x, memory_map=False) for x in args.matches]))
+        logger.debug("Reading matches")
+        matches = pl.concat([pl.read_ipc(x, memory_map=False, rechunk=False) for x in args.matches], rechunk=False)
+        logger.debug("Rechunking matches")
+        matches.rechunk()
 
         # make sure there's no duplicate variant_ids across matches in multiple pvars
         # processing batched chromosomes with overlapping variants might cause problems

@@ -224,6 +224,14 @@ packaging = "*"
 pandas = ">=0.19"
 
 [[package]]
+name = "pgzip"
+version = "0.3.2"
+description = "A multi-threading implementation of Python gzip module"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[[package]]
 name = "pillow"
 version = "9.2.0"
 description = "Python Imaging Library (Fork)"
@@ -249,22 +257,22 @@ testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
 name = "polars"
-version = "0.14.17"
+version = "0.14.25"
 description = "Blazingly fast DataFrame library"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 
 [package.extras]
-pandas = ["pyarrow (>=4.0.0)", "pandas"]
-connectorx = ["connectorx"]
-xlsx2csv = ["xlsx2csv (>=0.8.0)"]
-timezone = ["backports.zoneinfo", "tzdata"]
 matplotlib = ["matplotlib"]
-fsspec = ["fsspec"]
+xlsx2csv = ["xlsx2csv (>=0.8.0)"]
+connectorx = ["connectorx"]
+pandas = ["pyarrow (>=4.0.0)", "pandas"]
 numpy = ["numpy (>=1.16.0)"]
+fsspec = ["fsspec"]
 all = ["polars"]
 pyarrow = ["pyarrow (>=4.0.0)"]
+timezone = ["backports.zoneinfo", "tzdata"]
 
 [[package]]
 name = "psutil"
@@ -463,7 +471,7 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "84b4520b176bb1b892c870fe894814cd05e217a86d7b4fadfa638b91a919bae5"
+content-hash = "8bc3a7d9cda455b0a63bce20b944feb398b0a29cb20b2f04c366a6817c5d70fa"
 
 [metadata.files]
 attrs = []
@@ -488,6 +496,7 @@ numpy = []
 packaging = []
 pandas = []
 pandas-schema = []
+pgzip = []
 pillow = []
 pluggy = [
     {file = "pluggy-1.0.0-py2.py3-none-any.whl", hash = "sha256:74134bbf457f031a36d68416e1509f34bd5ccc019f0bcc952c7b909d06b37bd3"},

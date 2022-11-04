@@ -10,22 +10,37 @@ logger = logging.getLogger(__name__)
 
 
 def write_out(matches: pl.LazyFrame, split: bool, dataset: str):
-    chroms: list[str] = matches.select("chr_name").unique().collect().get_column("chr_name").to_list()
-    for chrom in chroms:
-        # 1. filter by chromosome
-        chrom_df: pl.LazyFrame = matches.filter(pl.col('chr_name') == chrom)
+    if split:
+        # Loop through chromosomes with matched variants
+        chroms: list[str] = matches.select("chr_name").unique().collect().get_column("chr_name").to_list()
+        for chrom in chroms:
+            # 1. filter by chromosome
+            chrom_df: pl.LazyFrame = matches.filter(pl.col('chr_name') == chrom)
+            # 2. split by effect type
+            additive: pl.LazyFrame
+            dominant: pl.LazyFrame
+            recessive: pl.LazyFrame
+            additive, dominant, recessive = _split_effect_type(chrom_df)
+
+            # 3. deduplicate
+            effect_types = ['additive', 'dominant', 'recessive']
+            deduped = dict(zip(effect_types, [_deduplicate_variants(x) for x in [additive, dominant, recessive]]))
+
+            # 4. pivot and write!
+            _write_split(deduped, chrom, dataset)
+    else:
         # 2. split by effect type
         additive: pl.LazyFrame
         dominant: pl.LazyFrame
         recessive: pl.LazyFrame
-        additive, dominant, recessive = _split_effect_type(chrom_df)
+        additive, dominant, recessive = _split_effect_type(matches)
 
         # 3. deduplicate
         effect_types = ['additive', 'dominant', 'recessive']
         deduped = dict(zip(effect_types, [_deduplicate_variants(x) for x in [additive, dominant, recessive]]))
 
         # 4. pivot and write!
-        _write_split(deduped, chrom, dataset)
+        _write_split(deduped, 'ALL', dataset)
 
 
 def _write_split(deduplicated: dict[str: tuple[int, pl.LazyFrame]], chrom: str, dataset: str):

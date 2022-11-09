@@ -78,7 +78,8 @@ def log_and_write(matches: pl.LazyFrame, scorefile: pl.LazyFrame, dataset: str, 
     valid_matches, filter_summary = filter_scores(scorefile=scorefile, matches=matches, dataset=dataset,
                                                   min_overlap=args.min_overlap)
 
-    if valid_matches.fetch().is_empty():  # this can happen if args.min_overlap = 0
+    if filter_summary.filter(pl.col("score_pass") == True).collect().is_empty():
+        # this can happen when args.min_overlap = 0
         logger.critical("Error: no target variants match any variants in scoring files")
         raise Exception("No valid matches found")
 

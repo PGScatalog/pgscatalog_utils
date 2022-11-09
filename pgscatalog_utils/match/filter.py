@@ -40,7 +40,7 @@ def _calculate_match_rate(df: pl.LazyFrame) -> pl.LazyFrame:
 
 
 def _filter_matches(df: pl.LazyFrame) -> pl.LazyFrame:
-    logger.debug("Filtering variants with exclude flag")
+    logger.debug("Filtering to best_match variants (with exclude flag = False)")
     return df.filter((pl.col('best_match') == True) & (pl.col('exclude') == False))
 
 

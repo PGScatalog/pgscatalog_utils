@@ -4,7 +4,8 @@ import logging
 import polars as pl
 
 from pgscatalog_utils import config
-from pgscatalog_utils.match.match_variants import log_and_write
+from pgscatalog_utils.match.label import make_params_dict, label_matches
+from pgscatalog_utils.match.match_variants import log_and_write, add_label_args
 from pgscatalog_utils.match.read import read_scorefile
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,10 @@ def combine_matches():
         scorefile = read_scorefile(path=args.scorefile, chrom=None)  # chrom=None to read all variants
         logger.debug("Reading matches")
         matches = pl.concat([pl.scan_ipc(x, memory_map=False, rechunk=False) for x in args.matches], rechunk=False)
+
+        logger.debug("Labelling match candidates")
+        params: dict[str, bool] = make_params_dict(args)
+        matches = matches.pipe(label_matches, params)
 
         # make sure there's no duplicate variant_ids across matches in multiple pvars
         # processing batched chromosomes with overlapping variants might cause problems

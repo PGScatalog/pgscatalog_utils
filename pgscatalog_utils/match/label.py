@@ -7,6 +7,14 @@ from pgscatalog_utils.match.preprocess import complement_valid_alleles
 logger = logging.getLogger(__name__)
 
 
+def make_params_dict(args) -> dict[str, bool]:
+    """ Make a dictionary with parameters that control labelling match candidates """
+    return {'keep_first_match': args.keep_first_match,
+            'remove_ambiguous': args.remove_ambiguous,
+            'skip_flip': args.skip_flip,
+            'remove_multiallelic': args.remove_multiallelic}
+
+
 def label_matches(df: pl.LazyFrame, params: dict[str, bool]) -> pl.LazyFrame:
     """ Label match candidates with additional metadata. Column definitions:
 
@@ -92,17 +100,14 @@ def _label_duplicate_best_match(df: pl.LazyFrame) -> pl.LazyFrame:
                                            .otherwise(pl.lit(False))
                                            .alias('duplicate_best_match'))
                               .drop('count')
-                              .rename({'row_nr': 'score_row_nr'})
-                              .with_row_count()  # add temporary row count to get first variant
+                              .with_row_count(name='temp_row_nr')  # add temporary row count to get first variant
                               .with_column(pl.when((pl.col("best_match") == True) &
                                                    (pl.col("duplicate_best_match") == True) &
-                                                   (pl.col("row_nr") > pl.min("row_nr")).over(
-                                                       ["accession", "score_row_nr"]))
+                                                   (pl.col("temp_row_nr") > pl.min("temp_row_nr")).over(
+                                                       ["accession", "row_nr"]))
                                            .then(False)  # reset best match flag for duplicates
                                            .otherwise(pl.col("best_match"))  # just keep value from existing column
-                                           .alias('best_match_duplicate_row_nr'))
-                              .drop(['row_nr', 'best_match'])
-                              .rename({'score_row_nr': 'row_nr', 'best_match_duplicate_row_nr': 'best_match'}))
+                                           .alias('best_match')))
 
     return labelled
 

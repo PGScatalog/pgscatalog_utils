@@ -24,23 +24,36 @@ def write_log(df: pl.LazyFrame, prefix: str, chrom: typing.Union[str, None], out
 
 
 def write_scorefiles(matches: pl.LazyFrame, split: bool, dataset: str):
-    # TODO: fix
-    chroms: list[str] = matches.select("chr_name").unique().collect(projection_pushdown=False).get_column("chr_name").to_list()
-    for chrom in chroms:
-        # 1. filter by chromosome
-        chrom_df: pl.LazyFrame = matches.filter(pl.col('chr_name') == chrom)
-        # 2. split by effect type
+    if split:
+        chroms: list[str] = matches.select("chr_name").unique().collect(projection_pushdown=False).get_column("chr_name").to_list()
+        for chrom in chroms:
+            # 1. filter by chromosome
+            chrom_df: pl.LazyFrame = matches.filter(pl.col('chr_name') == chrom)
+            # 2. split by effect type
+            additive: pl.LazyFrame
+            dominant: pl.LazyFrame
+            recessive: pl.LazyFrame
+            additive, dominant, recessive = _split_effect_type(chrom_df)
+
+            # 3. deduplicate
+            effect_types = ['additive', 'dominant', 'recessive']
+            deduped = dict(zip(effect_types, [_deduplicate_variants(x) for x in [additive, dominant, recessive]]))
+
+            # 4. pivot and write!
+            _write_split(deduped, chrom, dataset)
+    else:
+        # 1. split by effect type
         additive: pl.LazyFrame
         dominant: pl.LazyFrame
         recessive: pl.LazyFrame
-        additive, dominant, recessive = _split_effect_type(chrom_df)
+        additive, dominant, recessive = _split_effect_type(matches)
 
-        # 3. deduplicate
+        # 2. deduplicate
         effect_types = ['additive', 'dominant', 'recessive']
         deduped = dict(zip(effect_types, [_deduplicate_variants(x) for x in [additive, dominant, recessive]]))
 
-        # 4. pivot and write!
-        _write_split(deduped, chrom, dataset)
+        # 3. pivot and write!
+        _write_split(deduped, 'ALL', dataset)
 
 
 def _write_split(deduplicated: dict[str: tuple[int, pl.LazyFrame]], chrom: str, dataset: str):

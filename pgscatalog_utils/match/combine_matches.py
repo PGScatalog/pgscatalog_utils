@@ -50,7 +50,7 @@ def _parse_args(args=None):
                         type=float, help='<Required> Minimum proportion of variants to match before error')
     parser.add_argument('-s', '--scorefile', dest='scorefile', required=True,
                         help='<Required> Path to scorefile')
-    parser.add_argument('--split', dest='split', default=True, action='store_true',
+    parser.add_argument('--split', dest='split', default=False, action='store_true',
                         help='<Optional> Split scorefile per chromosome?')
     parser.add_argument('-m', '--matches', dest='matches', required=True, nargs='+',
                         help='<Required> List of match files')

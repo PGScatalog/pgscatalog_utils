@@ -5,7 +5,7 @@ import polars as pl
 logger = logging.getLogger(__name__)
 
 
-def filter_target(df: pl.DataFrame) -> pl.DataFrame:
+def filter_target(df: pl.LazyFrame) -> pl.LazyFrame:
     """ Remove variants that won't be matched against the scorefile
 
     Chromosomes 1 - 22, X, and Y with an efficient join. Remmove variants with missing identifiers also
@@ -15,7 +15,7 @@ def filter_target(df: pl.DataFrame) -> pl.DataFrame:
     return df.filter((pl.col('#CHROM').is_in(chroms)) & (pl.col('ID') != '.'))
 
 
-def complement_valid_alleles(df: pl.DataFrame, flip_cols: list[str]) -> pl.DataFrame:
+def complement_valid_alleles(df: pl.LazyFrame, flip_cols: list[str]) -> pl.LazyFrame:
     """ Improved function to complement alleles. Will only complement sequences that are valid DNA.
     """
     for col in flip_cols:
@@ -37,19 +37,18 @@ def complement_valid_alleles(df: pl.DataFrame, flip_cols: list[str]) -> pl.DataF
     return df
 
 
-def annotate_multiallelic(df: pl.DataFrame) -> pl.DataFrame:
+def annotate_multiallelic(df: pl.LazyFrame) -> pl.LazyFrame:
     """ Identify variants that are multiallelic with a column flag """
     # plink2 pvar multi-alleles are comma-separated
-    df: pl.DataFrame = (df.with_column(
+    df: pl.LazyFrame = (df.with_column(
         pl.when(pl.col("ALT").str.contains(','))
         .then(pl.lit(True))
         .otherwise(pl.lit(False))
         .alias('is_multiallelic')))
 
-    if (df.get_column('is_multiallelic')).any():
+    if (df.select('is_multiallelic').unique().collect().get_column('is_multiallelic')).any():
         logger.debug("Exploding dataframe to handle multiallelic variants")
-        df.replace('ALT', df['ALT'].str.split(by=','))  # turn ALT to list of variants
-        return df.explode('ALT')  # expand the DF to have all the variants in different rows
+        return df.with_column(pl.col('ALT').str.split(by=',')).explode('ALT')
     else:
         logger.debug("No multiallelic variants detected")
         return df

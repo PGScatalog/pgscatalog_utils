@@ -27,9 +27,7 @@ def filter_scores(scorefile: pl.LazyFrame, matches: pl.LazyFrame, min_overlap: f
 
     score_summary: pl.LazyFrame = pl.concat(scores).lazy()
     filtered_scores: pl.LazyFrame = (filtered_matches.join(score_summary, on='accession', how='left')
-                                     .filter(pl.col('score_pass') == True)
-                                     .select(['chr_name', 'ID', 'accession', 'effect_type', 'matched_effect_allele',
-                                              'effect_weight']))
+                                     .filter(pl.col('score_pass') == True))
 
     return filtered_scores, score_summary
 

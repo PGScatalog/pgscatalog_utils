@@ -1,18 +1,19 @@
 import argparse
 import logging
-import os
+import shutil
 import sys
 import textwrap
 
 import polars as pl
 
 import pgscatalog_utils.config as config
+from pgscatalog_utils.match import tempdir
 from pgscatalog_utils.match.filter import filter_scores
 from pgscatalog_utils.match.label import label_matches
 from pgscatalog_utils.match.log import make_logs, make_summary_log, check_log_count
 from pgscatalog_utils.match.match import get_all_matches
 from pgscatalog_utils.match.read import read_target, read_scorefile
-from pgscatalog_utils.match.write import write_log, write_out
+from pgscatalog_utils.match.write import write_log, write_scorefiles
 
 logger = logging.getLogger(__name__)
 
@@ -20,19 +21,14 @@ logger = logging.getLogger(__name__)
 def match_variants():
     args = _parse_args()
     config.set_logging_level(args.verbose)
-
-    config.POLARS_MAX_THREADS = args.n_threads
-    os.environ['POLARS_MAX_THREADS'] = str(config.POLARS_MAX_THREADS)
-    # now the environment variable, parsed argument args.n_threads, and threadpool should agree
-    logger.debug(f"Setting POLARS_MAX_THREADS environment variable: {os.getenv('POLARS_MAX_THREADS')}")
-    logger.debug(f"Using {config.POLARS_MAX_THREADS} threads to read CSVs")
-    logger.debug(f"polars threadpool size: {pl.threadpool_size()}")
+    config.setup_polars_threads(args.n_threads)
+    config.setup_cleaning()
 
     with pl.StringCache():
         scorefile: pl.LazyFrame = read_scorefile(path=args.scorefile, chrom=args.chrom)
         target_paths = list(set(args.target))
         n_target_files = len(target_paths)
-        matches: pl.DataFrame
+        matches: pl.LazyFrame
 
         if n_target_files == 0:
             logger.critical("No target genomes found, check the path")
@@ -52,24 +48,24 @@ def match_variants():
             case "single":
                 logger.debug(f"Match mode: {match_mode}")
                 # _fast_match with low_memory = True reads one target in chunks
-                matches: pl.LazyFrame = _fast_match(target_paths, scorefile, args, low_memory)
+                matches: list[list[pl.LazyFrame]] = _fast_match(target_paths, scorefile, args, low_memory)
             case "multi":
                 logger.debug(f"Match mode: {match_mode}")  # iterate over multiple targets, in chunks
-                matches: pl.LazyFrame = _match_multiple_targets(target_paths, scorefile, args, low_memory)
+                matches: list[list[pl.LazyFrame]] = _match_multiple_targets(target_paths, scorefile, args, low_memory)
             case "fast":
                 logger.debug(f"Match mode: {match_mode}")
                 # _fast_match with low_memory = False just read everything into memory for speed
-                matches: pl.LazyFrame = _fast_match(target_paths, scorefile, args, low_memory)
+                matches: list[list[pl.LazyFrame]] = _fast_match(target_paths, scorefile, args, low_memory)
             case _:
                 logger.critical(f"Invalid match mode: {match_mode}")
                 raise Exception
 
         dataset = args.dataset.replace('_', '-')  # underscores are delimiters in pgs catalog calculator
+        match_dir, matches = _materialise_matches(matches, dataset, low_memory)
 
         if args.only_match:
-            fout: str = f"{dataset}_{args.chrom}_matches.ipc.zst"
-            logger.debug(f"--only_match set, writing out match candidates {fout} and exiting")
-            matches.collect().write_ipc(fout, compression="zstd")
+            logger.debug(f"--only_match set, writing out match candidates {match_dir} and exiting")
+            shutil.move(match_dir, args.outdir)
             logger.debug("Intermediate files can be processed with combine_matches")
             sys.exit(0)
         else:
@@ -86,8 +82,7 @@ def log_and_write(matches: pl.LazyFrame, scorefile: pl.LazyFrame, dataset: str, 
         logger.critical("Error: no target variants match any variants in scoring files")
         raise Exception("No valid matches found")
 
-    write_out(valid_matches, args.split, dataset)
-    del valid_matches
+    write_scorefiles(valid_matches, args.split, dataset)
 
     big_log: pl.LazyFrame = make_logs(scorefile=scorefile, match_candidates=matches, dataset=dataset)
     summary_log: pl.LazyFrame = make_summary_log(match_candidates=matches, filter_summary=filter_summary,
@@ -95,8 +90,23 @@ def log_and_write(matches: pl.LazyFrame, scorefile: pl.LazyFrame, dataset: str, 
                                                  scorefile=scorefile)
 
     check_log_count(summary_log=summary_log, scorefile=scorefile)
-    write_log(df=big_log, prefix=dataset, chrom=None, outdir=args.outdir, file_format="csv")
+    write_log(df=big_log, prefix=dataset, chrom=None, outdir=args.outdir)
     summary_log.collect().write_csv(f"{dataset}_summary.csv")
+
+
+def _materialise_matches(matches: list[list[pl.LazyFrame]], dataset: str, low_memory: bool) -> tuple[str, pl.LazyFrame]:
+    """ Collect query plan and store results in temporary files"""
+    # outer list: [target_1, target_2]
+    # inner list: [ match_1, match_2 ]
+    for i, match in enumerate(matches):
+        fout = tempdir.get_tmp_path("matches", f"match_{i}.ipc.zst")
+        if low_memory:
+            pl.concat([x.collect() for x in match]).write_ipc(fout)
+        else:
+            pl.concat(pl.collect_all(match)).write_ipc(fout)
+    match_dir: str = tempdir.get_tmp_path("matches", "")
+    ldf: pl.LazyFrame = pl.scan_ipc(match_dir + "*.ipc.zst", memory_map=False)
+    return match_dir, ldf
 
 
 def _check_target_chroms(target: pl.LazyFrame) -> None:
@@ -109,28 +119,28 @@ def _check_target_chroms(target: pl.LazyFrame) -> None:
 
 
 def _fast_match(target_paths: list[str], scorefile: pl.LazyFrame,
-                args: argparse.Namespace, low_memory: bool) -> pl.LazyFrame:
+                args: argparse.Namespace, low_memory: bool) -> list[list[pl.LazyFrame]]:
     # fast match is fast because:
     #   1) all target files are read into memory without batching
     #   2) matching occurs without iterating through chromosomes
-    # when low memory is true and n_targets = 1, fast match is the same as "single" match mode
     params: dict[str, bool] = _make_params_dict(args)
     target: pl.LazyFrame = read_target(paths=target_paths, low_memory=low_memory)
-    return (get_all_matches(scorefile=scorefile, target=target, low_memory=low_memory)
-            .pipe(label_matches, params=params))
+    matches = get_all_matches(scorefile=scorefile, target=target)
+    return [[x.pipe(label_matches, params=params) for x in matches]]
 
 
 def _match_multiple_targets(target_paths: list[str], scorefile: pl.LazyFrame, args: argparse.Namespace,
-                            low_memory: bool) -> pl.LazyFrame:
-    matches = []
+                            low_memory: bool) -> list[list[pl.LazyFrame]]:
+    match_lst = []
     params: dict[str, bool] = _make_params_dict(args)
     for i, loc_target_current in enumerate(target_paths):
         logger.debug(f'Matching scorefile(s) against target: {loc_target_current}')
         target: pl.LazyFrame = read_target(paths=[loc_target_current], low_memory=low_memory)
-        _check_target_chroms(target)
-        matches.append(get_all_matches(scorefile=scorefile, target=target, low_memory=low_memory))
-    return (pl.concat(matches)
-            .pipe(label_matches, params=params))
+        if len(target_paths) > 1:
+            _check_target_chroms(target)
+        matches: list[pl.LazyFrame] = get_all_matches(scorefile=scorefile, target=target)
+        match_lst.append([x.pipe(label_matches, params=params) for x in matches])
+    return match_lst
 
 
 def _description_text() -> str:

@@ -1,7 +1,4 @@
-import gc
 import logging
-import os
-from tempfile import TemporaryDirectory
 
 import polars as pl
 
@@ -9,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 # @profile  # decorator needed to annotate memory profiles, but will cause NameErrors outside of profiling
-def get_all_matches(scorefile: pl.LazyFrame, target: pl.LazyFrame, low_memory: bool = True) -> pl.LazyFrame:
+def get_all_matches(scorefile: pl.LazyFrame, target: pl.LazyFrame) -> list[pl.LazyFrame]:
     scorefile_oa = scorefile.filter(pl.col("other_allele") != None)
     scorefile_no_oa = scorefile.filter(pl.col("other_allele") == None)
 
@@ -30,31 +27,7 @@ def get_all_matches(scorefile: pl.LazyFrame, target: pl.LazyFrame, low_memory: b
     matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_ref_flip").select(col_order))
     matches.append(_match_variants(scorefile_no_oa, target, match_type="no_oa_alt_flip").select(col_order))
 
-    if low_memory:
-        logger.debug("Batch collecting matches (low memory mode)")
-        match_lf = _batch_collect(matches)
-    else:
-        logger.debug("Collecting all matches (parallel)")
-        match_lf = pl.concat(pl.collect_all(matches))
-
-    return match_lf.lazy()
-
-
-def _batch_collect(matches: list[pl.LazyFrame]) -> pl.DataFrame:
-    """ A slower alternative to pl.collect_all(), but this approach will use less peak memory
-
-    This batches the .collect() and writes intermediate results to a temporary working directory
-
-    IPC files are binary and remember column schema. Reading them can be extremely fast. """
-    with TemporaryDirectory() as temp_dir:
-        n_chunks = 0
-        for i, match in enumerate(matches):
-            out_path = os.path.join(temp_dir, str(i) + ".ipc")
-            match.collect().write_ipc(out_path)
-            n_chunks += 1
-        logger.debug(f"Staged {n_chunks} match chunks to {temp_dir}")
-        gc.collect()
-        return pl.read_ipc(os.path.join(temp_dir, "*.ipc"))
+    return matches
 
 
 def _match_variants(scorefile: pl.LazyFrame, target: pl.LazyFrame, match_type: str) -> pl.LazyFrame:

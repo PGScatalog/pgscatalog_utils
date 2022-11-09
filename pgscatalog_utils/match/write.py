@@ -9,8 +9,23 @@ from pgscatalog_utils import config
 logger = logging.getLogger(__name__)
 
 
-def write_out(matches: pl.LazyFrame, split: bool, dataset: str):
-    chroms: list[str] = matches.select("chr_name").unique().collect().get_column("chr_name").to_list()
+def write_log(df: pl.LazyFrame, prefix: str, chrom: typing.Union[str, None], outdir: str) -> None:
+    if chrom is None:
+        log_name: str = os.path.join(os.path.abspath(outdir), f"{prefix}_log")
+    else:
+        log_name: str = os.path.join(os.path.abspath(outdir), f"{prefix}_chrom{chrom}_log")
+
+    fout: str = ''.join([log_name, ".csv.gz"])
+    if os.path.exists(fout):
+        logger.warning(f"Overwriting log that already exists: {fout}")
+        os.remove(fout)
+
+    _write_text_pgzip(df=df, fout=fout)
+
+
+def write_scorefiles(matches: pl.LazyFrame, split: bool, dataset: str):
+    # TODO: fix
+    chroms: list[str] = matches.select("chr_name").unique().collect(projection_pushdown=False).get_column("chr_name").to_list()
     for chrom in chroms:
         # 1. filter by chromosome
         chrom_df: pl.LazyFrame = matches.filter(pl.col('chr_name') == chrom)
@@ -38,36 +53,29 @@ def _write_split(deduplicated: dict[str: tuple[int, pl.LazyFrame]], chrom: str, 
             # pivoting is !! _expensive_ !! (it collects the lazyframe)
             pivoted: pl.LazyFrame = _pivot_score(et_df, chrom)
             fout = os.path.join(config.OUTDIR, f"{dataset}_{chrom}_{effect_type}_{i}.scorefile.gz")
-            _write_scorefile(pivoted, fout)
+            _write_text_pgzip(pivoted, fout)
 
 
-def _write_scorefile(df, fout):
-    logger.debug(f"Writing matched scorefile to {fout}")
-    with pgzip.open(fout, 'wb', thread=config.POLARS_MAX_THREADS) as f:
-        df.collect().write_csv(f)
+def _write_text_pgzip(df: pl.LazyFrame, fout: str, append: bool = False):
+    """ Write a df to a text file (e.g. CSV / TSV) using parallel gzip, optionally appending to an existing file
 
-
-def write_log(df: pl.LazyFrame, prefix: str, chrom: typing.Union[str, None], file_format: str, outdir: str) -> None:
-    # feather file preserves dtypes and is small
-    # don't compress the feather file to allow memory mapping
-    if chrom is None:
-        log_name: str = os.path.join(os.path.abspath(outdir), f"{prefix}_log")
+    Notes:
+    - Compression performance isn't ideal when concatenating gzip streams (append = True)
+    - Generally it's best to feed compression algorithms all data and write in one go
+    - However, df will normally be very big
+    - It's collected for the first time in this function, and joins _a lot_ of data (contains all match candidates)
+    - The files created by this function must be human-readable text files, so feather / parquet isn't helpful
+    - Hopefully appending gzip streams is a reasonable compromise to mitigate OOM errors
+    """
+    if append:
+        logger.debug(f"Appending to {fout}")
+        mode = 'ab'
     else:
-        log_name: str = os.path.join(os.path.abspath(outdir), f"{prefix}_chrom{chrom}_log")
+        logger.debug(f"Writing to {fout}")
+        mode = 'wb'
 
-    match file_format:
-        case 'ipc':
-            fout: str = ''.join([log_name, ".ipc.zst"])
-            logger.debug(f"Writing {fout} in format: {file_format}")
-            df.collect().write_ipc(fout, compression='zstd')  # gzip compression not supported
-        case 'csv':
-            fout: str = ''.join([log_name, ".csv.gz"])
-            logger.debug(f"Writing {fout} in format: {file_format}")
-            with pgzip.open(fout, 'wb', thread=config.POLARS_MAX_THREADS) as f:
-                df.collect().write_csv(f)
-        case _:
-            logger.critical(f"Invalid format: {file_format}")
-            raise Exception
+    with pgzip.open(fout, mode, thread=config.N_THREADS) as f:
+        df.collect().write_csv(f)
 
 
 def _pivot_score(df: pl.LazyFrame, chrom: str) -> pl.LazyFrame:

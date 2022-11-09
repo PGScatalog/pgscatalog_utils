@@ -2,14 +2,15 @@ import gc
 import io
 import logging
 import os
+import pathlib
 from dataclasses import dataclass
 from itertools import islice
-from tempfile import TemporaryDirectory
 
 import polars as pl
 import zstandard
 
 import pgscatalog_utils.config as config
+from pgscatalog_utils.match.tempdir import get_tmp_path
 
 logger = logging.getLogger(__name__)
 
@@ -57,30 +58,42 @@ class Target:
                 logger.debug("Reading uncompressed target genome (fast mode, high RAM usage)")
                 return self._read_uncompressed()
 
-    def _read_compressed(self) -> pl.DataFrame:
+    def _read_compressed(self) -> pl.LazyFrame:
         """ Read a zst compressed target as quickly as possible """
         with open(self.path, 'rb') as fh:
             dctx = zstandard.ZstdDecompressor()
             with dctx.stream_reader(fh) as reader:
                 dtypes = _get_col_dtypes(self.file_format)
                 col_idxs, new_col_names = _default_cols(self.file_format)
-                return (pl.read_csv(reader, sep='\t', has_header=False, comment_char='#',
-                                    dtype=dtypes,
-                                    columns=col_idxs,
-                                    new_columns=new_col_names,
-                                    n_threads=config.POLARS_MAX_THREADS))
 
-    def _read_uncompressed(self) -> pl.DataFrame:
+                fn: str = pathlib.Path(self.path).stem + ".ipc"
+                fout = get_tmp_path("input", fn)
+
+                (pl.read_csv(reader, sep='\t', has_header=False, comment_char='#',
+                             dtype=dtypes,
+                             columns=col_idxs,
+                             new_columns=new_col_names,
+                             n_threads=config.N_THREADS)
+                 .write_ipc(fout))
+                return pl.scan_ipc(fout)
+
+    def _read_uncompressed(self) -> pl.LazyFrame:
         """ Read an uncompressed target as quickly as possible. Uses up to 16GB RAM on 1000 genomes pvar. """
         dtypes = _get_col_dtypes(self.file_format)
         col_idxs, new_col_names = _default_cols(self.file_format)
-        return (pl.read_csv(self.path, sep='\t', has_header=False, comment_char='#',
-                            dtype=dtypes,
-                            columns=col_idxs,
-                            new_columns=new_col_names,
-                            n_threads=config.POLARS_MAX_THREADS))
 
-    def _read_uncompressed_chunks(self) -> pl.DataFrame:
+        fn: str = pathlib.Path(self.path).stem + ".ipc"
+        fout: str = get_tmp_path("input", fn)
+
+        (pl.read_csv(self.path, sep='\t', has_header=False, comment_char='#',
+                     dtype=dtypes,
+                     columns=col_idxs,
+                     new_columns=new_col_names,
+                     n_threads=config.N_THREADS)
+         .write_ipc(fout))
+        return pl.scan_ipc(fout)
+
+    def _read_uncompressed_chunks(self) -> pl.LazyFrame:
         """ Read a CSV using a BufferedReader in batches to reduce memory usage.
 
         Reads 1 million variant chunks and immediately writes to feather format in a temporary directory.
@@ -91,29 +104,31 @@ class Target:
         """
         dtypes = _get_col_dtypes(self.file_format)
         col_idxs, new_col_names = _default_cols(self.file_format)
-        with TemporaryDirectory() as temp_dir:
-            batch_n = 0
-            batch_size = int(1e6)
-            with open(self.path, 'rb') as f:
-                while True:
-                    line_batch = b''.join(islice(f, batch_size))
-                    if not line_batch:
-                        break
 
-                    out_path = os.path.join(temp_dir, str(batch_n) + '.ipc')
+        batch_n = 0
+        batch_size = int(1e6)
+        with open(self.path, 'rb') as f:
+            while True:
+                line_batch = b''.join(islice(f, batch_size))
+                if not line_batch:
+                    break
 
-                    (pl.read_csv(line_batch, sep='\t', has_header=False, comment_char='#',
-                                 dtype=dtypes,
-                                 columns=col_idxs,
-                                 new_columns=new_col_names,
-                                 n_threads=config.POLARS_MAX_THREADS).write_ipc(out_path))
-                    batch_n += 1
+                fn: str = str(batch_n) + ".ipc"
+                fout: str = get_tmp_path("input", fn)
 
-            gc.collect()  # just to be safe
-            logger.debug(f"{batch_n} batches staged in temporary directory {temp_dir}")
-            return pl.read_ipc(os.path.join(temp_dir, "*.ipc"))
+                (pl.read_csv(line_batch, sep='\t', has_header=False, comment_char='#',
+                             dtype=dtypes,
+                             columns=col_idxs,
+                             new_columns=new_col_names,
+                             n_threads=config.N_THREADS)
+                 .write_ipc(fout))
+                batch_n += 1
 
-    def _read_compressed_chunks(self) -> pl.DataFrame:
+        gc.collect()  # just to be safe
+        logger.debug(f"{batch_n} batches staged in temporary directory {config.TEMPDIR}")
+        return pl.scan_ipc(os.path.join(config.TEMPDIR.name, "input", "*.ipc"))
+
+    def _read_compressed_chunks(self) -> pl.LazyFrame:
         """ Like _read_uncompressed_chunks, but read chunks of bytes and handle incomplete rows
 
         zstd returns chunks of bytes, not lines, but encoding utf-8 will be faster in rust and polars
@@ -123,38 +138,38 @@ class Target:
         columns, new_col_names = _default_cols(self.file_format)
 
         n_chunks = 0
+        with open(self.path, 'rb') as fh:
+            dctx = zstandard.ZstdDecompressor()
+            chunk_buffer = b''
 
-        with TemporaryDirectory() as temp_dir:
-            with open(self.path, 'rb') as fh:
-                dctx = zstandard.ZstdDecompressor()
-                chunk_buffer = b''
+            for chunk in dctx.read_to_iter(fh, read_size=int(1e8), write_size=int(1e8)):
+                if not chunk:
+                    logger.debug("Finished reading zstd compressed chunks")
+                    break
 
-                for chunk in dctx.read_to_iter(fh, read_size=int(1e8), write_size=int(1e8)):
-                    if not chunk:
-                        logger.debug("Finished reading zstd compressed chunks")
-                        break
+                end = chunk.rfind(b'\n') + 1  # only want to read complete rows, which end in \n
+                if chunk_buffer:
+                    row_chunk = b''.join([chunk_buffer, chunk[:end]])
+                    chunk_buffer = b''
+                else:
+                    row_chunk = chunk[:end]
 
-                    end = chunk.rfind(b'\n') + 1  # only want to read complete rows, which end in \n
-                    if chunk_buffer:
-                        row_chunk = b''.join([chunk_buffer, chunk[:end]])
-                        chunk_buffer = b''
-                    else:
-                        row_chunk = chunk[:end]
+                fn: str = str(n_chunks) + ".ipc"
+                fout: str = get_tmp_path("input", fn)
 
-                    out_path = os.path.join(temp_dir, str(n_chunks) + ".ipc")
-                    (pl.read_csv(row_chunk, sep='\t', has_header=False, comment_char='#',
-                                 dtype=dtypes,
-                                 columns=columns,
-                                 new_columns=new_col_names,
-                                 n_threads=config.POLARS_MAX_THREADS)
-                     .write_ipc(out_path))
+                (pl.read_csv(row_chunk, sep='\t', has_header=False, comment_char='#',
+                             dtype=dtypes,
+                             columns=columns,
+                             new_columns=new_col_names,
+                             n_threads=config.N_THREADS)
+                 .write_ipc(fout))
 
-                    chunk_buffer = b''.join([chunk_buffer, chunk[end:]])
-                    n_chunks += 1
+                chunk_buffer = b''.join([chunk_buffer, chunk[end:]])
+                n_chunks += 1
 
-                gc.collect()  # just to be safe
-                logger.debug(f"{n_chunks} chunks")  # write_size will change n_chunks
-                return pl.read_ipc(os.path.join(temp_dir, "*.ipc"))
+            gc.collect()  # just to be safe
+            logger.debug(f"{n_chunks} chunks")  # write_size will change n_chunks
+            return pl.scan_ipc(os.path.join(config.TEMPDIR.name, "input", "*.ipc"))
 
 
 def _get_col_dtypes(file_format):
@@ -219,3 +234,4 @@ def _default_cols(file_format) -> tuple[list[int], list[str]]:
         case _:
             logger.critical("Trying to get column idx for an invalid file format, TWENTY THREE NINETEEN")
             raise Exception
+

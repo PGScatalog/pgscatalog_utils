@@ -1,6 +1,5 @@
 import argparse
 import logging
-import os
 
 import polars as pl
 
@@ -14,29 +13,33 @@ logger = logging.getLogger(__name__)
 def combine_matches():
     args = _parse_args()
     config.set_logging_level(args.verbose)
-
-    config.POLARS_MAX_THREADS = args.n_threads
+    config.setup_polars_threads(args.n_threads)
     config.OUTDIR = args.outdir
-    os.environ['POLARS_MAX_THREADS'] = str(config.POLARS_MAX_THREADS) # TODO: this won't work (after import)
-    # now the environment variable, parsed argument args.n_threads, and threadpool should agree
-    logger.debug(f"Setting POLARS_MAX_THREADS environment variable: {os.getenv('POLARS_MAX_THREADS')}")
-    logger.debug(f"Using {config.POLARS_MAX_THREADS} threads to read CSVs")
-    logger.debug(f"polars threadpool size: {pl.threadpool_size()}")
 
     with pl.StringCache():
         scorefile = read_scorefile(path=args.scorefile, chrom=None)  # chrom=None to read all variants
         logger.debug("Reading matches")
-        matches = pl.concat([pl.read_ipc(x, memory_map=False, rechunk=False) for x in args.matches], rechunk=False)
-        logger.debug("Rechunking matches")
-        matches.rechunk()
+        matches = pl.concat([pl.scan_ipc(x, memory_map=False, rechunk=False) for x in args.matches], rechunk=False)
 
         # make sure there's no duplicate variant_ids across matches in multiple pvars
         # processing batched chromosomes with overlapping variants might cause problems
         # e.g. chr1 1-100000, chr1 100001-500000
-        assert matches.filter(pl.col('match_status') == 'matched').groupby(['accession', 'ID']).count()['count'].max() == 1, "Duplicate IDs in final matches"
+        _check_duplicate_vars(matches)
 
         dataset = args.dataset.replace('_', '-')  # _ used as delimiter in pgsc_calc
-        log_and_write(matches=matches.lazy(), scorefile=scorefile, dataset=dataset, args=args)
+        log_and_write(matches=matches, scorefile=scorefile, dataset=dataset, args=args)
+
+
+def _check_duplicate_vars(matches: pl.LazyFrame):
+    max_occurrence: list[int] = (matches.filter(pl.col('match_status') == 'matched')
+                                 .groupby(['accession', 'ID'])
+                                 .agg(pl.count())
+                                 .select('count')
+                                 .max()
+                                 .collect()
+                                 .get_column('count')
+                                 .to_list())
+    assert max_occurrence == [1], "Duplicate IDs in final matches"
 
 
 def _parse_args(args=None):

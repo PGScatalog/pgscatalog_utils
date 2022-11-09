@@ -213,6 +213,13 @@ def _parse_args(args=None):
                         help='<Optional> Split scorefile per chromosome?')
     parser.add_argument('--outdir', dest='outdir', required=True,
                         help='<Required> Output directory')
+    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
+                        help='<Optional> Extra logging information')
+    parser = add_label_args(parser)
+    return _check_args(parser.parse_args(args))
+
+
+def add_label_args(parser):
     parser.add_argument('--keep_ambiguous', dest='remove_ambiguous', action='store_false',
                         help='''<Optional> Flag to force the program to keep variants with
                         ambiguous alleles, (e.g. A/T and G/C SNPs), which are normally
@@ -229,10 +236,7 @@ def _parse_args(args=None):
     parser.add_argument('--keep_first_match', dest='keep_first_match', action='store_true',
                         help='''<Optional> If multiple match candidates for a variant exist that can't be prioritised,
                          keep the first match candidate (default: drop all candidates)''')
-    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
-                        help='<Optional> Extra logging information')
-    return _check_args(parser.parse_args(args))
-
+    return parser
 
 def _check_args(args):
     if args.chrom is not None and not args.only_match:
@@ -257,16 +261,22 @@ def _check_args(args):
         # not writing scoring files, so split output doesn't make sense
         logger.critical("Invalid arguments: --only_match and --split (pick one!)")
         sys.exit(1)
+    label_error = False
+    if args.only_match and args.keep_first_match:
+        label_error = True
+    if args.only_match and args.ignore_strand_flips:
+        label_error = True
+    if args.only_match and args.keep_multiallelic:
+        label_error = True
+    if args.only_match and args.remove_ambiguous:
+        label_error = True
+    if label_error:
+        logger.critical("Invalid arguments: --only_match and --keep_first_match, --ignore_strand_flips,"
+                        "keep_multiallelic, or keep_ambiguous")
+        logger.critical("Pass these arguments to combine_matches instead")
+        sys.exit(1)
 
     return args
-
-
-def _make_params_dict(args) -> dict[str, bool]:
-    """ Make a dictionary with parameters that control labelling match candidates """
-    return {'keep_first_match': args.keep_first_match,
-            'remove_ambiguous': args.remove_ambiguous,
-            'skip_flip': args.skip_flip,
-            'remove_multiallelic': args.remove_multiallelic}
 
 
 if __name__ == "__main__":

@@ -56,9 +56,10 @@ def _parse_args(args=None):
                         help='<Required> List of match files')
     parser.add_argument('--outdir', dest='outdir', required=True,
                         help='<Required> Output directory')
+    parser.add_argument('-n', dest='n_threads', default=1, help='<Optional> n threads for matching', type=int)
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
-    parser.add_argument('-n', dest='n_threads', default=1, help='<Optional> n threads for matching', type=int)
+    parser = add_label_args(parser)
     return parser.parse_args(args)
 
 

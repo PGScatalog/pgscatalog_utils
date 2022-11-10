@@ -10,19 +10,35 @@ from pgscatalog_utils.match.match import get_all_matches
 from pgscatalog_utils.match.match_variants import match_variants
 
 
+def test_match_pass(mini_scorefile, target_path, tmp_path):
+    out_dir = str(tmp_path.resolve())
+
+    args: list[str] = ['match_variants', '-s', mini_scorefile,
+                       '-t', target_path,
+                       '-d', 'test',
+                       '--min_overlap', '0.5',
+                       '--outdir', out_dir,
+                       '--keep_ambiguous', '--keep_multiallelic']
+
+
+    with patch('sys.argv', args):
+        match_variants()
+
+
 def test_match_fail(mini_scorefile, target_path, tmp_path):
     out_dir = str(tmp_path.resolve())
 
     args: list[str] = ['match_variants', '-s', mini_scorefile,
                        '-t', target_path,
                        '-d', 'test',
-                       '--min_overlap', 1,
+                       '--min_overlap', '1',
                        '--outdir', out_dir,
                        '--keep_ambiguous', '--keep_multiallelic']
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception) as excinfo:
         with patch('sys.argv', args):
             match_variants()
+            assert "No valid matches found" in str(excinfo.value)
 
 
 def _cast_cat(scorefile, target) -> tuple[pl.LazyFrame, pl.LazyFrame]:

@@ -67,7 +67,7 @@ def match_variants():
             logger.debug(f"--only_match set, writing out match candidates {match_dir} and exiting")
             shutil.move(match_dir, args.outdir)
             logger.debug("Intermediate files can be processed with combine_matches")
-            sys.exit(0)
+            raise SystemExit(0)
         else:
             logger.debug("Labelling match candidates")
             params: dict[str, bool] = make_params_dict(args)
@@ -263,17 +263,16 @@ def _check_args(args):
     label_error = False
     if args.only_match and args.keep_first_match:
         label_error = True
-    if args.only_match and args.ignore_strand_flips:
+    if args.only_match and args.skip_flip:
         label_error = True
-    if args.only_match and args.keep_multiallelic:
+    if args.only_match and args.remove_multiallelic:
         label_error = True
     if args.only_match and args.remove_ambiguous:
         label_error = True
     if label_error:
-        logger.critical("Invalid arguments: --only_match and --keep_first_match, --ignore_strand_flips,"
+        logger.warning("Invalid arguments: --only_match and --keep_first_match, --ignore_strand_flips,"
                         "keep_multiallelic, or keep_ambiguous")
-        logger.critical("Pass these arguments to combine_matches instead")
-        sys.exit(1)
+        logger.warning("Pass these arguments to combine_matches instead")
 
     return args
 

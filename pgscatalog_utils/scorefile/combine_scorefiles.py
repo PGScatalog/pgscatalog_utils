@@ -16,7 +16,6 @@ from pgscatalog_utils.scorefile.read import load_scorefile, get_scorefile_basena
 from pgscatalog_utils.scorefile.write import write_scorefile
 
 
-json_logs_filename = 'combined_log.json'
 headers2logs = [
     'pgs_id',
     'pgs_name',
@@ -48,7 +47,12 @@ def combine_scorefiles():
 
     # Score header logs - init
     score_logs = {}
-    json_logs_file = os.path.dirname(args.outfile)+'/'+json_logs_filename
+    dir_output = os.path.dirname(args.outfile)
+    if dir_output == '':
+        dir_output = './'
+    elif dir_output.endswith('/') is False:
+        dir_output += '/'
+    json_logs_file =  dir_output + args.logfile
 
     for x in paths:
         # Read scorefile df and header
@@ -175,6 +179,9 @@ def _parse_args(args=None) -> argparse.Namespace:
                         default='combined.txt',
                         help='<Required> Output path to combined long scorefile '
                              '[ will compress output if filename ends with .gz ]')
+    parser.add_argument('-l', '--logfile', dest='logfile', default='log_combined.json',
+                        help='<Required> Name for the log file (score metadata) for combined scores.'
+                             '[ will write to identical directory as combined scorefile]')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)

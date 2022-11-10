@@ -260,16 +260,8 @@ def _check_args(args):
         # not writing scoring files, so split output doesn't make sense
         logger.critical("Invalid arguments: --only_match and --split (pick one!)")
         sys.exit(1)
-    label_error = False
-    if args.only_match and ('--keep_first_match' in sys.argv):
-        label_error = True
-    if args.only_match and ('--ignore_strand_flips' in sys.argv):
-        label_error = True
-    if args.only_match and ('--keep_multiallelic' in sys.argv):
-        label_error = True
-    if args.only_match and ('--keep_ambiguous' in sys.argv):
-        label_error = True
-    if label_error:
+    if any([x in sys.argv for x in ['--keep_first_match', '--ignore_strand_flips',
+                                    '--keep_multiallelic', '--keep_ambiguous']]):
         logger.warning("Invalid arguments: --only_match and --keep_first_match, --ignore_strand_flips,"
                         "keep_multiallelic, or keep_ambiguous")
         logger.warning("Pass these arguments to combine_matches instead")

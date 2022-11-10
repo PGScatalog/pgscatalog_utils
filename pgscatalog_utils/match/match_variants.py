@@ -206,18 +206,18 @@ def _parse_args(args=None):
                         help="<Optional> Only match, then write intermediate files, don't make scoring files")
     parser.add_argument('--min_overlap', dest='min_overlap', required=False,
                         type=float, help='<Optional> Minimum proportion of variants to match before error')
-    parser.add_argument('-n', dest='n_threads', default=1, help='<Optional> n threads for matching', type=int)
-    parser.add_argument('--split', dest='split', default=False, action='store_true',
-                        help='<Optional> Split scorefile per chromosome?')
+    parser = add_match_args(parser) # params for labelling matches
     parser.add_argument('--outdir', dest='outdir', required=True,
                         help='<Required> Output directory')
+    parser.add_argument('--split', dest='split', default=False, action='store_true',
+                        help='<Optional> Split scorefile per chromosome?')
+    parser.add_argument('-n', dest='n_threads', default=1, help='<Optional> n threads for matching', type=int)
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
-    parser = add_label_args(parser)
     return _check_args(parser.parse_args(args))
 
 
-def add_label_args(parser):
+def add_match_args(parser):
     parser.add_argument('--keep_ambiguous', dest='remove_ambiguous', action='store_false',
                         help='''<Optional> Flag to force the program to keep variants with
                         ambiguous alleles, (e.g. A/T and G/C SNPs), which are normally
@@ -261,13 +261,13 @@ def _check_args(args):
         logger.critical("Invalid arguments: --only_match and --split (pick one!)")
         sys.exit(1)
     label_error = False
-    if args.only_match and args.keep_first_match:
+    if args.only_match and ('--keep_first_match' in sys.argv):
         label_error = True
-    if args.only_match and args.skip_flip:
+    if args.only_match and ('--ignore_strand_flips' in sys.argv):
         label_error = True
-    if args.only_match and args.remove_multiallelic:
+    if args.only_match and ('--keep_multiallelic' in sys.argv):
         label_error = True
-    if args.only_match and args.remove_ambiguous:
+    if args.only_match and ('--keep_ambiguous' in sys.argv):
         label_error = True
     if label_error:
         logger.warning("Invalid arguments: --only_match and --keep_first_match, --ignore_strand_flips,"

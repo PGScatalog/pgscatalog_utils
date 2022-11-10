@@ -57,7 +57,7 @@ def write_scorefiles(matches: pl.LazyFrame, split: bool, dataset: str):
 def _check_column_types(matches: pl.LazyFrame):
     logger.debug("Checking column types")
     # these columns are most important for writing out
-    correct_schema = {'chr_name': pl.Utf8, 'chr_position': pl.UInt64, 'ID': pl.Utf8,
+    correct_schema = {'chr_name': pl.Categorical, 'chr_position': pl.UInt64, 'ID': pl.Utf8,
                       'matched_effect_allele': pl.Categorical, 'effect_weight': pl.Float64,
                       'effect_type': pl.Categorical, 'accession': pl.Categorical}
     col_types = {x: matches.schema.get(x) for x in list((matches.schema.keys() & correct_schema.keys()))}

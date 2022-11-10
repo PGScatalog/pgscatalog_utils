@@ -236,6 +236,7 @@ def add_label_args(parser):
                          keep the first match candidate (default: drop all candidates)''')
     return parser
 
+
 def _check_args(args):
     if args.chrom is not None and not args.only_match:
         # filtering the scoring file will break overlap assumptions and calculations

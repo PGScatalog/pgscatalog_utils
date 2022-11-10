@@ -24,15 +24,16 @@ def write_log(df: pl.LazyFrame, prefix: str, chrom: typing.Union[str, None], out
 
 
 def write_scorefiles(matches: pl.LazyFrame, split: bool, dataset: str):
+    _check_column_types(matches)
+    additive: pl.LazyFrame
+    dominant: pl.LazyFrame
+    recessive: pl.LazyFrame
     if split:
-        chroms: list[str] = matches.select("chr_name").unique().collect(projection_pushdown=False).get_column("chr_name").to_list()
+        chroms: list[str] = matches.select("chr_name").unique().collect().get_column("chr_name").to_list()
         for chrom in chroms:
             # 1. filter by chromosome
             chrom_df: pl.LazyFrame = matches.filter(pl.col('chr_name') == chrom)
             # 2. split by effect type
-            additive: pl.LazyFrame
-            dominant: pl.LazyFrame
-            recessive: pl.LazyFrame
             additive, dominant, recessive = _split_effect_type(chrom_df)
 
             # 3. deduplicate
@@ -43,9 +44,6 @@ def write_scorefiles(matches: pl.LazyFrame, split: bool, dataset: str):
             _write_split(deduped, chrom, dataset)
     else:
         # 1. split by effect type
-        additive: pl.LazyFrame
-        dominant: pl.LazyFrame
-        recessive: pl.LazyFrame
         additive, dominant, recessive = _split_effect_type(matches)
 
         # 2. deduplicate
@@ -54,6 +52,16 @@ def write_scorefiles(matches: pl.LazyFrame, split: bool, dataset: str):
 
         # 3. pivot and write!
         _write_split(deduped, 'ALL', dataset)
+
+
+def _check_column_types(matches: pl.LazyFrame):
+    logger.debug("Checking column types")
+    # these columns are most important for writing out
+    correct_schema = {'chr_name': pl.Utf8, 'chr_position': pl.UInt64, 'ID': pl.Utf8,
+                      'matched_effect_allele': pl.Categorical, 'effect_weight': pl.Float64,
+                      'effect_type': pl.Categorical, 'accession': pl.Categorical}
+    col_types = {x: matches.schema.get(x) for x in list((matches.schema.keys() & correct_schema.keys()))}
+    assert col_types == correct_schema
 
 
 def _write_split(deduplicated: dict[str: tuple[int, pl.LazyFrame]], chrom: str, dataset: str):

@@ -1,5 +1,8 @@
+import gzip
+
 import pytest
 import os
+import polars as pl
 
 from unittest.mock import patch
 
@@ -21,6 +24,13 @@ def test_combine_matches_pass(mini_scorefile, only_matches, tmp_path):
 
     with patch('sys.argv', args):
         combine_matches()
+
+    # and double check the output format of scorefiles
+    with gzip.open(os.path.join(tmp_path, 'test_ALL_additive_0.scorefile.gz')) as f:
+        scores = pl.read_csv(f, sep='\t')
+    # pl.Categorical vs pl.Utf8 doesn't matter for this test
+    assert scores.schema == {'ID': pl.Utf8, 'effect_allele': pl.Utf8, 'PGS001229_22': pl.Float64}
+
 
 
 def test_combine_matches_fail(mini_scorefile, only_matches, tmp_path):

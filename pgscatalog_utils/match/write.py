@@ -96,7 +96,7 @@ def _write_text_pgzip(df: pl.LazyFrame, fout: str, append: bool = False):
         mode = 'wb'
 
     with pgzip.open(fout, mode, thread=config.N_THREADS) as f:
-        df.collect().write_csv(f)
+        df.collect().write_csv(f, sep='\t')
 
 
 def _pivot_score(df: pl.LazyFrame, chrom: str) -> pl.LazyFrame:
@@ -112,6 +112,7 @@ def _pivot_score(df: pl.LazyFrame, chrom: str) -> pl.LazyFrame:
                    columns="accession")
             .rename({"matched_effect_allele": "effect_allele"})
             .fill_null(strategy="zero")
+            .drop("effect_type")
             .lazy())
 
 

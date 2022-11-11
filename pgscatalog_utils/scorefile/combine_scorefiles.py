@@ -18,11 +18,14 @@ from pgscatalog_utils.scorefile.write import write_scorefile
 
 headers2logs = [
     'pgs_id',
+    'pgp_id',
     'pgs_name',
     'genome_build',
     'variants_number',
+    'trait_reported',
     'trait_efo',
     'trait_mapped',
+    'weight_type',
     'citation'
 ]
 headers2logs_harmonisation = [
@@ -114,7 +117,8 @@ def combine_scorefiles():
         for header in headers2logs:
             header_val = h.get(header)
             if header.startswith('trait'):
-                header_val = header_val.split(',')
+                if (header == 'trait_mapped') and (len(h.get('trait_efo').split(',')) > 1):
+                    header_val = header_val.split(',')
             score_header[header] = header_val
         # Other header information
         score_header['columns'] = list(score.columns)
@@ -134,7 +138,7 @@ def combine_scorefiles():
 
     # Write Score header logs file
     with open(json_logs_file, 'w') as fp:
-        json.dump(score_logs, fp)
+        json.dump(score_logs, fp, indent=4)
 
 
 def _description_text() -> str:

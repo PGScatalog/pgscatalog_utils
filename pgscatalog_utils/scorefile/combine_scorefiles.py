@@ -60,6 +60,7 @@ def combine_scorefiles():
     for x in paths:
         # Read scorefile df and header
         h, score = load_scorefile(x)
+        score_shape_original = score.shape
 
         if score.empty:
             logger.critical(f"Empty scorefile {x} detected! Please check the input data")
@@ -116,7 +117,7 @@ def combine_scorefiles():
         # Scoring file header information
         for header in headers2logs:
             header_val = h.get(header)
-            if header in ['trait_efo', 'trait_mapped']:
+            if (header in ['trait_efo', 'trait_mapped']) and (header_val is not None):
                 header_val = header_val.split('|')
             score_header[header] = header_val
         # Other header information
@@ -134,6 +135,8 @@ def combine_scorefiles():
                     if hm_header.startswith('HmPOS_match'):
                         hm_header_val = json.loads(hm_header_val)
                     score_header[hm_header] = hm_header_val
+        if score_header['variants_number'] is None:
+            score_header['variants_number'] = score_shape_original[0]
 
     # Write Score header logs file
     with open(json_logs_file, 'w') as fp:

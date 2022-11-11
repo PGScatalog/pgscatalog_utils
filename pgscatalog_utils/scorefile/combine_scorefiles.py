@@ -117,8 +117,8 @@ def combine_scorefiles():
         for header in headers2logs:
             header_val = h.get(header)
             if header.startswith('trait'):
-                if (header == 'trait_mapped') and (len(h.get('trait_efo').split(',')) > 1):
-                    header_val = header_val.split(',')
+                if (header == 'trait_mapped') and (len(h.get('trait_efo').split('|')) > 1):
+                    header_val = header_val.split('|')
             score_header[header] = header_val
         # Other header information
         score_header['columns'] = list(score.columns)

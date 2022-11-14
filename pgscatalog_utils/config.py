@@ -14,6 +14,12 @@ TEMPDIR: tempfile.TemporaryDirectory = tempfile.TemporaryDirectory()
 logger = logging.getLogger(__name__)
 
 
+def check_outdir(outdir):
+    if os.path.exists(outdir):
+        logger.critical("--outdir already exists, bailing out")
+        raise SystemExit(1)
+
+
 def setup_cleaning():
     logger.debug(F"Temporary directory set up: {TEMPDIR.name}")
     atexit.register(tempdir.cleanup)

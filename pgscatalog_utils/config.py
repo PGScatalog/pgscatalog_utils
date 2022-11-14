@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 def check_outdir(outdir):
-    if os.path.exists(outdir):
-        logger.critical("--outdir already exists, bailing out")
+    if os.path.exists(os.path.join(outdir, "matches")):
+        logger.critical("--outdir/matches already exists, bailing out")
+        logger.critical("Please choose a different --outdir")
         raise SystemExit(1)
 
 

@@ -9,16 +9,22 @@ from pgscatalog_utils.match import tempdir
 
 N_THREADS: int = 1  # dummy value, is reset by args.n_threads (default: 1)
 OUTDIR: str = "."  # dummy value, reset by args.outdir
-TEMPDIR: tempfile.TemporaryDirectory = tempfile.TemporaryDirectory()
+TEMPDIR: tempfile.TemporaryDirectory
 
 logger = logging.getLogger(__name__)
 
 
 def check_outdir(outdir):
-    if os.path.exists(os.path.join(outdir, "matches")):
-        logger.critical("--outdir/matches already exists, bailing out")
-        logger.critical("Please choose a different --outdir")
-        raise SystemExit(1)
+    for i in ['matches', 'work']:
+        d: str = os.path.join(outdir, i)
+        if os.path.exists(d):
+            logger.critical(f"{d} already exists, bailing out")
+            logger.critical("Please choose a different --outdir")
+            raise SystemExit(1)
+
+    global TEMPDIR
+    os.mkdir(os.path.join(outdir, "work"))
+    TEMPDIR = tempfile.TemporaryDirectory(dir=os.path.join(outdir, "work"))
 
 
 def setup_cleaning():

@@ -106,9 +106,9 @@ def _materialise_matches(matches: list[list[pl.LazyFrame]], dataset: str, low_me
     for i, match in enumerate(matches):
         fout = tempdir.get_tmp_path("matches", f"{dataset}_match_{i}.ipc.zst")
         if low_memory:
-            pl.concat([x.collect() for x in match]).write_ipc(fout)
+            pl.concat([x.collect() for x in match]).write_ipc(fout, compression='zstd')
         else:
-            pl.concat(pl.collect_all(match)).write_ipc(fout)
+            pl.concat(pl.collect_all(match)).write_ipc(fout, compression='zstd')
     match_dir: str = tempdir.get_tmp_path("matches", "")
     ldf: pl.LazyFrame = pl.scan_ipc(match_dir + "*.ipc.zst", memory_map=False)
     return match_dir, ldf

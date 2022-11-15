@@ -66,7 +66,7 @@ class Target:
                 dtypes = _get_col_dtypes(self.file_format)
                 col_idxs, new_col_names = _default_cols(self.file_format)
 
-                fn: str = pathlib.Path(self.path).stem + ".ipc"
+                fn: str = pathlib.Path(self.path).stem + ".ipc.zst"
                 fout = get_tmp_path("input", fn)
 
                 (pl.read_csv(reader, sep='\t', has_header=False, comment_char='#',
@@ -74,15 +74,15 @@ class Target:
                              columns=col_idxs,
                              new_columns=new_col_names,
                              n_threads=config.N_THREADS)
-                 .write_ipc(fout))
-                return pl.scan_ipc(fout)
+                 .write_ipc(fout, compression='zstd'))
+                return pl.scan_ipc(fout, memory_map=False)
 
     def _read_uncompressed(self) -> pl.LazyFrame:
         """ Read an uncompressed target as quickly as possible. Uses up to 16GB RAM on 1000 genomes pvar. """
         dtypes = _get_col_dtypes(self.file_format)
         col_idxs, new_col_names = _default_cols(self.file_format)
 
-        fn: str = pathlib.Path(self.path).stem + ".ipc"
+        fn: str = pathlib.Path(self.path).stem + ".ipc.zst"
         fout: str = get_tmp_path("input", fn)
 
         (pl.read_csv(self.path, sep='\t', has_header=False, comment_char='#',
@@ -90,8 +90,8 @@ class Target:
                      columns=col_idxs,
                      new_columns=new_col_names,
                      n_threads=config.N_THREADS)
-         .write_ipc(fout))
-        return pl.scan_ipc(fout)
+         .write_ipc(fout, compression='zstd'))
+        return pl.scan_ipc(fout, memory_map=False)
 
     def _read_uncompressed_chunks(self) -> pl.LazyFrame:
         """ Read a CSV using a BufferedReader in batches to reduce memory usage.
@@ -113,7 +113,7 @@ class Target:
                 if not line_batch:
                     break
 
-                fn: str = str(batch_n) + ".ipc"
+                fn: str = str(batch_n) + ".ipc.zst"
                 fout: str = get_tmp_path("input", fn)
 
                 (pl.read_csv(line_batch, sep='\t', has_header=False, comment_char='#',
@@ -121,12 +121,12 @@ class Target:
                              columns=col_idxs,
                              new_columns=new_col_names,
                              n_threads=config.N_THREADS)
-                 .write_ipc(fout))
+                 .write_ipc(fout, compression='zstd'))
                 batch_n += 1
 
         gc.collect()  # just to be safe
         logger.debug(f"{batch_n} batches staged in temporary directory {config.TEMPDIR}")
-        return pl.scan_ipc(os.path.join(config.TEMPDIR.name, "input", "*.ipc"))
+        return pl.scan_ipc(os.path.join(config.TEMPDIR.name, "input", "*.ipc.zst"), memory_map=False)
 
     def _read_compressed_chunks(self) -> pl.LazyFrame:
         """ Like _read_uncompressed_chunks, but read chunks of bytes and handle incomplete rows
@@ -154,7 +154,7 @@ class Target:
                 else:
                     row_chunk = chunk[:end]
 
-                fn: str = str(n_chunks) + ".ipc"
+                fn: str = str(n_chunks) + ".ipc.zst"
                 fout: str = get_tmp_path("input", fn)
 
                 (pl.read_csv(row_chunk, sep='\t', has_header=False, comment_char='#',
@@ -162,14 +162,14 @@ class Target:
                              columns=columns,
                              new_columns=new_col_names,
                              n_threads=config.N_THREADS)
-                 .write_ipc(fout))
+                 .write_ipc(fout, compression='zstd'))
 
                 chunk_buffer = b''.join([chunk_buffer, chunk[end:]])
                 n_chunks += 1
 
             gc.collect()  # just to be safe
             logger.debug(f"{n_chunks} chunks")  # write_size will change n_chunks
-            return pl.scan_ipc(os.path.join(config.TEMPDIR.name, "input", "*.ipc"))
+            return pl.scan_ipc(os.path.join(config.TEMPDIR.name, "input", "*.ipc.zst"))
 
 
 def _get_col_dtypes(file_format):

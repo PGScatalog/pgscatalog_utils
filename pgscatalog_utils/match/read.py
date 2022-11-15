@@ -33,9 +33,9 @@ def read_scorefile(path: str, chrom: typing.Union[str, None]) -> pl.LazyFrame:
 
     # parse CSV and write to temporary feather file
     # enforce laziness! scanning is very fast and saves memory
-    fout: str = get_tmp_path("scorefile", "scorefile.ipc")
-    (pl.read_csv(path, sep='\t', dtype=dtypes).write_ipc(fout))
-    ldf: pl.LazyFrame = pl.scan_ipc(fout)
+    fout: str = get_tmp_path("scorefile", "scorefile.ipc.zst")
+    (pl.read_csv(path, sep='\t', dtype=dtypes).write_ipc(fout, compression='zstd'))
+    ldf: pl.LazyFrame = pl.scan_ipc(fout, memory_map=False)
 
     if chrom is not None:
         logger.debug(f"--chrom set, filtering scoring file to chromosome {chrom}")

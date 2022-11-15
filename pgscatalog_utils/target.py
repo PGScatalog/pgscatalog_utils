@@ -169,7 +169,7 @@ class Target:
 
             gc.collect()  # just to be safe
             logger.debug(f"{n_chunks} chunks")  # write_size will change n_chunks
-            return pl.scan_ipc(os.path.join(config.TEMPDIR.name, "input", "*.ipc.zst"))
+            return pl.scan_ipc(os.path.join(config.TEMPDIR.name, "input", "*.ipc.zst"), memory_map=False)
 
 
 def _get_col_dtypes(file_format):

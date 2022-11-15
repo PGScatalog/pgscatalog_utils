@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 def check_outdir(outdir):
     for i in ['matches', 'work']:
-        d: str = os.path.join(outdir, i)
+        d: str = os.path.abspath(os.path.join(outdir, i))
         if os.path.exists(d):
             logger.critical(f"{d} already exists, bailing out")
-            logger.critical("Please choose a different --outdir")
+            logger.critical("Please choose a different --outdir or clean up")
             raise SystemExit(1)
 
     global TEMPDIR

@@ -73,7 +73,9 @@ def _write_split(deduplicated: dict[str: tuple[int, pl.LazyFrame]], chrom: str, 
 
             # pivoting is !! _expensive_ !! (it collects the lazyframe)
             pivoted: pl.LazyFrame = _pivot_score(et_df, chrom)
-            fout = os.path.join(config.OUTDIR, f"{dataset}_{chrom}_{effect_type}_{i}.scorefile.gz")
+
+            dout = os.path.abspath(config.OUTDIR)
+            fout = os.path.join(dout, f"{dataset}_{chrom}_{effect_type}_{i}.scorefile.gz")
             _write_text_pgzip(pivoted, fout)
 
 

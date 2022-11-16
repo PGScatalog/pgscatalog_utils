@@ -24,6 +24,8 @@ def test_combine_matches_pass(mini_scorefile, only_matches, tmp_path):
 
     with patch('sys.argv', args):
         combine_matches()
+        assert os.path.exists(os.path.join(out_dir, "test_ALL_additive_0.scorefile.gz"))
+        assert os.path.exists(os.path.join(out_dir, "test_log.csv.gz"))
 
     # and double check the output format of scorefiles
     with gzip.open(os.path.join(tmp_path, 'test_ALL_additive_0.scorefile.gz')) as f:

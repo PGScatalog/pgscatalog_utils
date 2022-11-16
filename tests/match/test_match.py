@@ -1,5 +1,5 @@
 """ Test that match strategies return the expected match results"""
-
+import os
 from unittest.mock import patch
 
 import polars as pl
@@ -10,19 +10,42 @@ from pgscatalog_utils.match.match import get_all_matches
 from pgscatalog_utils.match.match_variants import match_variants
 
 
+def test_only_match_pass(mini_scorefile, target_path, tmp_path):
+    out_dir = str(tmp_path.resolve())
+
+    args: list[str] = ['match_variants', '-s', mini_scorefile,
+                       '-t', target_path,
+                       '-d', 'test',
+                       # '--min_overlap', '0.5',
+                       '--only_match',
+                       '--outdir', out_dir]
+                       # '--keep_ambiguous', '--keep_multiallelic']
+
+
+    with patch('sys.argv', args):
+        with pytest.raises(SystemExit) as se:
+            match_variants()
+        assert se.value.code == 0
+
+    assert os.path.exists(os.path.join(out_dir, "matches/test_match_0.ipc.zst"))
+
+
 def test_match_pass(mini_scorefile, target_path, tmp_path):
     out_dir = str(tmp_path.resolve())
 
     args: list[str] = ['match_variants', '-s', mini_scorefile,
                        '-t', target_path,
                        '-d', 'test',
-                       '--min_overlap', '0.5',
+                       '--min_overlap', '0.95',
                        '--outdir', out_dir,
                        '--keep_ambiguous', '--keep_multiallelic']
 
-
     with patch('sys.argv', args):
         match_variants()
+
+    assert os.path.exists(os.path.join(out_dir, "test_summary.csv"))
+    assert os.path.exists(os.path.join(out_dir, "test_log.csv.gz"))
+    assert os.path.exists(os.path.join(out_dir, "test_ALL_additive_0.scorefile.gz"))
 
 
 def test_match_fail(mini_scorefile, target_path, tmp_path):

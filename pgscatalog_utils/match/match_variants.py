@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 import shutil
 import sys
 import textwrap
@@ -22,8 +23,9 @@ def match_variants():
     args = _parse_args()
     config.set_logging_level(args.verbose)
     config.setup_polars_threads(args.n_threads)
-    config.setup_outdir(args.outdir)
+    config.setup_tmpdir(args.outdir)
     config.setup_cleaning()
+    config.OUTDIR = args.outdir
 
     with pl.StringCache():
         scorefile: pl.LazyFrame = read_scorefile(path=args.scorefile, chrom=args.chrom)
@@ -96,7 +98,8 @@ def log_and_write(matches: pl.LazyFrame, scorefile: pl.LazyFrame, dataset: str, 
 
     check_log_count(summary_log=summary_log, scorefile=scorefile)
     write_log(df=big_log, prefix=dataset, chrom=None, outdir=args.outdir)
-    summary_log.collect().write_csv(f"{dataset}_summary.csv")
+    dout = os.path.abspath(config.OUTDIR)
+    summary_log.collect().write_csv(os.path.join(dout, f"{dataset}_summary.csv"))
 
 
 def _materialise_matches(matches: list[list[pl.LazyFrame]], dataset: str, low_memory: bool) -> tuple[str, pl.LazyFrame]:

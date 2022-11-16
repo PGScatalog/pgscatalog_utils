@@ -32,7 +32,6 @@ def test_combine_matches_pass(mini_scorefile, only_matches, tmp_path):
     assert scores.schema == {'ID': pl.Utf8, 'effect_allele': pl.Utf8, 'PGS001229_22': pl.Float64}
 
 
-
 def test_combine_matches_fail(mini_scorefile, only_matches, tmp_path):
     out_dir = str(tmp_path.resolve())
 

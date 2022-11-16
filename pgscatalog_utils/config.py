@@ -14,7 +14,7 @@ TEMPDIR: tempfile.TemporaryDirectory
 logger = logging.getLogger(__name__)
 
 
-def check_outdir(outdir):
+def setup_outdir(outdir):
     for i in ['matches', 'work']:
         d: str = os.path.abspath(os.path.join(outdir, i))
         if os.path.exists(d):

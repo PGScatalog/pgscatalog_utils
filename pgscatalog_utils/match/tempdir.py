@@ -46,6 +46,3 @@ def cleanup():
     """
     logger.debug(f"Cleaning up tempdir path {config.TEMPDIR}")
     config.TEMPDIR.cleanup()
-    workdir = os.path.dirname(config.TEMPDIR.name)
-    logger.debug(f"Cleaning up work {workdir}")
-    os.remove(workdir)

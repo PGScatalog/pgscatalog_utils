@@ -14,17 +14,23 @@ TEMPDIR: tempfile.TemporaryDirectory
 logger = logging.getLogger(__name__)
 
 
-def setup_outdir(outdir):
-    for i in ['matches', 'work']:
-        d: str = os.path.abspath(os.path.join(outdir, i))
+def setup_tmpdir(outdir, combine=False):
+    if combine:
+        work_dir = "work_combine"
+        dirs = [work_dir]
+    else:
+        work_dir = "work_match"
+        dirs = [work_dir, "matches"]
+
+    for d in dirs:
         if os.path.exists(d):
             logger.critical(f"{d} already exists, bailing out")
             logger.critical("Please choose a different --outdir or clean up")
             raise SystemExit(1)
 
     global TEMPDIR
-    os.mkdir(os.path.join(outdir, "work"))
-    TEMPDIR = tempfile.TemporaryDirectory(dir=os.path.join(outdir, "work"))
+    os.mkdir(os.path.join(outdir, work_dir))
+    TEMPDIR = tempfile.TemporaryDirectory(dir=os.path.join(outdir, work_dir))
 
 
 def setup_cleaning():

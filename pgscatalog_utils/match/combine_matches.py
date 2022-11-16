@@ -15,7 +15,7 @@ def combine_matches():
     args = _parse_args()
     config.set_logging_level(args.verbose)
     config.setup_polars_threads(args.n_threads)
-    config.setup_outdir(args.outdir)
+    config.setup_tmpdir(args.outdir, combine=True)
     config.OUTDIR = args.outdir
 
     with pl.StringCache():

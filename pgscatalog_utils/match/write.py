@@ -28,6 +28,10 @@ def write_scorefiles(matches: pl.LazyFrame, split: bool, dataset: str):
     additive: pl.LazyFrame
     dominant: pl.LazyFrame
     recessive: pl.LazyFrame
+
+    # collect to cache!
+    matches: pl.LazyFrame = matches.collect().lazy()
+
     if split:
         chroms: list[str] = matches.select("chr_name").unique().collect().get_column("chr_name").to_list()
         for chrom in chroms:

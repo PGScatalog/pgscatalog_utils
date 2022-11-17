@@ -21,7 +21,6 @@ def test_only_match_pass(mini_scorefile, target_path, tmp_path):
                        '--outdir', out_dir]
                        # '--keep_ambiguous', '--keep_multiallelic']
 
-
     with patch('sys.argv', args):
         with pytest.raises(SystemExit) as se:
             match_variants()

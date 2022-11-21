@@ -29,8 +29,11 @@ def write_scorefiles(matches: pl.LazyFrame, split: bool, dataset: str):
     dominant: pl.LazyFrame
     recessive: pl.LazyFrame
 
-    # collect to cache!
-    matches: pl.LazyFrame = matches.collect().lazy()
+    # collect and cache minimum required columns
+    min_cols: list[str] = ['accession', 'effect_type', 'chr_name', 'ID', 'matched_effect_allele', 'effect_weight']
+    matches: pl.LazyFrame = (matches.select(min_cols)
+                             .collect()
+                             .lazy())
 
     if split:
         chroms: list[str] = matches.select("chr_name").unique().collect().get_column("chr_name").to_list()

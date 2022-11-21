@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import textwrap
+import json
 
 from pgscatalog_utils.config import set_logging_level
 from pgscatalog_utils.scorefile.effect_type import set_effect_type
@@ -11,9 +12,28 @@ from pgscatalog_utils.scorefile.genome_build import build2GRC
 from pgscatalog_utils.scorefile.harmonised import remap_harmonised
 from pgscatalog_utils.scorefile.liftover import liftover
 from pgscatalog_utils.scorefile.qc import quality_control
-from pgscatalog_utils.scorefile.read import load_scorefile
+from pgscatalog_utils.scorefile.read import load_scorefile, get_scorefile_basename
 from pgscatalog_utils.scorefile.write import write_scorefile
 
+
+headers2logs = [
+    'pgs_id',
+    'pgp_id',
+    'pgs_name',
+    'genome_build',
+    'variants_number',
+    'trait_reported',
+    'trait_efo',
+    'trait_mapped',
+    'weight_type',
+    'citation'
+]
+headers2logs_harmonisation = [
+    'HmPOS_build',
+    'HmPOS_date',
+    'HmPOS_match_chr',
+    'HmPOS_match_pos'
+]
 
 def combine_scorefiles():
     args = _parse_args()
@@ -28,9 +48,19 @@ def combine_scorefiles():
         logger.critical(f"Output file {args.outfile} already exists")
         raise Exception
 
+    # Score header logs - init
+    score_logs = {}
+    dir_output = os.path.dirname(args.outfile)
+    if dir_output == '':
+        dir_output = './'
+    elif dir_output.endswith('/') is False:
+        dir_output += '/'
+    json_logs_file =  dir_output + args.logfile
+
     for x in paths:
         # Read scorefile df and header
         h, score = load_scorefile(x)
+        score_shape_original = score.shape
 
         if score.empty:
             logger.critical(f"Empty scorefile {x} detected! Please check the input data")
@@ -81,6 +111,37 @@ def combine_scorefiles():
 
         write_scorefile(score, args.outfile)
 
+        # Build Score header logs
+        score_id = get_scorefile_basename(x)
+        score_header = score_logs[score_id] = {}
+        # Scoring file header information
+        for header in headers2logs:
+            header_val = h.get(header)
+            if (header in ['trait_efo', 'trait_mapped']) and (header_val is not None):
+                header_val = header_val.split('|')
+            score_header[header] = header_val
+        # Other header information
+        score_header['columns'] = list(score.columns)
+        score_header['use_liftover'] = False
+        if args.liftover:
+             score_header['use_liftover'] = True
+        # Harmonized header information
+        score_header['use_harmonised'] = use_harmonised
+        if use_harmonised:
+            score_header['sources'] = sorted(score['hm_source'].unique().tolist())
+            for hm_header in headers2logs_harmonisation:
+                hm_header_val = h.get(hm_header)
+                if hm_header_val:
+                    if hm_header.startswith('HmPOS_match'):
+                        hm_header_val = json.loads(hm_header_val)
+                    score_header[hm_header] = hm_header_val
+        if score_header['variants_number'] is None:
+            score_header['variants_number'] = score_shape_original[0]
+
+    # Write Score header logs file
+    with open(json_logs_file, 'w') as fp:
+        json.dump(score_logs, fp, indent=4)
+
 
 def _description_text() -> str:
     return textwrap.dedent('''\
@@ -124,6 +185,9 @@ def _parse_args(args=None) -> argparse.Namespace:
                         default='combined.txt',
                         help='<Required> Output path to combined long scorefile '
                              '[ will compress output if filename ends with .gz ]')
+    parser.add_argument('-l', '--logfile', dest='logfile', default='log_combined.json',
+                        help='<Required> Name for the log file (score metadata) for combined scores.'
+                             '[ will write to identical directory as combined scorefile]')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)

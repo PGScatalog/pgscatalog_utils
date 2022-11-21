@@ -38,8 +38,12 @@ def download_scorefile() -> None:
         pgsc_calc_info = args.pgsc_calc
 
     if args.efo:
-        logger.debug("--trait set, querying traits")
-        pgs_lst = pgs_lst + [query_trait(x, pgsc_calc_info) for x in args.efo]
+        if args.efo_include_children:
+            logger.debug("--trait set, querying traits (including PGS for child terms)")
+        else:
+            logger.debug("--trait set, querying traits")
+        pgs_lst = pgs_lst + [query_trait(x, pgsc_calc_info, args.efo_include_children) for x in args.efo]
+
 
     if args.pgp:
         logger.debug("--pgp set, querying publications")
@@ -133,6 +137,9 @@ def _parse_args(args=None) -> argparse.Namespace:
     parser.add_argument('-i', '--pgs', nargs='+', dest='pgs', help='PGS Catalog ID(s) (e.g. PGS000001)')
     parser.add_argument('-t', '--efo', dest='efo', nargs='+',
                         help='Traits described by an EFO term(s) (e.g. EFO_0004611)')
+    parser.add_argument('-e', '--efo_direct', dest='efo_include_children', action='store_false',
+                        help='<Optional> Return only PGS tagged with exact EFO term '
+                             '(e.g. no PGS for child/descendant terms in the ontology)')
     parser.add_argument('-p', '--pgp', dest='pgp', help='PGP publication ID(s) (e.g. PGP000007)', nargs='+')
     parser.add_argument('-b', '--build', dest='build', choices=['GRCh37', 'GRCh38'],
                         help='Download Harmonized Scores with Positions in Genome build: GRCh37 or GRCh38')

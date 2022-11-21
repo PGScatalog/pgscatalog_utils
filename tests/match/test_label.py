@@ -31,7 +31,7 @@ def test_label(small_scorefile, small_target):
 
     # get_all_matches calls label_matches
     params = {'skip_flip': True, 'remove_ambiguous': True, 'remove_multiallelic': False, 'keep_first_match': False}
-    labelled: pl.DataFrame = (get_all_matches(scorefile=scorefile, target=target)
+    labelled: pl.DataFrame = (pl.concat(get_all_matches(scorefile=scorefile, target=target))
                               .pipe(label_matches, params=params)
                               .collect())
 
@@ -47,7 +47,7 @@ def test_ambiguous_label(small_flipped_scorefile, small_target):
     """ Test ambiguous variant labels change when they're kept for match candidates with one match per position """
     scorefile, target = _cast_cat(small_flipped_scorefile, small_target)
     no_flip = {'skip_flip': True, 'remove_ambiguous': True, 'remove_multiallelic': False, 'keep_first_match': False}
-    no_ambiguous: pl.DataFrame = (get_all_matches(scorefile=scorefile, target=target)
+    no_ambiguous: pl.DataFrame = (pl.concat(get_all_matches(scorefile=scorefile, target=target))
                                   .pipe(label_matches, params=no_flip)
                                   .collect())
 
@@ -63,7 +63,7 @@ def test_ambiguous_label(small_flipped_scorefile, small_target):
     # otherwise, ambiguous variants are kept
     flip_params = {'skip_flip': True, 'remove_ambiguous': False, 'remove_multiallelic': False,
                    'keep_first_match': False}
-    labelled = (get_all_matches(scorefile=scorefile, target=target)
+    labelled = (pl.concat(get_all_matches(scorefile=scorefile, target=target))
                 .pipe(label_matches, params=flip_params)
                 .collect())
 
@@ -125,7 +125,7 @@ def duplicated_matches(small_scorefile, small_target, request) -> pl.DataFrame:
 
     params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False,
               'keep_first_match': request.param}
-    return (get_all_matches(scorefile=scorefile, target=target)
+    return (pl.concat(get_all_matches(scorefile=scorefile, target=target))
             .pipe(label_matches, params=params)
             .collect())
 
@@ -136,7 +136,7 @@ def multiple_match_types(small_target, small_scorefile) -> pl.DataFrame:
     scorefile, target = _cast_cat(small_scorefile, small_target)
 
     params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False, 'keep_first_match': False}
-    return (get_all_matches(scorefile=scorefile, target=target)
+    return (pl.concat(get_all_matches(scorefile=scorefile, target=target))
             .pipe(label_matches, params=params)
             .filter(pl.col('chr_name') == '2')
             .collect())
@@ -147,9 +147,10 @@ def duplicate_best_match(small_target, small_scorefile_no_oa) -> pl.DataFrame:
     # this type of target genome can sometimes occur when the REF is different at the same position
     odd_target = {'#CHROM': [1, 1], 'POS': [1, 1], 'REF': ['T', 'C'], 'ALT': ['A', 'A'], 'ID': ['1:1:T:C', '1:1:A:A'],
                   'is_multiallelic': [False, False]}
+
     scorefile, target = _cast_cat(small_scorefile_no_oa, pl.DataFrame(odd_target))
 
     params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False, 'keep_first_match': False}
-    return (get_all_matches(scorefile=scorefile, target=target)
+    return (pl.concat(get_all_matches(scorefile=scorefile, target=target))
             .pipe(label_matches, params=params)
             .collect())

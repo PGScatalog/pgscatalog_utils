@@ -26,13 +26,13 @@ def filter_scores(scorefile: pl.LazyFrame, matches: pl.LazyFrame, min_overlap: f
             scores.append(df.with_column(pl.col('accession').cast(pl.Categorical)))
 
     score_summary: pl.LazyFrame = pl.concat(scores).lazy()
-    filtered_scores: pl.DataFrame = (filtered_matches.join(score_summary, on='accession', how='left')
+    filtered_scores: pl.LazyFrame = (filtered_matches.join(score_summary, on='accession', how='left')
                                      .filter(pl.col('score_pass') == True))
 
     return filtered_scores, score_summary
 
 
-def _calculate_match_rate(df: pl.DataFrame) -> pl.DataFrame:
+def _calculate_match_rate(df: pl.LazyFrame) -> pl.LazyFrame:
     logger.debug("Calculating overlap between target genome and scoring file")
     return (df.groupby('accession')
             .agg([pl.count(), (pl.col('match_type') == None).sum().alias('no_match')])
@@ -40,7 +40,7 @@ def _calculate_match_rate(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _filter_matches(df: pl.LazyFrame) -> pl.LazyFrame:
-    logger.debug("Filtering variants with exclude flag")
+    logger.debug("Filtering to best_match variants (with exclude flag = False)")
     return df.filter((pl.col('best_match') == True) & (pl.col('exclude') == False))
 
 

@@ -20,7 +20,7 @@ def write_log(df: pl.LazyFrame, prefix: str, chrom: typing.Union[str, None], out
         logger.warning(f"Overwriting log that already exists: {fout}")
         os.remove(fout)
 
-    _write_text_pgzip(df=df, fout=fout)
+    _write_text_pgzip(df=df, sep = ',', fout=fout)
 
 
 def write_scorefiles(matches: pl.LazyFrame, split: bool, dataset: str):
@@ -83,7 +83,7 @@ def _write_split(deduplicated: dict[str: tuple[int, pl.LazyFrame]], chrom: str, 
             _write_text_pgzip(pivoted, fout)
 
 
-def _write_text_pgzip(df: pl.LazyFrame, fout: str, append: bool = False):
+def _write_text_pgzip(df: pl.LazyFrame, fout: str, sep: str = '\t', append: bool = False):
     """ Write a df to a text file (e.g. CSV / TSV) using parallel gzip, optionally appending to an existing file
 
     Notes:
@@ -102,7 +102,7 @@ def _write_text_pgzip(df: pl.LazyFrame, fout: str, append: bool = False):
         mode = 'wb'
 
     with pgzip.open(fout, mode, thread=config.N_THREADS) as f:
-        df.collect().write_csv(f, sep='\t')
+        df.collect().write_csv(f, sep=sep)
 
 
 def _pivot_score(df: pl.LazyFrame, chrom: str) -> pl.LazyFrame:

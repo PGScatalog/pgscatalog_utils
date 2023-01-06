@@ -9,10 +9,17 @@ logger = logging.getLogger(__name__)
 
 def make_params_dict(args) -> dict[str, bool]:
     """ Make a dictionary with parameters that control labelling match candidates """
+    filter_IDs = []
+    if args.filter:
+        logger.debug("Reading filter file (variant IDs)")
+        with open(args.filter, 'r') as f:
+            filter_IDs = [line.strip() for line in f]
+
     return {'keep_first_match': args.keep_first_match,
             'remove_ambiguous': args.remove_ambiguous,
             'skip_flip': args.skip_flip,
-            'remove_multiallelic': args.remove_multiallelic}
+            'remove_multiallelic': args.remove_multiallelic,
+            'filter_IDs': filter_IDs}
 
 
 def label_matches(df: pl.LazyFrame, params: dict[str, bool]) -> pl.LazyFrame:
@@ -23,7 +30,7 @@ def label_matches(df: pl.LazyFrame, params: dict[str, bool]) -> pl.LazyFrame:
     - duplicate: True if more than one best match exists for the same accession and ID
     - ambiguous: True if ambiguous
     """
-    assert set(params.keys()) == {'keep_first_match', 'remove_ambiguous', 'remove_multiallelic', 'skip_flip'}
+    assert set(params.keys()) == {'keep_first_match', 'remove_ambiguous', 'remove_multiallelic', 'skip_flip', 'filter_IDs'}
     labelled = (df.with_column(pl.lit(False).alias('exclude'))  # set up dummy exclude column for _label_*
                 .pipe(_label_best_match)
                 .pipe(_label_duplicate_best_match)
@@ -31,6 +38,7 @@ def label_matches(df: pl.LazyFrame, params: dict[str, bool]) -> pl.LazyFrame:
                 .pipe(_label_biallelic_ambiguous, params['remove_ambiguous'])
                 .pipe(_label_multiallelic, params['remove_multiallelic'])
                 .pipe(_label_flips, params['skip_flip'])
+                .pipe(_label_filter, params['filter_IDs'])
                 .with_column(pl.lit(True).alias('match_candidate')))
 
     return _encode_match_priority(labelled)
@@ -215,3 +223,19 @@ def _label_flips(df: pl.LazyFrame, skip_flip: bool) -> pl.LazyFrame:
     else:
         logger.debug("Not excluding flipped matches")
         return df
+
+
+def _label_filter(df: pl.LazyFrame, filter_IDs: list) -> pl.LazyFrame:
+    nIDs = len(filter_IDs)
+    if nIDs > 0:
+        logger.debug("Excluding variants that are not in ID list (read {} IDs)".format(nIDs))
+        df = df.with_column(pl.when(pl.col('ID').is_in(filter_IDs))
+                            .then(pl.lit(True))
+                            .otherwise(pl.lit(False))
+                            .alias('match_IDs'))
+        return df.with_column(pl.when(pl.col('match_IDs') == False)
+                              .then(True)
+                              .otherwise(pl.col('exclude'))
+                              .alias('exclude'))
+    else:
+        return df.with_column((pl.lit('NA')).alias('match_IDs'))

@@ -58,6 +58,9 @@ def _parse_args(args=None):
                         help='<Required> List of match files')
     parser.add_argument('--min_overlap', dest='min_overlap', required=True,
                         type=float, help='<Required> Minimum proportion of variants to match before error')
+    parser.add_argument('-IDs', '--filter_IDs', dest='filter',
+                        help='<Optional> Path to file containing list of variant IDs that can be included in the final scorefile.'
+                             '[useful for limiting scoring files to variants present in multiple datasets]')
     parser = add_match_args(parser) # params for labelling matches
     parser.add_argument('--outdir', dest='outdir', required=True,
                         help='<Required> Output directory')

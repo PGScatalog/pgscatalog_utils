@@ -4,6 +4,7 @@ import os
 import shutil
 import textwrap
 import time
+import hashlib
 from contextlib import closing
 from functools import reduce
 from urllib import request as request
@@ -16,6 +17,8 @@ from pgscatalog_utils.config import set_logging_level
 
 logger = logging.getLogger(__name__)
 
+md5_sep = '  '
+md5_ext = '.md5'
 
 def download_scorefile() -> None:
     args = _parse_args()
@@ -63,7 +66,16 @@ def download_scorefile() -> None:
             path: str = os.path.join(args.outdir, pgsid + '.txt.gz')
         else:
             path: str = os.path.join(args.outdir, pgsid + f'_hmPOS_{args.build}.txt.gz')
+        # Download Scoring file
         _download_ftp(url, path)
+        # Check the download
+        # - Generate MD5 checksum for the downloaded Scoring File
+        downloaded_file_md5 = _generate_md5_checksum(path)
+        # - Download MD5 checksum from the FTP and compare it with the generated MD5 checksum for the downloaded Scoring File
+        ftp_md5 = _get_md5_checksum_from_ftp(url)
+        # - Compare MD5 checksums
+        if downloaded_file_md5 != ftp_md5:
+            raise RuntimeError("The download of the file wasn't done properly: the generated MD5 Checksums from the downloaded file differs with the MD5 Checksums on the PGS Catalog FTP")
 
 
 def _mkdir(outdir: str) -> None:
@@ -92,6 +104,45 @@ def _download_ftp(url: str, path: str, retry:int = 0) -> None:
                 _download_ftp(url,path,retry)
             else:
                 raise RuntimeError("Failed to download '{}'.\nError message: '{}'".format(url, error.reason))
+
+
+def _generate_md5_checksum(filename,blocksize=4096):
+    """ Returns MD5 checksum for the given file. """
+    md5 = hashlib.md5()
+    try:
+        file = open(filename, 'rb')
+        with file:
+            for block in iter(lambda: file.read(blocksize), b""):
+                md5.update(block)
+    except IOError:
+        print('File \'' + filename + '\' not found!')
+        return None
+    except:
+        print("Error: the script couldn't generate a MD5 checksum for '" + filename + "'!")
+        return None
+    return md5.hexdigest()
+
+
+def _get_md5_checksum_from_ftp(url:str, retry:int = 0) -> str:
+    """ Download and extract MD5 checksum value from the FTP. """
+    md5 = None
+    try:
+        url_md5 = url+md5_ext
+        with closing(request.urlopen(url_md5)) as file:
+            md5_content = file.read().decode()
+            md5 = md5_content.split(md5_sep)[0]
+    except (HTTPError, URLError) as error:
+        max_retries = 5
+        print(f'MD5 checksum download failed: {error.reason}')
+        # Retry to download the MD% checksum file if the server is busy
+        if '421' in error.reason and retry < max_retries:
+            print(f'> Retry to download the file ... attempt {retry+1} out of {max_retries}.')
+            retry += 1
+            time.sleep(10)
+            _get_md5_checksum_from_ftp(url,retry)
+        else:
+            raise RuntimeError(f"MD5 file download failed - Error message: '{error.reason}'")
+    return md5
 
 
 def _check_args(args):

@@ -12,7 +12,19 @@ _assign_methods = ["Mahalanobis", "RF"]
 _mahalanobis_methods = ["MinCovDet", "EmpiricalCovariance"]
 
 
-def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4, method='RF', covariance_method = 'MinCovDet', rf_p_threshold=0.9, mahalanobis_p_threshold=0.0001):
+def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4, method='RF', covariance_method = 'MinCovDet', p_threshold=None):
+    """
+
+    :param ref_df:
+    :param ref_pop_col:
+    :param target_df:
+    :param ref_train_col:
+    :param n_pcs:
+    :param method:
+    :param covariance_method:
+    :param p_threshold: suggest 0.9 for RF and 0.001 for Mahalanobis
+    :return:
+    """
     # Check that datasets have the correct columns
     assert method in _assign_methods, 'ancestry assignment method parameter must be Mahalanobis or RF'
     if method == 'Mahalanobis':
@@ -73,9 +85,9 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
         target_assign = target_df[pval_cols].copy()
         target_assign = target_assign.assign(Predicted_Population=target_assign.idxmax(axis=1))
 
-        if mahalanobis_p_threshold:
-            ref_assign['Predicted_Population'] = [x.split('_')[-1] if (ref_assign[x][i] > mahalanobis_p_threshold) else 'OTH' for i,x in enumerate(ref_assign['Predicted_Population'])]
-            target_assign['Predicted_Population'] = [x.split('_')[-1] if (target_assign[x][i] > mahalanobis_p_threshold) else 'OTH' for i, x in enumerate(target_assign['Predicted_Population'])]
+        if p_threshold:
+            ref_assign['Predicted_Population'] = [x.split('_')[-1] if (ref_assign[x][i] > p_threshold) else 'OTH' for i,x in enumerate(ref_assign['Predicted_Population'])]
+            target_assign['Predicted_Population'] = [x.split('_')[-1] if (target_assign[x][i] > p_threshold) else 'OTH' for i, x in enumerate(target_assign['Predicted_Population'])]
         else:
             ref_assign['Predicted_Population'] = [x.split('_')[-1] for x in ref_assign['Predicted_Population']]
             target_assign['Predicted_Population'] = [x.split('_')[-1] for x in target_assign['Predicted_Population']]
@@ -92,11 +104,11 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
         target_assign = pd.DataFrame(clf_rf.predict_proba(target_df[cols_pcs]), index=target_df.index, columns=['RF_P_{}'.format(x) for x in clf_rf.classes_])
         target_assign['Predicted_Population'] = clf_rf.predict(target_df[cols_pcs])
 
-        if rf_p_threshold:
-            ref_assign['Predicted_Population'] = [x if (ref_assign['RF_P_{}'.format(x)][i] > rf_p_threshold) else 'OTH'
+        if p_threshold:
+            ref_assign['Predicted_Population'] = [x if (ref_assign['RF_P_{}'.format(x)][i] > p_threshold) else 'OTH'
                                                   for i, x in enumerate(clf_rf.predict(ref_df[cols_pcs]))]
             target_assign['Predicted_Population'] = [
-                x if (target_assign['RF_P_{}'.format(x)][i] > rf_p_threshold) else 'OTH' for i, x in
+                x if (target_assign['RF_P_{}'.format(x)][i] > p_threshold) else 'OTH' for i, x in
                 enumerate(clf_rf.predict(target_df[cols_pcs]))]
 
     return ref_assign, target_assign
@@ -141,6 +153,9 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
 
     # Empirical adjustment with reference population assignments
     for pop in ref_populations:
+        if pop == 'OTH':
+            # ToDo: implement handling of individuals who don't have population label (weighted average based on distance?)
+            continue
 
         ref_pop = ref_train_df[ref_train_df[ref_pop_col] == pop]  # Reference dataset
         i_ref_pop = (ref_df[ref_col_pop] == pop)

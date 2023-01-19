@@ -10,7 +10,19 @@ def read_projection(loc_sscore, loc_related_ids=None):
     :return: pandas dataframe with PC information
     """
     # Read combined data
-    proj = pd.read_csv(loc_sscore, sep='\t', index_col='#IID')
+    proj = pd.read_csv(loc_sscore, sep='\t')
+
+    match (proj.columns[0]):
+        # handle case of #IID -> IID (happens when #FID is present)
+        case '#IID':
+            pass
+        case '#FID':
+            proj.rename({'IID': '#IID'}, axis=g1, inplace = True)
+            proj.drop(['#FID'], axis=1,  inplace = True)
+        case _:
+            assert False, "Invalid columns"
+
+    proj.set_index('#IID')
     proj.columns = [x.replace('_SUM', '') for x in proj.columns]
 
     # Read/process IDs for unrelated samples (usually reference dataset)

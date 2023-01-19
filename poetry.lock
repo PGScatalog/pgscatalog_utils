@@ -1953,20 +1953,24 @@ testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
 name = "polars"
-version = "0.14.30"
+version = "0.15.15"
 description = "Blazingly fast DataFrame library"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "polars-0.14.30-cp37-abi3-macosx_10_7_x86_64.whl", hash = "sha256:8d79c2327e6ba82d9604f008f704303e4dbe859f35d73622ad7da3b14ffc186e"},
-    {file = "polars-0.14.30-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:bf61af83a99e415aa503ada3ec741a9057af27a097286e59c70e1af52c329336"},
-    {file = "polars-0.14.30-cp37-abi3-win_amd64.whl", hash = "sha256:fcdf6c15d8bd09e60889543e771350216f4a6b786c0677d029bbab64ece63218"},
+    {file = "polars-0.15.15-cp37-abi3-macosx_10_7_x86_64.whl", hash = "sha256:952fbd720ac420476b08a0c4fd062c2fa56c8bcae523ada2edba727f75115d97"},
+    {file = "polars-0.15.15-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:c78e522c37df1ab1a663a60bd0a091b38be023f2d4b38064a891f58dea4e0d04"},
+    {file = "polars-0.15.15-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:497653d8f01b480dfb6b4f19dbce7958469f927c6cd6e5c104c740ef92b62bf6"},
+    {file = "polars-0.15.15-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:57435f185815f0037a82b59d3aad9e9521fa135f23668c4edce974c6693d304d"},
+    {file = "polars-0.15.15-cp37-abi3-win_amd64.whl", hash = "sha256:b2d3e2f309f561681b7aeebe2c6712d18f406a86745d55de009d29d1dd730e98"},
+    {file = "polars-0.15.15.tar.gz", hash = "sha256:cd6c52141692f2ac17fc1ebb55868e8e0349d531dd9fe94faa7d22babbd47433"},
 ]
 
 [package.extras]
-all = ["polars[connectorx,fsspec,matplotlib,numpy,pandas,pyarrow,timezone,xlsx2csv]"]
+all = ["polars[connectorx,deltalake,fsspec,matplotlib,numpy,pandas,pyarrow,timezone,xlsx2csv]"]
 connectorx = ["connectorx"]
+deltalake = ["deltalake"]
 fsspec = ["fsspec"]
 matplotlib = ["matplotlib"]
 numpy = ["numpy (>=1.16.0)"]
@@ -2947,4 +2951,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "2e91232f27d90333a5915aa66c42d495289517fefcb51cf3eeba8a69701a6169"
+content-hash = "583cff991c708f8c4db9b8bef1b33a63e67a891d2cb051f1284443304622dc7f"

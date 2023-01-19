@@ -9,6 +9,8 @@ from pgscatalog_utils.download.score import get_url
 from pgscatalog_utils.download.trait import query_trait
 
 
+ftp_url_root = 'https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores'
+
 @pytest.fixture(params=[["PGS000001"], ["PGS000001", "PGS000802"]])
 def pgscatalog_api(request):
     return get_url(request.param, "GRCh37")
@@ -36,7 +38,7 @@ def test_download_scorefile_author(tmp_path):
         score_filename = f'{pgs_id}.txt.gz'
         assert os.listdir(out_dir) == [score_filename]
         # Test MD5
-        ftp_md5 = get_md5_checksum_from_ftp(f'https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/{pgs_id}/ScoringFiles/{score_filename}')
+        ftp_md5 = get_md5_checksum_from_ftp(f'{ftp_url_root}/{pgs_id}/ScoringFiles/{score_filename}')
         downloaded_file_md5 = generate_md5_checksum(f'{out_dir}/{score_filename}')
         assert ftp_md5 == downloaded_file_md5
 
@@ -52,7 +54,7 @@ def test_download_scorefile_hmPOS(tmp_path):
         hm_score_filename = f'{pgs_id}_hmPOS_GRCh38.txt.gz'
         assert os.listdir(out_dir) == [hm_score_filename]
         # Test MD5
-        ftp_md5 = get_md5_checksum_from_ftp(f'https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/{pgs_id}/ScoringFiles/Harmonized/{hm_score_filename}')
+        ftp_md5 = get_md5_checksum_from_ftp(f'{ftp_url_root}/{pgs_id}/ScoringFiles/Harmonized/{hm_score_filename}')
         downloaded_file_md5 = generate_md5_checksum(f'{out_dir}/{hm_score_filename}')
         assert ftp_md5 == downloaded_file_md5
 
@@ -71,7 +73,7 @@ def test_download_existing_scorefile_no_overwrite(tmp_path):
         # Attempt to download scoring file
         download_scorefile()
         # Test MD5
-        ftp_md5 = get_md5_checksum_from_ftp(f'https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/{pgs_id}/ScoringFiles/{score_filename}')
+        ftp_md5 = get_md5_checksum_from_ftp(f'{ftp_url_root}/{pgs_id}/ScoringFiles/{score_filename}')
         downloaded_file_md5 = generate_md5_checksum(local_score_file_path)
         assert ftp_md5 != downloaded_file_md5
 
@@ -90,7 +92,7 @@ def test_download_overwrite_existing_scorefile(tmp_path):
         # Download scoring file (over file existing locally)
         download_scorefile()
         # Test MD5
-        ftp_md5 = get_md5_checksum_from_ftp(f'https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/{pgs_id}/ScoringFiles/{score_filename}')
+        ftp_md5 = get_md5_checksum_from_ftp(f'{ftp_url_root}/{pgs_id}/ScoringFiles/{score_filename}')
         downloaded_file_md5 = generate_md5_checksum(local_score_file_path)
         assert ftp_md5 == downloaded_file_md5
 

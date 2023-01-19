@@ -76,9 +76,9 @@ def download_scorefile() -> None:
         # Check the download
         if is_downloaded:
             # - Generate MD5 checksum for the downloaded Scoring File
-            downloaded_file_md5 = _generate_md5_checksum(path)
+            downloaded_file_md5 = generate_md5_checksum(path)
             # - Download MD5 checksum from the FTP and compare it with the generated MD5 checksum for the downloaded Scoring File
-            ftp_md5 = _get_md5_checksum_from_ftp(url)
+            ftp_md5 = get_md5_checksum_from_ftp(url)
             # - Compare MD5 checksums
             if downloaded_file_md5 != ftp_md5:
                 raise RuntimeError("The download of the file wasn't done properly: the generated MD5 Checksums from the downloaded file differs with the MD5 Checksums on the PGS Catalog FTP")
@@ -94,8 +94,8 @@ def _download_ftp(url: str, path: str, overwrite_existing_file: bool, retry: int
     """ Download the Scoring file via the PGS Catalog FTP """
     # Check if Scoring file already exist in the local directory
     if os.path.exists(path) and retry == 0:
-        existing_file_md5 = _generate_md5_checksum(path)
-        ftp_md5 = _get_md5_checksum_from_ftp(url)
+        existing_file_md5 = generate_md5_checksum(path)
+        ftp_md5 = get_md5_checksum_from_ftp(url)
         # Overwrite option for the Scoring file
         if overwrite_existing_file:
             if existing_file_md5 == ftp_md5:
@@ -131,7 +131,7 @@ def _download_ftp(url: str, path: str, overwrite_existing_file: bool, retry: int
             raise RuntimeError("Failed to download '{}'.\nError message: '{}'".format(url, error.reason))
 
 
-def _generate_md5_checksum(filename,blocksize=4096):
+def generate_md5_checksum(filename,blocksize=4096):
     """ Returns MD5 checksum for the given file. """
     md5 = hashlib.md5()
     try:
@@ -148,7 +148,7 @@ def _generate_md5_checksum(filename,blocksize=4096):
     return md5.hexdigest()
 
 
-def _get_md5_checksum_from_ftp(url:str, retry:int = 0) -> str:
+def get_md5_checksum_from_ftp(url:str, retry:int = 0) -> str:
     """ Download and extract MD5 checksum value from the FTP. """
     md5 = None
     try:
@@ -164,7 +164,7 @@ def _get_md5_checksum_from_ftp(url:str, retry:int = 0) -> str:
             logger.warning(f'> Retry to download the file ... attempt {retry+1} out of {max_retries}.')
             retry += 1
             time.sleep(10)
-            _get_md5_checksum_from_ftp(url,retry)
+            get_md5_checksum_from_ftp(url,retry)
         else:
             raise RuntimeError(f"MD5 file download failed - Error message: '{error.reason}'")
     return md5

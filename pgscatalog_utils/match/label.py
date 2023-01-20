@@ -13,7 +13,7 @@ def make_params_dict(args) -> dict[str, bool]:
     if args.filter:
         logger.debug("Reading filter file (variant IDs)")
         with open(args.filter, 'r') as f:
-            filter_IDs = [line.strip() for line in f]
+            filter_IDs = pl.Series([line.strip() for line in f], dtype=pl.Utf8)
 
     return {'keep_first_match': args.keep_first_match,
             'remove_ambiguous': args.remove_ambiguous,

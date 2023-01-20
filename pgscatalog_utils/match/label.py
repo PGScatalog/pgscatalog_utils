@@ -229,10 +229,7 @@ def _label_filter(df: pl.LazyFrame, filter_IDs: list) -> pl.LazyFrame:
     nIDs = len(filter_IDs)
     if nIDs > 0:
         logger.debug("Excluding variants that are not in ID list (read {} IDs)".format(nIDs))
-        df = df.with_column(pl.when(pl.col('ID').is_in(filter_IDs))
-                            .then(pl.lit(True))
-                            .otherwise(pl.lit(False))
-                            .alias('match_IDs'))
+        df = df.with_column(pl.col('ID').is_in(filter_IDs).alias('match_IDs'))
         return df.with_column(pl.when(pl.col('match_IDs') == False)
                               .then(True)
                               .otherwise(pl.col('exclude'))

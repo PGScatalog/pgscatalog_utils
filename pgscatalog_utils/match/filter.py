@@ -16,7 +16,7 @@ def filter_scores(scorefile: pl.LazyFrame, matches: pl.LazyFrame, min_overlap: f
 
     scores: list[pl.DataFrame] = []
     for accession, rate in zip(fail_rates['accession'].to_list(), fail_rates['fail_rate'].to_list()):
-        if rate < (1 - min_overlap):
+        if rate <= (1 - min_overlap):
             df: pl.DataFrame = pl.DataFrame({'accession': [accession], 'score_pass': [True], 'match_rate': [1 - rate]})
             logger.debug(f"Score {accession} passes minimum matching threshold ({1 - rate:.2%}  variants match)")
             scores.append(df.with_column(pl.col('accession').cast(pl.Categorical)))

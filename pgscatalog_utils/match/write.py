@@ -68,7 +68,7 @@ def _check_column_types(matches: pl.LazyFrame):
                       'matched_effect_allele': pl.Categorical, 'effect_weight': pl.Float64,
                       'effect_type': pl.Categorical, 'accession': pl.Categorical}
     col_types = {x: matches.schema.get(x) for x in list((matches.schema.keys() & correct_schema.keys()))}
-    assert col_types == correct_schema
+    assert col_types == correct_schema, "MISMATCHED SCHEMA\nCurrent columns: {}\nCorrect schema:{}".format(col_types, correct_schema)
 
 
 def _write_split(deduplicated: dict[str: tuple[int, pl.LazyFrame]], chrom: str, dataset: str):

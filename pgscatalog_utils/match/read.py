@@ -28,6 +28,7 @@ def read_scorefile(path: str, chrom: typing.Union[str, None]) -> pl.LazyFrame:
               'chr_position': pl.UInt64,
               'effect_allele': pl.Utf8,  # str functions required to complement
               'other_allele': pl.Utf8,
+              'effect_weight': pl.Float64,
               'effect_type': pl.Categorical,
               'accession': pl.Categorical}
 

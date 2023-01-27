@@ -54,11 +54,11 @@ jobs:
         with:
           singularity-version: 3.8.3        
 
-      - name: Build singularity docker image
+      - name: Build singularity image
         run: singularity build img.sif "docker://${DOCKER_REGISTRY}/pgscatalog_utils:dev"
 
-      - name: Push singularity docker image
+      - name: Push singularity image
         run: |
           echo "$REGISTRY_TOKEN" | singularity remote login -u "$REGISTRY_USERNAME" --password-stdin "$SINGULARITY_REGISTRY_LOGIN"
-          singularity push img.sif "${SINGULARITY_REGISTRY}/pgscatalog_utils:dev
+          singularity push img.sif "${SINGULARITY_REGISTRY}/pgscatalog_utils:dev"
     

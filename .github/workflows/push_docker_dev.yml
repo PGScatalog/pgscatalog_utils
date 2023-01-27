@@ -23,6 +23,11 @@ jobs:
         with:
           singularity-version: 3.8.3        
 
+      - name: Cache singularity setup
+        uses: actions/cache@v3
+        with:
+          path: /opt/hostedtoolcache/singularity/
+          
       - name: Build new docker image
         run: docker build --no-cache . -t pgscatalog/pgscatalog_utils:dev
 

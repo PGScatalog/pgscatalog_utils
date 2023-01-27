@@ -1,0 +1,26 @@
+name: push docker image on release
+# This builds the docker image and pushes it to EBI gitlab
+on:
+  push:
+    branches:
+      - dev  
+
+jobs:
+  push_docker_dev:
+    name: Push development docker image
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+    steps:
+      - name: Check out pipeline code
+        uses: actions/checkout@v2
+
+      - name: Build new docker image
+        run: docker build --platform arm64 --no-cache . -t pgscatalog/pgscatalog_utils:dev
+
+      - name: Push Docker image (dev)
+        run: |
+          echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
+          docker push pgscatalog/pgscatalog_utils:dev

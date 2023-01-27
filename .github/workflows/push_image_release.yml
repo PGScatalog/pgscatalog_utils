@@ -31,8 +31,8 @@ jobs:
           docker tag "${DOCKER_REGISTRY}/pgscatalog_utils:latest" "${DOCKER_REGISTRY}/pgscatalog_utils:amd64-${{ github.event.release.tag_name }}"
           docker push "${DOCKER_REGISTRY}/pgscatalog_utils:amd64-${{ github.event.release.tag_name }}"
 
-  build_singularity_dev:
-    needs: build_docker_dev
+  build_singularity_release:
+    needs: build_docker_release
     name: build singularity release image
     runs-on: ubuntu-latest
     if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}

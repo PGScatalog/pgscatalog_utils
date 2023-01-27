@@ -24,7 +24,7 @@ jobs:
           singularity-version: 3.8.3        
 
       - name: Build new docker image
-        run: docker build --platform arm64 --no-cache . -t pgscatalog/pgscatalog_utils:dev
+        run: docker build --no-cache . -t pgscatalog/pgscatalog_utils:dev
 
       - name: Push Docker image (dev)
         run: |

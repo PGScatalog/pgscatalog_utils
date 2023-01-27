@@ -1,12 +1,13 @@
-name: push images on commit
+name: build docker development image
+
 on:
   push:
     branches:
       - dev  
 
 jobs:
-  push_docker_dev:
-    name: Push development docker image
+  build_docker_dev:
+    name: build development docker image
     runs-on: ubuntu-latest
     if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
     
@@ -17,30 +18,11 @@ jobs:
     steps:
       - name: Check out pipeline code
         uses: actions/checkout@v2
-
-      - name: Set up Singularity
-        uses: eWaterCycle/setup-singularity@v7
-        with:
-          singularity-version: 3.8.3        
-
-      - name: Cache singularity setup
-        uses: actions/cache@v3
-        with:
-          path: /opt/hostedtoolcache/singularity/
           
       - name: Build new docker image
-        run: docker build --no-cache . -t pgscatalog/pgscatalog_utils:dev
+        run: docker build --no-cache . -t dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/pgscatalog_utils:dev
 
-      - name: Push Docker image (dev)
+      - name: Push image
         run: |
-          echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
-          docker push pgscatalog/pgscatalog_utils:dev
-
-      - name: Build singularity docker iamge
-        run: singularity build img.sif docker://dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/pgscatalog_utils:dev
-
-      - name: Push singularity docker image
-        run: |
-          echo "$DOCKER_TOKEN" | singularity remote login -u "$DOCKER_USERNAME" --password-stdin oras://gitlab.ebi.ac.uk
-          singularity push img.sif oras://dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/singularity/pgscatalog_utils:dev
-          
+          echo "$DOCKER_TOKEN" | docker login dockerhub.ebi.ac.uk -u "$DOCKER_USERNAME" --password-stdin
+          docker push dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/pgscatalog_utils:dev          

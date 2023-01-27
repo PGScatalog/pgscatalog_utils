@@ -27,7 +27,7 @@ jobs:
 
       - name: Push Docker image 
         run: |
-          echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
+          echo "$REGISTRY_TOKEN" | docker login "$DOCKER_REGISTRY_LOGIN" -u "$REGISTRY_USERNAME" --password-stdin
           docker tag "${DOCKER_REGISTRY}/pgscatalog_utils:latest" "${DOCKER_REGISTRY}/pgscatalog_utils:amd64-${{ github.event.release.tag_name }}"
           docker push "${DOCKER_REGISTRY}/pgscatalog_utils:amd64-${{ github.event.release.tag_name }}"
 

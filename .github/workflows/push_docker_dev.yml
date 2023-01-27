@@ -1,5 +1,4 @@
-name: push docker image on release
-# This builds the docker image and pushes it to EBI gitlab
+name: push images on commit
 on:
   push:
     branches:
@@ -10,12 +9,19 @@ jobs:
     name: Push development docker image
     runs-on: ubuntu-latest
     if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
+    
     env:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+      
     steps:
       - name: Check out pipeline code
         uses: actions/checkout@v2
+
+      - name: Set up Singularity
+        uses: eWaterCycle/setup-singularity@v7
+        with:
+          singularity-version: 3.8.3        
 
       - name: Build new docker image
         run: docker build --platform arm64 --no-cache . -t pgscatalog/pgscatalog_utils:dev
@@ -24,3 +30,12 @@ jobs:
         run: |
           echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push pgscatalog/pgscatalog_utils:dev
+
+      - name: Build singularity docker iamge
+        run: singularity build img.sif docker://dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/pgscatalog_utils:dev
+
+      - name: Push singularity docker image
+        run: |
+          echo "$DOCKER_TOKEN" | singularity remote login -u "$DOCKER_USERNAME" --password-stdin oras://gitlab.ebi.ac.uk
+          singularity push img.sif oras://dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/singularity/pgscatalog_utils:dev
+          

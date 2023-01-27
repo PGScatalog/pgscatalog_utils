@@ -1,0 +1,43 @@
+name: push images on release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  push_image:
+    name: Push new Docker image to Docker Hub (release)
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
+    
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+
+    steps:
+      - name: Check out pipeline code
+        uses: actions/checkout@v2
+
+      - name: Set up Singularity
+        uses: eWaterCycle/setup-singularity@v7
+        with:
+          singularity-version: 3.8.3        
+
+      - name: Build new docker image
+        run: docker build --no-cache . -t pgscatalog/pgscatalog_utils:latest
+
+      - name: Push Docker image 
+        run: |
+          echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
+          docker push dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/pgscatalog_utils:latest
+          docker tag dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/pgscatalog_utils:latest dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/pgscatalog_utils:amd64-${{ github.event.release.tag_name }}
+          docker push dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/pgscatalog_utils:amd64-${{ github.event.release.tag_name }}
+
+      - name: Build singularity docker iamge
+        run: singularity build img.sif docker://dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/pgscatalog_utils:latest
+
+      - name: Push singularity docker image
+        run: |
+          echo "$DOCKER_TOKEN" | singularity remote login -u "$DOCKER_USERNAME" --password-stdin oras://gitlab.ebi.ac.uk
+          singularity push img.sif dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/singularity/pgscatalog_utils:amd64-${{ github.event.release.tag_name }}
+          

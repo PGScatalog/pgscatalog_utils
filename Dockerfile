@@ -13,7 +13,7 @@ RUN pip install poetry
 
 RUN python -m venv /venv
 
-COPY install.sh poetry.lock pyproject.toml /app
+COPY install.sh poetry.lock pyproject.toml /app/
 
 RUN chmod +x install.sh && ./install.sh
 

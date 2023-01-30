@@ -3,7 +3,7 @@ name: build development images
 on:
   push:
     branches:
-      - dev  
+      - dev
 
 env:
   REGISTRY_USERNAME: ${{ secrets.DOCKER_USERNAME }}
@@ -12,17 +12,18 @@ env:
   SINGULARITY_REGISTRY_LOGIN: "oras://dockerhub.ebi.ac.uk"
   DOCKER_REGISTRY: "dockerhub.ebi.ac.uk/gdp-public/pgsc_calc"
   SINGULARITY_REGISTRY: "oras://dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/singularity"
-    
+  SINGULARITY_VERSION: "3.8.3"
+
 jobs:
   build_docker_dev:
     name: build docker development image
     runs-on: ubuntu-latest
     if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
-      
+
     steps:
       - name: Check out pipeline code
         uses: actions/checkout@v2
-          
+
       - name: Build new docker image
         run: docker build --no-cache . -t "${DOCKER_REGISTRY}/pgscatalog_utils:dev"
 
@@ -30,7 +31,7 @@ jobs:
         run: |
           echo "$REGISTRY_TOKEN" | docker login "$DOCKER_REGISTRY_LOGIN" -u "$REGISTRY_USERNAME" --password-stdin
           docker push "${DOCKER_REGISTRY}/pgscatalog_utils:dev"
-    
+
   build_singularity_dev:
     needs: build_docker_dev
     name: build singularity development image
@@ -40,19 +41,19 @@ jobs:
     steps:
       - name: Check out pipeline code
         uses: actions/checkout@v3
-        
+
       - name: Cache singularity setup
         id: cache-singularity
         uses: actions/cache@v3
         with:
-          path: /opt/hostedtoolcache/singularity/
-          key: ${{ runner.os }}-singularity
-        
+          path: /opt/hostedtoolcache/singularity/${{ env.SINGULARITY_VERSION }}/x64
+          key: ${{ runner.os }}-singularity-${{ env.SINGULARITY_VERSION }}
+
+      # set up singularity checks for cache automatically
       - name: Set up Singularity
         uses: eWaterCycle/setup-singularity@v7
-        if: steps.cache-singularity.outputs.cache-hit != 'true'        
         with:
-          singularity-version: 3.8.3        
+          singularity-version: ${{ env.SINGULARITY_VERSION }}
 
       - name: Build singularity image
         run: singularity build img.sif "docker://${DOCKER_REGISTRY}/pgscatalog_utils:dev"
@@ -61,4 +62,3 @@ jobs:
         run: |
           echo "$REGISTRY_TOKEN" | singularity remote login -u "$REGISTRY_USERNAME" --password-stdin "$SINGULARITY_REGISTRY_LOGIN"
           singularity push img.sif "${SINGULARITY_REGISTRY}/pgscatalog_utils:dev"
-    

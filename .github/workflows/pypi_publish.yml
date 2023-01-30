@@ -3,10 +3,6 @@ name: Publishes a package to pypi
 on:
   release:
     types: [published]
-
-env:
-  # test or prod
-  PYPI_ENV: test
   
 jobs:
   pypi_publish:

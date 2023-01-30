@@ -10,8 +10,8 @@ env:
   REGISTRY_TOKEN: ${{ secrets.DOCKER_TOKEN }}
   DOCKER_REGISTRY_LOGIN: "dockerhub.ebi.ac.uk"
   SINGULARITY_REGISTRY_LOGIN: "oras://dockerhub.ebi.ac.uk"
-  DOCKER_REGISTRY: "dockerhub.ebi.ac.uk/gdp-public/pgsc_calc"
-  SINGULARITY_REGISTRY: "oras://dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/singularity"
+  DOCKER_REGISTRY: "dockerhub.ebi.ac.uk/gdp-public/pgscatalog_utils"
+  SINGULARITY_REGISTRY: "oras://dockerhub.ebi.ac.uk/gdp-public/pgscatalog_utils/singularity"
   SINGULARITY_VERSION: "3.8.3"
 
 jobs:

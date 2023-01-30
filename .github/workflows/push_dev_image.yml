@@ -31,10 +31,10 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ${{ env.DOCKER_REGISTRY_LOGIN }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_TOKEN }}
-      -
-        name: Build and push
+          username: ${{ env.REGISTRY_USERNAME }}
+          password: ${{ env.REGISTRY_TOKEN }}
+
+      - name: Build and push
         uses: docker/build-push-action@v3
         with:
           push: true

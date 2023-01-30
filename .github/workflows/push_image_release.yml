@@ -11,6 +11,7 @@ env:
   SINGULARITY_REGISTRY_LOGIN: "oras://dockerhub.ebi.ac.uk"
   DOCKER_REGISTRY: "dockerhub.ebi.ac.uk/gdp-public/pgscatalog_utils"
   SINGULARITY_REGISTRY: "oras://dockerhub.ebi.ac.uk/gdp-public/pgscatalog_utils/singularity"
+  SINGULARITY_VERSION: "3.8.3"
 
 jobs:
   build_docker_release:

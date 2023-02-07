@@ -21,6 +21,8 @@ RUN poetry build && /venv/bin/pip install dist/*.whl
 
 FROM python:3.10.9-slim-bullseye
 
+RUN apt-get update && apt-get install -y procps && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /venv /venv
 
 ENV PATH="/venv/bin:${PATH}"

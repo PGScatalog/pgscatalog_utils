@@ -64,6 +64,10 @@ def _open_output(path, header):
     return outf
 
 
+def _get_chrom(line, id_idx):
+    return line[id_idx].split(':')[0]
+
+
 def relabel_ids():
     args = _parse_args()
     config.set_logging_level(args.verbose)
@@ -93,17 +97,21 @@ def relabel_ids():
 
         for i, line in enumerate(in_target):
             line = line.strip().split()
+            # get the first column index that contains :
+            # assume this contains a variant ID e.g. 1:1234:A:C
+            # this column index can change across different types of files
+            id_idx = [i for i, x in enumerate(line) if ':' in x][0]
 
             if split_output and i == 0:
-                current_chrom = line[0]
+                current_chrom = _get_chrom(line, id_idx)
                 logger.debug(f"Creating split output, current chrom: {line[0]}")
                 outf = _open_output(f"{current_chrom}_{args.out_file}{out_suffix}", h)
 
-            if split_output and current_chrom != line[0]:
-                logger.debug(f"New chromosome {line[0]} detected in split mode, writing to new file")
+            if split_output and current_chrom != _get_chrom(line, id_idx):
+                logger.debug(f"New chromosome {_get_chrom(line, id_idx)} detected in split mode, writing to new file")
                 outf.close()
 
-                current_chrom = line[0]
+                current_chrom = _get_chrom(line, id_idx)
                 outf = _open_output(f"{current_chrom}_{args.out_file}{out_suffix}", h)
 
             line[i_target_col] = mapping[line[i_target_col]]  # revalue column

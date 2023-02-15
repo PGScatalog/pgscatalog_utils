@@ -104,7 +104,7 @@ def relabel_ids():
 
             if split_output and i == 0:
                 current_chrom = _get_chrom(line, id_idx)
-                logger.debug(f"Creating split output, current chrom: {line[0]}")
+                logger.debug(f"Creating split output, current chrom: {_get_chrom(line, id_idx)}")
                 outf = _open_output(f"{current_chrom}_{args.out_file}{out_suffix}", h)
 
             if split_output and current_chrom != _get_chrom(line, id_idx):

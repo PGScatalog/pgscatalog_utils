@@ -1,6 +1,9 @@
 import argparse
 import gzip
+import io
 import logging
+import os
+import shutil
 from functools import reduce
 import operator
 
@@ -18,8 +21,6 @@ def _parse_args(args=None):
     parser.add_argument("--col_to", help='column to change TO', dest='col_to', required=True)
     parser.add_argument("--target_file", help='target file', dest='target_file', required=True)
     parser.add_argument("--target_col", help='target column to revalue', dest='target_col', required=True)
-    parser.add_argument("--split", help='split output file', dest='split', action='store_true',
-                        required=False)
     parser.add_argument("--out", help='output filename', dest='out_file', required=True)
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
@@ -58,7 +59,7 @@ def open_map(path, col_from, col_to):
 
 def _open_output(path, header):
     logger.debug(f"Opening {path} and writing header")
-    outf = open(path, 'w')
+    outf = gzip.open(path, 'wt')
     outf.write('\t'.join(header) + '\n')
     return outf
 
@@ -67,7 +68,16 @@ def relabel_ids():
     args = _parse_args()
     config.set_logging_level(args.verbose)
 
+    # more than one mapping file input -> assume split input, so produce split output
+    if len(args.map_files) > 1:
+        logger.debug(f"--maps n args {len(args.map_files)}, setting split_output = True")
+        split_output = True
+    else:
+        logger.debug(f"--maps n args {len(args.map_files)}, setting split_output = False")
+        split_output = False
+
     map_list = [open_map(x, args.col_from, args.col_to) for x in args.map_files]
+
     mapping = reduce(operator.ior, map_list, {})  # merge dicts quickly, ior is equivalent to | operator
     del map_list
 
@@ -75,24 +85,26 @@ def relabel_ids():
     with open(args.target_file, 'r') as in_target:
         h = in_target.readline().strip().split()
         i_target_col = h.index(args.target_col)
+        out_suffix = ".gz"
 
-        if not args.split:
+        if not split_output:
             current_chrom: str = 'ALL'
-            outf = _open_output(f"{current_chrom}_{args.out_file}", h)
+            outf = _open_output(f"{current_chrom}_{args.out_file}{out_suffix}", h)
 
         for i, line in enumerate(in_target):
             line = line.strip().split()
 
-            if args.split and i == 0:
+            if split_output and i == 0:
                 current_chrom = line[0]
                 logger.debug(f"Creating split output, current chrom: {line[0]}")
-                outf = _open_output(f"{current_chrom}_{args.out_file}", h)
+                outf = _open_output(f"{current_chrom}_{args.out_file}{out_suffix}", h)
 
-            if args.split and current_chrom != line[0]:
+            if split_output and current_chrom != line[0]:
                 logger.debug(f"New chromosome {line[0]} detected in split mode, writing to new file")
                 outf.close()
+
                 current_chrom = line[0]
-                outf = _open_output(f"{current_chrom}_{args.out_file}", h)
+                outf = _open_output(f"{current_chrom}_{args.out_file}{out_suffix}", h)
 
             line[i_target_col] = mapping[line[i_target_col]]  # revalue column
             outf.write('\t'.join(line) + '\n')

@@ -73,7 +73,7 @@ GENERIC_VALIDATORS = {
 
 # Formatted validators
 FORMATTED_VALIDATORS = {k:v for k,v in GENERIC_VALIDATORS.items()}
-FORMATTED_VALIDATORS[SNP_DSET] = Column(SNP_DSET, [CanConvertValidation(DSET_TYPES[SNP_DSET]), MatchesPatternValidation(r'^(rs|HLA\-\w+\*)[0-9]+$')], allow_empty=True)
+FORMATTED_VALIDATORS[SNP_DSET] = Column(SNP_DSET, [CanConvertValidation(DSET_TYPES[SNP_DSET]), MatchesPatternValidation(r'^(\.|(rs|HLA\-\w+\*)[0-9]+)$')], allow_empty=True)
 FORMATTED_VALIDATORS[OR_DSET] = Column(OR_DSET, [CanConvertValidation(DSET_TYPES[OR_DSET]), null_validation], allow_empty=True)
 FORMATTED_VALIDATORS[HR_DSET] = Column(HR_DSET, [CanConvertValidation(DSET_TYPES[HR_DSET]), null_validation], allow_empty=True)
 FORMATTED_VALIDATORS[BETA_DSET] = Column(BETA_DSET, [CanConvertValidation(DSET_TYPES[BETA_DSET]), null_validation], allow_empty=True)
@@ -83,10 +83,10 @@ FORMATTED_VALIDATORS[DOSAGE_1_WEIGHT] = Column(DOSAGE_1_WEIGHT, [CanConvertValid
 FORMATTED_VALIDATORS[DOSAGE_2_WEIGHT] = Column(DOSAGE_2_WEIGHT, [CanConvertValidation(DSET_TYPES[DOSAGE_2_WEIGHT]), null_validation], allow_empty=True)
 
 FORMATTED_VALIDATORS_SNP = {k:v for k,v in FORMATTED_VALIDATORS.items()}
-FORMATTED_VALIDATORS_SNP[SNP_DSET] = Column(SNP_DSET, [CanConvertValidation(DSET_TYPES[SNP_DSET]), MatchesPatternValidation(r'^(rs|HLA\-\w+\*)[0-9]+$')], allow_empty=False)
+FORMATTED_VALIDATORS_SNP[SNP_DSET] = Column(SNP_DSET, [CanConvertValidation(DSET_TYPES[SNP_DSET]), MatchesPatternValidation(r'^(\.|(rs|HLA\-\w+\*)[0-9]+)$')], allow_empty=False)
 
 FORMATTED_VALIDATORS_SNP_EMPTY = {k:v for k,v in FORMATTED_VALIDATORS.items()}
-FORMATTED_VALIDATORS_SNP_EMPTY[SNP_DSET] = Column(SNP_DSET, [CanConvertValidation(DSET_TYPES[SNP_DSET]), MatchesPatternValidation(r'^(rs[0-9]+|HLA\-\w+\*[0-9]+|nan)$')], allow_empty=False)
+FORMATTED_VALIDATORS_SNP_EMPTY[SNP_DSET] = Column(SNP_DSET, [CanConvertValidation(DSET_TYPES[SNP_DSET]), MatchesPatternValidation(r'^(rs[0-9]+|HLA\-\w+\*[0-9]+|nan|\.)$')], allow_empty=False)
 FORMATTED_VALIDATORS_SNP_EMPTY[CHR_DSET] = Column(CHR_DSET, [InListValidation(VALID_CHROMOSOMES)], allow_empty=False)
 FORMATTED_VALIDATORS_SNP_EMPTY[BP_DSET]  = Column(BP_DSET, [CanConvertValidation(DSET_TYPES[BP_DSET]), InInclusiveRangeValidation(1, 999999999)], allow_empty=False)
 

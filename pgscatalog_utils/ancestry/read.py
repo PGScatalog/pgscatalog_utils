@@ -6,7 +6,7 @@ import os
 logger = logging.getLogger(__name__)
 
 
-def read_projection(loc_sscores: list[str], loc_related_ids=None):
+def read_projection(loc_sscores: list[str],dataset: str, loc_related_ids=None):
     """
     Read PCA projection data from pgsc_calc pipeline
     :param loc_sscore: path to the result of PCA projection (.sscore format)
@@ -30,14 +30,13 @@ def read_projection(loc_sscores: list[str], loc_related_ids=None):
         match (df.columns[0]):
             # handle case of #IID -> IID (happens when #FID is present)
             case '#IID':
-                pass
+                df.rename({'#IID': 'IID'}, axis=1, inplace=True)
             case '#FID':
-                df.rename({'IID': '#IID'}, axis=g1, inplace=True)
                 df.drop(['#FID'], axis=1,  inplace=True)
             case _:
                 assert False, "Invalid columns"
-
-        df.set_index('#IID')
+        df['sampleset'] = dataset
+        df.set_index(['sampleset', 'IID'], inplace=True)
         df.columns = [x.replace('_SUM', '') for x in df.columns]
 
         if i == 0:
@@ -54,7 +53,7 @@ def read_projection(loc_sscores: list[str], loc_related_ids=None):
         proj['Unrelated'] = True
         with open(loc_related_ids, 'r') as infile:
             IDs_related = [x.strip() for x in infile.readlines()]
-        proj.loc[proj.index.isin(IDs_related), 'Unrelated'] = False
+        proj.loc[proj.index.get_level_values(level=1).isin(IDs_related), 'Unrelated'] = False
     else:
         proj['Unrelated'] = np.nan
 
@@ -64,6 +63,11 @@ def read_projection(loc_sscores: list[str], loc_related_ids=None):
         return proj, sum(nvars)
 
 
-def read_pgs(loc_sscore):
+def read_pgs(loc_sscore,onlySUM: bool):
     '''Simple function to read the output of aggreagte_scores'''
-    return pd.read_csv(loc_sscore, sep='\t', index_col=['sampleset', 'IID'])
+    df = pd.read_csv(loc_sscore, sep='\t', index_col=['sampleset', 'IID'])
+    if onlySUM:
+        df = df[[x for x in df.columns if x.endswith('_SUM')]]
+        rn = [x.rstrip('_SUM') for x in df.columns]
+        df.columns = rn
+    return df

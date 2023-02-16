@@ -123,7 +123,7 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
 ####
 _normalization_methods = ["empirical", "mean", "mean+var"]
 
-def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, ref_train_col=None, n_pcs=5):
+def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, use_method:list, ref_train_col=None, n_pcs=5):
     # Check that datasets have the correct columns
     ## Check that score is in both dfs
     assert all(
@@ -144,9 +144,6 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
     ref_populations = ref_df[ref_pop_col].unique()
     assert target_pop_col in target_df.columns, "Population label column ({}) is missing from target dataframe".format(
         target_pop_col)
-    ## Extract columns for analysis
-    ref_df = ref_df[cols_pcs + [ref_pop_col, ref_train_col]].copy()
-    target_df = target_df[cols_pcs + [target_pop_col]].copy()
 
     ## Create Training dfs
     if ref_train_col:
@@ -157,60 +154,62 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
         ref_train_df = ref_df
 
     # Empirical adjustment with reference population assignments
-    for pop in ref_populations:
-        if pop == 'OTH':
-            # ToDo: implement handling of individuals who don't have population label (weighted average based on distance?)
-            continue
+    if 'empirical' in use_method:
+        for pop in ref_populations:
+            if pop == 'OTH':
+                # ToDo: implement handling of individuals who have low-confidence population labels (weighted average based on distance?)
+                continue
 
-        ref_pop = ref_train_df[ref_train_df[ref_pop_col] == pop]  # Reference dataset
-        i_ref_pop = (ref_df[ref_col_pop] == pop)
-        i_target_pop = (target_df[target_pop_col] == pop)
+            ref_pop = ref_train_df[ref_train_df[ref_pop_col] == pop]  # Reference dataset
+            i_ref_pop = (ref_df[ref_pop_col] == pop)
+            i_target_pop = (target_df[target_pop_col] == pop)
 
-        for c_pgs in scorecols:
-            # Score Distribution
-            c_pgs_pop_dist = ref_pop[c_pgs]
+            for c_pgs in scorecols:
+                # Score Distribution
+                c_pgs_pop_dist = ref_pop[c_pgs]
 
-            # Calculate Percentile
-            percentile_col = '{}.adj_empirical_percentile'.format(c_pgs)
-            ref_df.loc[i_ref_pop, percentile_col] = percentileofscore(c_pgs_pop_dist, ref_df.loc[i_ref_pop, c_pgs])
-            target_df.loc[i_target_pop, percentile_col] = percentileofscore(c_pgs_pop_dist, target_df.loc[i_target_pop, c_pgs])
+                # Calculate Percentile
+                percentile_col = '{}.adj_empirical_percentile'.format(c_pgs)
+                ref_df.loc[i_ref_pop, percentile_col] = percentileofscore(c_pgs_pop_dist, ref_df.loc[i_ref_pop, c_pgs])
+                target_df.loc[i_target_pop, percentile_col] = percentileofscore(c_pgs_pop_dist, target_df.loc[i_target_pop, c_pgs])
 
-            # Calculate Z
-            z_col = '{}.adj_empirical_Z'.format(c_pgs)
-            c_pgs_mean = c_pgs_pop_dist.mean()
-            c_pgs_std = c_pgs_pop_dist.std(ddof=0)
+                # Calculate Z
+                z_col = '{}.adj_empirical_Z'.format(c_pgs)
+                c_pgs_mean = c_pgs_pop_dist.mean()
+                c_pgs_std = c_pgs_pop_dist.std(ddof=0)
 
-            ref_df.loc[i_ref_pop, z_col] = (ref_df.loc[i_ref_pop, c_pgs] - c_pgs_mean)/c_pgs_std
-            target_df.loc[i_target_pop, z_col] = (target_df.loc[i_target_pop, c_pgs] - c_pgs_mean)/c_pgs_std
+                ref_df.loc[i_ref_pop, z_col] = (ref_df.loc[i_ref_pop, c_pgs] - c_pgs_mean)/c_pgs_std
+                target_df.loc[i_target_pop, z_col] = (target_df.loc[i_target_pop, c_pgs] - c_pgs_mean)/c_pgs_std
 
     # PCA-based adjustment
-    for c_pgs in scorecols:
-        ## Method 1 (Khera): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
-        ### Fit to Reference Data
-        pcs2pgs_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_df[c_pgs])
-        ref_train_pgs_pred = pcs2pgs_fit.predict(ref_train_df[cols_pcs])
-        ref_train_pgs_resid = ref_train_df[c_pgs] - ref_train_pgs_pred
-        ref_train_pgs_resid_mean = ref_train_pgs_resid.mean()
-        ref_train_pgs_resid_std = ref_train_pgs_resid.std(ddof=0)
+    if any([x in use_method for x in ['mean', 'mean+var']]):
+        for c_pgs in scorecols:
+            ## Method 1 (Khera): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
+            ### Fit to Reference Data
+            pcs2pgs_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_df[c_pgs])
+            ref_train_pgs_pred = pcs2pgs_fit.predict(ref_train_df[cols_pcs])
+            ref_train_pgs_resid = ref_train_df[c_pgs] - ref_train_pgs_pred
+            ref_train_pgs_resid_mean = ref_train_pgs_resid.mean()
+            ref_train_pgs_resid_std = ref_train_pgs_resid.std(ddof=0)
 
-        ref_pgs_resid = ref_df[c_pgs] - pcs2pgs_fit.predict(ref_df[cols_pcs])
-        ref_df['{}.adj_1_Khera'.format(pgs_col)] = ref_pgs_resid / ref_train_pgs_resid_std
-        ### Apply to Target Data
-        target_pgs_pred = pcs2pgs_fit.predict(target_df[cols_pcs])
-        target_pgs_resid = target_df[pgs_col] - target_pgs_pred
-        target_df['{}.adj_1_Khera'.format(pgs_col)] = target_pgs_resid / ref_train_pgs_resid_std
+            ref_pgs_resid = ref_df[c_pgs] - pcs2pgs_fit.predict(ref_df[cols_pcs])
+            ref_df['{}.adj_1_Khera'.format(c_pgs)] = ref_pgs_resid / ref_train_pgs_resid_std
+            ### Apply to Target Data
+            target_pgs_pred = pcs2pgs_fit.predict(target_df[cols_pcs])
+            target_pgs_resid = target_df[c_pgs] - target_pgs_pred
+            target_df['{}.adj_1_Khera'.format(c_pgs)] = target_pgs_resid / ref_train_pgs_resid_std
 
-        ## Method 2 (Khan): normalize variance (doi:10.1038/s41591-022-01869-1)
-        ### Normalize based on residual deviation from mean of the distribution
-        ### (e.g. reduce the effect of genetic ancestry on how far away you are from the mean [equalize population sds])
-        pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean)**2)
+            if 'mean+var' in use_method:
+                ## Method 2 (Khan): normalize variance (doi:10.1038/s41591-022-01869-1)
+                ### Normalize based on residual deviation from mean of the distribution
+                ### (e.g. reduce the effect of genetic ancestry on how far away you are from the mean [equalize population sds])
+                pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean)**2)
 
-        ### Alternative (not adjusting for the mean... which should be 0 anyways because we're trying to fit it)
-        #pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_pgs_resid**2)
+                ### Alternative (not adjusting for the mean... which should be 0 anyways because we're trying to fit it)
+                #pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_pgs_resid**2)
 
-        ref_df['{}.adj_2_Khan'.format(pgs_col)] = ref_pgs_resid / np.sqrt(pcs2var_fit.predict(ref_df[cols_pcs]))
-        ### Apply to Target
-        target_df['{}.adj_2_Khan'.format(pgs_col)] = target_pgs_resid / np.sqrt(pcs2var_fit.predict(target_df[cols_pcs]))
+                ref_df['{}.adj_2_Khan'.format(c_pgs)] = ref_pgs_resid / np.sqrt(pcs2var_fit.predict(ref_df[cols_pcs]))
+                ### Apply to Target
+                target_df['{}.adj_2_Khan'.format(c_pgs)] = target_pgs_resid / np.sqrt(pcs2var_fit.predict(target_df[cols_pcs]))
 
-    # Output adjustment columns in reference and target dataframes
-    #return ref_df[x if ('.adj_' in x) for x in ref_df.columns], target_df[x if ('.adj_' in x) for x in target_df.columns]
+    return ref_df, target_df

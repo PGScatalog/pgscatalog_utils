@@ -8,11 +8,13 @@ from scipy.stats import chi2, percentileofscore
 # Methods for assigning ancestry using PCA data & population labels
 ###
 
-_assign_methods = ["Mahalanobis", "RF"]
+_assign_method_threshold = {"Mahalanobis": 1e-10,
+                           "RandomForest": 0.5} # default p-value thresholds to define suitable population matches
 _mahalanobis_methods = ["MinCovDet", "EmpiricalCovariance"]
 
 
-def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4, method='RF', covariance_method = 'MinCovDet', p_threshold=None):
+def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4, method='RandomForest',
+                    covariance_method='EmpiricalCovariance', p_threshold=None):
     """
     :param ref_df:
     :param ref_pop_col:
@@ -25,7 +27,7 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
     :return:
     """
     # Check that datasets have the correct columns
-    assert method in _assign_methods, 'ancestry assignment method parameter must be Mahalanobis or RF'
+    assert method in _assign_method_threshold.keys(), 'ancestry assignment method parameter must be Mahalanobis or RF'
     if method == 'Mahalanobis':
         assert covariance_method in _mahalanobis_methods, 'covariance estimation method must be MinCovDet or EmpiricalCovariance'
 
@@ -91,9 +93,9 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
             ref_assign['Predicted_Population'] = [x.split('_')[-1] for x in ref_assign['Predicted_Population']]
             target_assign['Predicted_Population'] = [x.split('_')[-1] for x in target_assign['Predicted_Population']]
 
-    elif method == 'RF':
+    elif method == 'RandomForest':
         # Assign SuperPop Using Random Forest (PCA loadings)
-        clf_rf = RandomForestClassifier()
+        clf_rf = RandomForestClassifier(random_state=32)
         clf_rf.fit(ref_train_df[cols_pcs],  # X (training PCs)
                    ref_train_df[ref_pop_col].astype(str))  # Y (pop label)
         # Assign population
@@ -113,9 +115,18 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
     return ref_assign, target_assign
 
 
+
+def choose_pval_threshold(args):
+    if args.pThreshold != None:
+        return args.pThreshold
+    else:
+        return _assign_method_threshold[args.method_assignment]
+
+
 ####
 # Methods for adjusting/reporting polygenic score results that account for genetic ancestry
 ####
+_normalization_methods = ["empirical", "mean", "mean+var"]
 
 def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, ref_train_col=None, n_pcs=5):
     # Check that datasets have the correct columns

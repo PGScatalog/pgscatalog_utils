@@ -23,7 +23,7 @@ def read_projection(loc_sscores: list[str], loc_related_ids=None):
         # Check nvars
         path_vars = path + '.vars'
         if os.path.isfile(path_vars):
-            nvars.append(len(open(path_vars).read().strip().split('\n')))
+            nvars.append(len(open(path_vars, 'r').read().strip().split('\n')))
         else:
             nvars.append(None)
 
@@ -65,5 +65,5 @@ def read_projection(loc_sscores: list[str], loc_related_ids=None):
 
 
 def read_pgs(loc_sscore):
-    pgs = pd.read_csv(loc_sscore, sep='\t', index_col='#IID')
-    return pgs
+    '''Simple function to read the output of aggreagte_scores'''
+    return pd.read_csv(loc_sscore, sep='\t', index_col=['sampleset', 'IID'])

@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from sklearn.covariance import MinCovDet, EmpiricalCovariance
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression
@@ -13,19 +14,15 @@ _assign_method_threshold = {"Mahalanobis": 1e-10,
 _mahalanobis_methods = ["MinCovDet", "EmpiricalCovariance"]
 
 
+def choose_pval_threshold(args):
+    if args.pThreshold != None:
+        return args.pThreshold
+    else:
+        return _assign_method_threshold[args.method_assignment]
+
+
 def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4, method='RandomForest',
                     covariance_method='EmpiricalCovariance', p_threshold=None):
-    """
-    :param ref_df:
-    :param ref_pop_col:
-    :param target_df:
-    :param ref_train_col:
-    :param n_pcs:
-    :param method:
-    :param covariance_method:
-    :param p_threshold: suggest 0.9 for RF and 0.001 for Mahalanobis
-    :return:
-    """
     # Check that datasets have the correct columns
     assert method in _assign_method_threshold.keys(), 'ancestry assignment method parameter must be Mahalanobis or RF'
     if method == 'Mahalanobis':
@@ -81,17 +78,21 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
 
         # Assign population (maximum probability)
         ref_assign = ref_df[pval_cols].copy()
-        ref_assign = ref_assign.assign(Predicted_Population=ref_assign.idxmax(axis=1))
+        ref_assign = ref_assign.assign(PopAssignment=ref_assign.idxmax(axis=1))
 
         target_assign = target_df[pval_cols].copy()
-        target_assign = target_assign.assign(Predicted_Population=target_assign.idxmax(axis=1))
+        target_assign = target_assign.assign(PopAssignment=target_assign.idxmax(axis=1))
 
         if p_threshold:
-            ref_assign['Predicted_Population'] = [x.split('_')[-1] if (ref_assign[x][i] > p_threshold) else 'OTH' for i,x in enumerate(ref_assign['Predicted_Population'])]
-            target_assign['Predicted_Population'] = [x.split('_')[-1] if (target_assign[x][i] > p_threshold) else 'OTH' for i, x in enumerate(target_assign['Predicted_Population'])]
+            ref_assign['Assignment_LowConfidence'] = [True if (ref_assign[x][i] < p_threshold) else False for i,x in enumerate(ref_assign['PopAssignment'])]
+            target_assign['Assignment_LowConfidence'] = [True if (target_assign[x][i] < p_threshold) else False for i, x in enumerate(target_assign['PopAssignment'])]
+            ref_assign['PopAssignment'] = [x.split('_')[-1] for x in ref_assign['PopAssignment']]
+            target_assign['PopAssignment'] = [x.split('_')[-1] for x in target_assign['PopAssignment']]
         else:
-            ref_assign['Predicted_Population'] = [x.split('_')[-1] for x in ref_assign['Predicted_Population']]
-            target_assign['Predicted_Population'] = [x.split('_')[-1] for x in target_assign['Predicted_Population']]
+            ref_assign['PopAssignment'] = [x.split('_')[-1] for x in ref_assign['PopAssignment']]
+            target_assign['PopAssignment'] = [x.split('_')[-1] for x in target_assign['PopAssignment']]
+            ref_assign['Assignment_LowConfidence'] = np.nan
+            target_assign['Assignment_LowConfidence'] = np.nan
 
     elif method == 'RandomForest':
         # Assign SuperPop Using Random Forest (PCA loadings)
@@ -100,27 +101,21 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
                    ref_train_df[ref_pop_col].astype(str))  # Y (pop label)
         # Assign population
         ref_assign = pd.DataFrame(clf_rf.predict_proba(ref_df[cols_pcs]), index=ref_df.index, columns=['RF_P_{}'.format(x) for x in clf_rf.classes_])
-        ref_assign['Predicted_Population'] = clf_rf.predict(ref_df[cols_pcs])
+        ref_assign['PopAssignment'] = clf_rf.predict(ref_df[cols_pcs])
 
         target_assign = pd.DataFrame(clf_rf.predict_proba(target_df[cols_pcs]), index=target_df.index, columns=['RF_P_{}'.format(x) for x in clf_rf.classes_])
-        target_assign['Predicted_Population'] = clf_rf.predict(target_df[cols_pcs])
+        target_assign['PopAssignment'] = clf_rf.predict(target_df[cols_pcs])
 
         if p_threshold:
-            ref_assign['Predicted_Population'] = [x if (ref_assign['RF_P_{}'.format(x)][i] > p_threshold) else 'OTH'
+            ref_assign['Assignment_LowConfidence'] = [True if (ref_assign['RF_P_{}'.format(x)][i] < p_threshold) else False
                                                   for i, x in enumerate(clf_rf.predict(ref_df[cols_pcs]))]
-            target_assign['Predicted_Population'] = [
-                x if (target_assign['RF_P_{}'.format(x)][i] > p_threshold) else 'OTH' for i, x in
+            target_assign['Assignment_LowConfidence'] = [True if (target_assign['RF_P_{}'.format(x)][i] < p_threshold) else False for i, x in
                 enumerate(clf_rf.predict(target_df[cols_pcs]))]
+        else:
+            ref_assign['Assignment_LowConfidence'] = np.nan
+            target_assign['Assignment_LowConfidence'] = np.nan
 
     return ref_assign, target_assign
-
-
-
-def choose_pval_threshold(args):
-    if args.pThreshold != None:
-        return args.pThreshold
-    else:
-        return _assign_method_threshold[args.method_assignment]
 
 
 ####

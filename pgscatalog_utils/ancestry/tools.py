@@ -14,7 +14,6 @@ _mahalanobis_methods = ["MinCovDet", "EmpiricalCovariance"]
 
 def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4, method='RF', covariance_method = 'MinCovDet', p_threshold=None):
     """
-
     :param ref_df:
     :param ref_pop_col:
     :param target_df:

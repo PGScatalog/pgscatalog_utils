@@ -15,6 +15,8 @@ combine_matches = "pgscatalog_utils.match.combine_matches:combine_matches"
 aggregate_scores = "pgscatalog_utils.aggregate.aggregate_scores:aggregate_scores"
 validate_scorefiles = "pgscatalog_utils.validate.validate_scorefile:validate_scorefile"
 relabel_ids = "pgscatalog_utils.relabel.relabel_ids:relabel_ids"
+ancestry_analysis = "pgscatalog_utils.ancestry.ancestry_analysis:ancestry_analysis"
+
 
 [tool.poetry.dependencies]
 python = "^3.10"

@@ -1,11 +1,8 @@
 import argparse
 import gzip
-import io
 import logging
-import os
-import shutil
-from functools import reduce
 import operator
+from functools import reduce
 
 from pgscatalog_utils import config
 
@@ -57,6 +54,15 @@ def open_map(path, col_from, col_to):
             return _read_map(in_map, col_from, col_to)
 
 
+def _open_target(path):
+    if _is_gz_file(path):
+        logger.debug("Opening target with gzip.open")
+        return gzip.open(path, 'rt')
+    else:
+        logger.debug("Opening target with open")
+        return open(path, 'r')
+
+
 def _open_output(path, header):
     logger.debug(f"Opening {path} and writing header")
     outf = gzip.open(path, 'wt')
@@ -86,7 +92,7 @@ def relabel_ids():
     del map_list
 
     # Read, relabel and output file
-    with open(args.target_file, 'r') as in_target:
+    with _open_target(args.target_file) as in_target:
         h = in_target.readline().strip().split()
         i_target_col = h.index(args.target_col)
         out_suffix = ".gz"

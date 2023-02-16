@@ -21,6 +21,7 @@ def _parse_args(args=None):
     parser.add_argument("--out", help='output filename', dest='out_file', required=True)
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
+    parser.add_argument('--split', dest='split', action='store_true', required=False)
     return parser.parse_args(args)
 
 
@@ -79,7 +80,7 @@ def relabel_ids():
     config.set_logging_level(args.verbose)
 
     # more than one mapping file input -> assume split input, so produce split output
-    if len(args.map_files) > 1:
+    if len(args.map_files) > 1 or args.split:
         logger.debug(f"--maps n args {len(args.map_files)}, setting split_output = True")
         split_output = True
     else:

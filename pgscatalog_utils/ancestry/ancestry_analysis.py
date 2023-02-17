@@ -19,14 +19,13 @@ def ancestry_analysis():
     config.OUTDIR = args.outdir
 
     # Load PCA data
+    maxPCs = max([10, args.nPCs_assignment, args.nPCs_normalization])  # save memory by not using all PCs
     loc_ref_sscores = glob.glob('*{}*_proj.sscore'.format(args.d_ref))
     reference_df, nvars_ref_pca = read_projection(loc_sscores=loc_ref_sscores, dataset=args.d_ref,
-                                                   loc_related_ids=args.ref_related)
-    # print(reference_pca.head())
+                                                   loc_related_ids=args.ref_related, nPCs=maxPCs)
 
     loc_target_sscores = glob.glob('*{}*_proj.sscore'.format(args.d_target))
-    target_df, nvars_target_pca = read_projection(loc_sscores=loc_target_sscores, dataset=args.d_target)
-    # print(target_df.head())
+    target_df, nvars_target_pca = read_projection(loc_sscores=loc_target_sscores, dataset=args.d_target, nPCs=maxPCs)
 
     assert nvars_ref_pca == nvars_target_pca, "Number of variants included in PCA analysis is different between " \
                                               "REF ({}) and TARGET ({}) datasets".format(nvars_ref_pca, nvars_target_pca)
@@ -62,7 +61,6 @@ def ancestry_analysis():
     print(reference_df.sample(n=5))
     print(target_df.sample(n=5))
     print(target_df.columns)
-
 
 
 def _description_text() -> str:

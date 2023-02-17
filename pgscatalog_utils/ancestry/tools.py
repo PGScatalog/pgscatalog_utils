@@ -56,15 +56,15 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
             colname_dist = 'Mahalanobis_dist_{}'.format(pop)
             colname_pval = 'Mahalanobis_P_{}'.format(pop)
 
-            if covariance_method == 'MinCovDet':
-                # Robust method
-                covariance_fit = MinCovDet().fit(
-                    ref_train_df.loc[ref_train_df[ref_pop_col] == pop, cols_pcs]
-                )
-            elif covariance_method == 'EmpiricalCovariance':
-                covariance_fit = EmpiricalCovariance().fit(
-                    ref_train_df.loc[ref_train_df[ref_pop_col] == pop, cols_pcs]
-                )
+            match covariance_method:
+                case 'MinCovDet':
+                    covariance_model = MinCovDet()
+                case 'EmpiricalCovariance':
+                    covariance_model = EmpiricalCovariance()
+                case _:
+                    assert False, "Invalid covariance method"
+
+            covariance_fit = covariance_model.fit(ref_train_df.loc[ref_train_df[ref_pop_col] == pop, cols_pcs])
 
             # Caclulate Mahalanobis distance of each sample to that population
             # Reference Samples
@@ -84,10 +84,12 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
         target_assign = target_assign.assign(PopAssignment=target_assign.idxmax(axis=1))
 
         if p_threshold:
-            ref_assign['Assignment_LowConfidence'] = [True if (ref_assign[x][i] < p_threshold) else False for i,x in enumerate(ref_assign['PopAssignment'])]
-            target_assign['Assignment_LowConfidence'] = [True if (target_assign[x][i] < p_threshold) else False for i, x in enumerate(target_assign['PopAssignment'])]
             ref_assign['PopAssignment'] = [x.split('_')[-1] for x in ref_assign['PopAssignment']]
             target_assign['PopAssignment'] = [x.split('_')[-1] for x in target_assign['PopAssignment']]
+            ref_assign['Assignment_LowConfidence'] = [(ref_assign[x][i] < p_threshold)
+                                                      for i,x in enumerate(ref_assign['PopAssignment'])]
+            target_assign['Assignment_LowConfidence'] = [(target_assign[x][i] < p_threshold)
+                                                         for i, x in enumerate(target_assign['PopAssignment'])]
         else:
             ref_assign['PopAssignment'] = [x.split('_')[-1] for x in ref_assign['PopAssignment']]
             target_assign['PopAssignment'] = [x.split('_')[-1] for x in target_assign['PopAssignment']]
@@ -107,10 +109,10 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
         target_assign['PopAssignment'] = clf_rf.predict(target_df[cols_pcs])
 
         if p_threshold:
-            ref_assign['Assignment_LowConfidence'] = [True if (ref_assign['RF_P_{}'.format(x)][i] < p_threshold) else False
-                                                  for i, x in enumerate(clf_rf.predict(ref_df[cols_pcs]))]
-            target_assign['Assignment_LowConfidence'] = [True if (target_assign['RF_P_{}'.format(x)][i] < p_threshold) else False for i, x in
-                enumerate(clf_rf.predict(target_df[cols_pcs]))]
+            ref_assign['Assignment_LowConfidence'] = [(ref_assign['RF_P_{}'.format(x)][i] < p_threshold)
+                                                      for i, x in enumerate(clf_rf.predict(ref_df[cols_pcs]))]
+            target_assign['Assignment_LowConfidence'] = [(target_assign['RF_P_{}'.format(x)][i] < p_threshold)
+                                                         for i, x in enumerate(clf_rf.predict(target_df[cols_pcs]))]
         else:
             ref_assign['Assignment_LowConfidence'] = np.nan
             target_assign['Assignment_LowConfidence'] = np.nan

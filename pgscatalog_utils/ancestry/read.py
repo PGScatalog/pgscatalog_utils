@@ -6,11 +6,13 @@ import os
 logger = logging.getLogger(__name__)
 
 
-def read_projection(loc_sscores: list[str],dataset: str, loc_related_ids=None):
+def read_projection(loc_sscores: list[str],dataset: str, loc_related_ids=None, nPCs=None):
     """
     Read PCA projection data from pgsc_calc pipeline
-    :param loc_sscore: path to the result of PCA projection (.sscore format)
-    :param loc_related_ids: path to newline-delimited list of IDs for related samples that can be used to filter
+    :param loc_sscores: list of paths to the result of PCA projection (.sscore format)
+    :param dataset: name of the dataset (used to create multi-index)
+    :param loc_related_ids: loc_related_ids: path to newline-delimited list of IDs for related samples that can be used to filter
+    :param nPCs: maximum number of PCs to extract from the files
     :return: pandas dataframe with PC information
     """
     proj = pd.DataFrame()
@@ -35,17 +37,27 @@ def read_projection(loc_sscores: list[str],dataset: str, loc_related_ids=None):
                 df.drop(['#FID'], axis=1,  inplace=True)
             case _:
                 assert False, "Invalid columns"
+
         df['sampleset'] = dataset
         df.set_index(['sampleset', 'IID'], inplace=True)
-        df.columns = [x.replace('_SUM', '') for x in df.columns]
 
         if i == 0:
             logger.debug('Initialising combined DF')
             proj = df.copy()
-            aggcols = [x for x in df.columns if x.startswith('PC')]
+            aggcols = [x for x in df.columns if (x.startswith('PC') and x.endswith('_SUM'))]
         else:
             logger.debug('Adding to combined DF')
             proj = proj[aggcols].add(df[aggcols], fill_value=0)
+
+    # Filter & rename PC columns
+    if nPCs:
+        dropcols = []
+        for x in aggcols:
+            if int(x.split('_')[0][2:]) > nPCs:
+                dropcols.append(x)
+        proj = proj.drop(dropcols, axis =1)
+
+    proj.columns = [x.replace('_SUM', '') for x in proj.columns]
 
     # Read/process IDs for unrelated samples (usually reference dataset)
     if loc_related_ids:

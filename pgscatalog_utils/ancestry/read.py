@@ -51,6 +51,7 @@ def read_projection(loc_sscores: list[str],dataset: str, loc_related_ids=None, n
 
     # Filter & rename PC columns
     if nPCs:
+        logger.debug('Filtering to relevant PCs')
         dropcols = []
         for x in aggcols:
             if int(x.split('_')[0][2:]) > nPCs:
@@ -82,6 +83,7 @@ def read_pgs(loc_aggscore, onlySUM: bool):
     :param onlySUM: whether to return only _SUM columns (e.g. not _AVG)
     :return:
     """
+    logger.debug('Reading aggregated score data: {}'.format(loc_aggscore))
     df = pd.read_csv(loc_aggscore, sep='\t', index_col=['sampleset', 'IID'])
     if onlySUM:
         df = df[[x for x in df.columns if x.endswith('_SUM')]]

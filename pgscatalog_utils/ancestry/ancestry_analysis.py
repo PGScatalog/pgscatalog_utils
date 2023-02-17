@@ -67,7 +67,11 @@ def ancestry_analysis():
 
 
 def _description_text() -> str:
-    return textwrap.dedent('Program to analyze ancestry outputs of the pgscatalog/pgsc_calc pipeline')
+    return textwrap.dedent('Program to analyze ancestry outputs of the pgscatalog/pgsc_calc pipeline. Current inputs: '
+                           '\n  - PCA projections from reference and target datasets (*_proj.sscore.vars)'
+                           '\n  - calculated polygenic scores (e.g. aggregated_scores.txt.gz), '
+                           '\n  - information about related samples in the reference dataset (e.g. '
+                           'deg2_hg38.king.cutoff.out.id).')
 
 
 def _parse_args(args=None):

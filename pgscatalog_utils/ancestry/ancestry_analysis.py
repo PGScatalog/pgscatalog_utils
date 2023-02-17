@@ -2,6 +2,7 @@ import argparse
 import textwrap
 import logging
 import glob
+import os
 
 import pandas as pd
 
@@ -22,7 +23,7 @@ def ancestry_analysis():
     maxPCs = max([10, args.nPCs_assignment, args.nPCs_normalization])  # save memory by not using all PCs
     loc_ref_sscores = glob.glob('*{}*_proj.sscore'.format(args.d_ref))
     reference_df, nvars_ref_pca = read_projection(loc_sscores=loc_ref_sscores, dataset=args.d_ref,
-                                                   loc_related_ids=args.ref_related, nPCs=maxPCs)
+                                                  loc_related_ids=args.ref_related, nPCs=maxPCs)
 
     loc_target_sscores = glob.glob('*{}*_proj.sscore'.format(args.d_target))
     target_df, nvars_target_pca = read_projection(loc_sscores=loc_target_sscores, dataset=args.d_target, nPCs=maxPCs)
@@ -49,18 +50,20 @@ def ancestry_analysis():
     reference_df = pd.concat([reference_df, ancestry_ref], axis=1)
     target_df = pd.concat([target_df, ancestry_target], axis=1)
     del ancestry_ref, ancestry_target
-    # print(reference_df.sample(n=5))
-    # print(target_df.sample(n=5))
 
     # Adjust PGS values
     reference_df, target_df = pgs_adjust(reference_df, target_df, scorecols,
-                                       args.ref_label, 'PopAssignment',
-                                       use_method=args.method_normalization,
-                                       ref_train_col='Unrelated',
-                                       n_pcs=args.nPCs_normalization)
-    print(reference_df.sample(n=5))
-    print(target_df.sample(n=5))
-    print(target_df.columns)
+                                         args.ref_label, 'PopAssignment',
+                                         use_method=args.method_normalization,
+                                         ref_train_col='Unrelated',
+                                         n_pcs=args.nPCs_normalization)
+
+    # Write outputs
+    dout = os.path.abspath(config.OUTDIR)
+    reference_df['REFERENCE'] = True
+    target_df['REFERENCE'] = False
+    pd.concat([target_df, reference_df], axis=1).to_csv(os.path.join(dout, f"{args.d_target}_adjusted.txt.gz"),
+                                                        sep='\t')
 
 
 def _description_text() -> str:
@@ -82,14 +85,16 @@ def _parse_args(args=None):
                         help='Aggregated scores in PGS Catalog format ([sampleset, IID] indexed)')
     parser.add_argument('-m', '--method_assignment', dest='method_assignment', choices=_assign_method_threshold.keys(),
                         help='Method used for population/ancestry assignment')
-    parser.add_argument('--n_assignment', dest='nPCs_assignment', type=int, metavar="[1-20]", choices=range(1,21), default=10,
+    parser.add_argument('--n_assignment', dest='nPCs_assignment', type=int, metavar="[1-20]", choices=range(1, 21),
+                        default=10,
                         help='Number of PCs used for population ASSIGNMENT (default = 10)')
     parser.add_argument('-t', '--pval_threshold', dest='pThreshold',
                         help='p-value threshold used to exclude low-confidence ancestry assignments')
     parser.add_argument('-n', '--method_normalization', nargs='+', dest='method_normalization',
                         choices=_normalization_methods, default=["empirical", "mean", "mean+var"],
                         help='Method used for normalization of genetic ancestry')
-    parser.add_argument('--n_normalization', dest='nPCs_normalization', type=int, metavar="[1-20]", choices=range(1,21), default=5,
+    parser.add_argument('--n_normalization', dest='nPCs_normalization', type=int, metavar="[1-20]",
+                        choices=range(1, 21), default=5,
                         help='Number of PCs used for population NORMALIZATION (default = 5)')
     parser.add_argument('--outdir', dest='outdir', required=True,
                         help='<Required> Output directory')

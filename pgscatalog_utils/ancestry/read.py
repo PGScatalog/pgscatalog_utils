@@ -75,9 +75,14 @@ def read_projection(loc_sscores: list[str],dataset: str, loc_related_ids=None, n
         return proj, sum(nvars)
 
 
-def read_pgs(loc_sscore,onlySUM: bool):
-    '''Simple function to read the output of aggreagte_scores'''
-    df = pd.read_csv(loc_sscore, sep='\t', index_col=['sampleset', 'IID'])
+def read_pgs(loc_aggscore, onlySUM: bool):
+    """
+    Function to read the output of aggreagte_scores
+    :param loc_aggscore: path to aggregated scores output
+    :param onlySUM: whether to return only _SUM columns (e.g. not _AVG)
+    :return:
+    """
+    df = pd.read_csv(loc_aggscore, sep='\t', index_col=['sampleset', 'IID'])
     if onlySUM:
         df = df[[x for x in df.columns if x.endswith('_SUM')]]
         rn = [x.rstrip('_SUM') for x in df.columns]

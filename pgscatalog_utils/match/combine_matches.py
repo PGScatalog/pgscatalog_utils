@@ -65,7 +65,9 @@ def _parse_args(args=None):
     parser.add_argument('--outdir', dest='outdir', required=True,
                         help='<Required> Output directory')
     parser.add_argument('--split', dest='split', default=False, action='store_true',
-                        help='<Optional> Split scorefile per chromosome?')
+                        help='<Optional> Write scorefiles split per chromosome?')
+    parser.add_argument('--combined', dest='combined', default=False, action='store_true',
+                        help='<Optional> Write scorefiles in combined format?')
     parser.add_argument('-n', dest='n_threads', default=1, help='<Optional> n threads for matching', type=int)
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')

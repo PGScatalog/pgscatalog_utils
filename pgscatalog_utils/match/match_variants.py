@@ -89,7 +89,7 @@ def log_and_write(matches: pl.LazyFrame, scorefile: pl.LazyFrame, dataset: str, 
         logger.critical("Error: no target variants match any variants in scoring files")
         raise Exception("No valid matches found")
 
-    write_scorefiles(valid_matches, args.split, dataset)
+    write_scorefiles(matches=valid_matches, split=args.split, combined=args.combined, dataset=dataset)
 
     big_log: pl.LazyFrame = make_logs(scorefile=scorefile, match_candidates=matches, dataset=dataset)
     summary_log: pl.LazyFrame = make_summary_log(match_candidates=matches, filter_summary=filter_summary,

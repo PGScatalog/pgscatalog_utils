@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 def combine_matches():
     args = _parse_args()
+    if (args.combined is False) and (args.split is False):
+        logger.warning("No output format specified, writing to combined scoring file")
+        args.combined = True
+
     config.set_logging_level(args.verbose)
     config.setup_polars_threads(args.n_threads)
     config.setup_tmpdir(args.outdir, combine=True)

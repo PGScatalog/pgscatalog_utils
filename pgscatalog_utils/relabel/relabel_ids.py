@@ -98,7 +98,6 @@ def _relabel(args, mapping, split_output):
 
         i_target_col = h.index(args.target_col)
 
-
         if not split_output:
             current_chrom: str = 'ALL'
             outf_path = _get_outf_path(current_chrom=current_chrom, dataset=args.dataset)
@@ -148,6 +147,10 @@ def relabel_ids():
     map_list = [open_map(x, args.col_from, args.col_to) for x in args.map_files]
     mapping = reduce(operator.ior, map_list, {})  # merge dicts quickly, ior is equivalent to | operator
     del map_list
+
+    if not len(mapping) > 1:
+        logger.critical("Empty mapping file inputs, please check --maps files")
+        raise Exception
 
     # Read, relabel and output file
     # note: if --split and --combined, reads the input file twice. not ideal but it's pretty quick

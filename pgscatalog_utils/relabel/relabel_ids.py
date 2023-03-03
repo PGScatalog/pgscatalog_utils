@@ -24,6 +24,7 @@ def _parse_args(args=None):
                         help='<Optional> Extra logging information')
     parser.add_argument('--split', dest='split', action='store_true', required=False)
     parser.add_argument('--combined', dest='combined', action='store_true', required=False)
+    parser.add_argument('-cc', '--comment_char', dest='comment_char', default='##')
     args = parser.parse_args()
 
     if not (args.split or args.combined):
@@ -88,7 +89,13 @@ def _get_outf_path(current_chrom, dataset):
 
 def _relabel(args, mapping, split_output):
     with _open_target(args.target_file) as in_target:
-        h = in_target.readline().strip().split()
+        h = in_target.readline()
+        if args.comment_char:
+            while h.startswith(args.comment_char):
+                h = in_target.readline()
+        h = h.strip().split()
+
+
         i_target_col = h.index(args.target_col)
 
 

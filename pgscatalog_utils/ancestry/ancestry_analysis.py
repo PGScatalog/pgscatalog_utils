@@ -28,15 +28,16 @@ def ancestry_analysis():
     loc_target_sscores = glob.glob('*{}*_proj.sscore'.format(args.d_target))
     target_df, nvars_target_pca = read_projection(loc_sscores=loc_target_sscores, dataset=args.d_target, nPCs=maxPCs)
 
-    assert nvars_ref_pca == nvars_target_pca, "Number of variants included in PCA analysis is different between " \
+    if nvars_ref_pca and nvars_target_pca:
+        assert nvars_ref_pca == nvars_target_pca, "Number of variants included in PCA analysis is different between " \
                                               "REF ({}) and TARGET ({}) datasets".format(nvars_ref_pca, nvars_target_pca)
 
-    # Load PGS data
+    # Load PGS data & merge with PCA data
     pgs = read_pgs(args.scorefile, onlySUM=True)
     scorecols = pgs.columns
     reference_df = pd.merge(reference_df, pgs, left_index=True, right_index=True)
     target_df = pd.merge(target_df, pgs, left_index=True, right_index=True)
-    del pgs
+    del pgs  # clear raw PGS from memory
 
     # Assign ancestry
     assignment_threshold_p = choose_pval_threshold(args)
@@ -62,13 +63,12 @@ def ancestry_analysis():
     dout = os.path.abspath(config.OUTDIR)
     reference_df['REFERENCE'] = True
     target_df['REFERENCE'] = False
-    pd.concat([target_df, reference_df], axis=1).to_csv(os.path.join(dout, f"{args.d_target}_adjusted.txt.gz"),
-                                                        sep='\t')
+    pd.concat([target_df, reference_df], axis=1).to_csv(os.path.join(dout, f"{args.d_target}_adjusted.txt.gz"), sep='\t')
 
 
 def _description_text() -> str:
     return textwrap.dedent('Program to analyze ancestry outputs of the pgscatalog/pgsc_calc pipeline. Current inputs: '
-                           '\n  - PCA projections from reference and target datasets (*_proj.sscore.vars)'
+                           '\n  - PCA projections from reference and target datasets (*.pcs)'
                            '\n  - calculated polygenic scores (e.g. aggregated_scores.txt.gz), '
                            '\n  - information about related samples in the reference dataset (e.g. '
                            'deg2_hg38.king.cutoff.out.id).')
@@ -87,14 +87,14 @@ def _parse_args(args=None):
                         help='Population labels in REFERENCE psam to use for assignment')
     parser.add_argument('-s', '--agg_scores', dest='scorefile', default='aggregated_scores.txt.gz',
                         help='Aggregated scores in PGS Catalog format ([sampleset, IID] indexed)')
-    parser.add_argument('-m', '--method_assignment', dest='method_assignment', choices=_assign_method_threshold.keys(),
+    parser.add_argument('-a', '--assignment_method', dest='method_assignment', choices=_assign_method_threshold.keys(),
                         help='Method used for population/ancestry assignment')
     parser.add_argument('--n_assignment', dest='nPCs_assignment', type=int, metavar="[1-20]", choices=range(1, 21),
                         default=10,
                         help='Number of PCs used for population ASSIGNMENT (default = 10)')
     parser.add_argument('-t', '--pval_threshold', dest='pThreshold',
                         help='p-value threshold used to exclude low-confidence ancestry assignments')
-    parser.add_argument('-n', '--method_normalization', nargs='+', dest='method_normalization',
+    parser.add_argument('-n', '--normalization_method', nargs='+', dest='method_normalization',
                         choices=_normalization_methods, default=["empirical", "mean", "mean+var"],
                         help='Method used for normalization of genetic ancestry')
     parser.add_argument('--n_normalization', dest='nPCs_normalization', type=int, metavar="[1-20]",

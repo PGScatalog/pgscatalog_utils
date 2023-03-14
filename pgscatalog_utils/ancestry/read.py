@@ -5,10 +5,53 @@ import os
 
 logger = logging.getLogger(__name__)
 
+def read_pcs(loc_pcs: list[str],dataset: str, loc_related_ids=None, nPCs=None):
+    """
+    Read the .pc file outputs of the fraposa_pgsc projection
+    :param loc_pcs: list of locations for .pcs files
+    :param dataset: name of the dataset being read (used for index)
+    :param loc_related_ids: path to newline-delimited list of IDs for related samples that can be used to filter
+    :return: pandas dataframe with PC information
+    """
+    proj = pd.DataFrame()
+
+    for i, path in enumerate(loc_pcs):
+        logger.debug("Reading PCA projection: {}".format(path))
+        df = pd.read_csv(path, sep='\t')
+        df['sampleset'] = dataset
+        df.set_index(['sampleset', 'IID'], inplace=True)
+
+        if i == 0:
+            logger.debug('Initialising combined DF')
+            proj = df.copy()
+        else:
+            logger.debug('Appending to combined DF')
+            proj = pd.concat([proj, df])
+
+    # Read/process IDs for unrelated samples (usually reference dataset)
+    if loc_related_ids:
+        logger.debug("Flagging related samples with: {}".format(loc_related_ids))
+        proj['Unrelated'] = True
+        with open(loc_related_ids, 'r') as infile:
+            IDs_related = [x.strip() for x in infile.readlines()]
+        proj.loc[proj.index.get_level_values(level=1).isin(IDs_related), 'Unrelated'] = False
+    else:
+        proj['Unrelated'] = np.nan
+
+    # Drop PCs
+    if nPCs:
+        logger.debug('Filtering to relevant PCs')
+        dropcols = []
+        for x in proj.columns:
+            if int(x[2:]) > nPCs:
+                dropcols.append(x)
+        proj = proj.drop(dropcols, axis=1)
+
+    return proj
 
 def read_projection(loc_sscores: list[str],dataset: str, loc_related_ids=None, nPCs=None):
     """
-    Read PCA projection data from pgsc_calc pipeline
+    Read PCA projection data from pgsc_calc pipeline (outputs of PLINK2_PROJECT)
     :param loc_sscores: list of paths to the result of PCA projection (.sscore format)
     :param dataset: name of the dataset (used to create multi-index)
     :param loc_related_ids: loc_related_ids: path to newline-delimited list of IDs for related samples that can be used to filter
@@ -74,6 +117,10 @@ def read_projection(loc_sscores: list[str],dataset: str, loc_related_ids=None, n
         return proj, None
     else:
         return proj, sum(nvars)
+
+
+def read_ref_psam(loc_psam):
+    psam = pd.read_csv(loc_psam, sep='\t', comment='##')
 
 
 def read_pgs(loc_aggscore, onlySUM: bool):

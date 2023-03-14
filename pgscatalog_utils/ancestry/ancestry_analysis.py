@@ -7,7 +7,7 @@ import os
 import pandas as pd
 
 import pgscatalog_utils.config as config
-from pgscatalog_utils.ancestry.read import read_projection, read_pgs
+from pgscatalog_utils.ancestry.read import read_pcs, read_pgs, extract_ref_psam_cols
 from pgscatalog_utils.ancestry.tools import assign_ancestry, _assign_method_threshold, choose_pval_threshold, \
     pgs_adjust, _normalization_methods
 
@@ -21,16 +21,14 @@ def ancestry_analysis():
 
     # Load PCA data
     maxPCs = max([10, args.nPCs_assignment, args.nPCs_normalization])  # save memory by not using all PCs
-    loc_ref_sscores = glob.glob('*{}*_proj.sscore'.format(args.d_ref))
-    reference_df, nvars_ref_pca = read_projection(loc_sscores=loc_ref_sscores, dataset=args.d_ref,
-                                                  loc_related_ids=args.ref_related, nPCs=maxPCs)
+    loc_ref_pcs = glob.glob('*{}*.pcs'.format(args.d_ref))
+    reference_df = read_pcs(loc_pcs=loc_ref_pcs, dataset=args.d_ref,
+                            loc_related_ids=args.ref_related, nPCs=maxPCs)
+    loc_ref_psam = glob.glob('GRCh38_{}_ALL.psam'.format(args.d_ref))[0]
+    reference_df = extract_ref_psam_cols(loc_ref_psam, args.d_ref, reference_df, keepcols=[args.ref_label])
 
-    loc_target_sscores = glob.glob('*{}*_proj.sscore'.format(args.d_target))
-    target_df, nvars_target_pca = read_projection(loc_sscores=loc_target_sscores, dataset=args.d_target, nPCs=maxPCs)
-
-    if nvars_ref_pca and nvars_target_pca:
-        assert nvars_ref_pca == nvars_target_pca, "Number of variants included in PCA analysis is different between " \
-                                              "REF ({}) and TARGET ({}) datasets".format(nvars_ref_pca, nvars_target_pca)
+    loc_target_sscores = glob.glob('*{}*.pcs'.format(args.d_target))
+    target_df = read_pcs(loc_pcs=loc_target_sscores, dataset=args.d_target, nPCs=maxPCs)
 
     # Load PGS data & merge with PCA data
     pgs = read_pgs(args.scorefile, onlySUM=True)
@@ -38,6 +36,7 @@ def ancestry_analysis():
     reference_df = pd.merge(reference_df, pgs, left_index=True, right_index=True)
     target_df = pd.merge(target_df, pgs, left_index=True, right_index=True)
     del pgs  # clear raw PGS from memory
+
 
     # Assign ancestry
     assignment_threshold_p = choose_pval_threshold(args)
@@ -63,7 +62,7 @@ def ancestry_analysis():
     dout = os.path.abspath(config.OUTDIR)
     reference_df['REFERENCE'] = True
     target_df['REFERENCE'] = False
-    pd.concat([target_df, reference_df], axis=1).to_csv(os.path.join(dout, f"{args.d_target}_adjusted.txt.gz"), sep='\t')
+    pd.concat([target_df, reference_df]).to_csv(os.path.join(dout, f"{args.d_target}_adjusted.txt.gz"), sep='\t')
 
 
 def _description_text() -> str:

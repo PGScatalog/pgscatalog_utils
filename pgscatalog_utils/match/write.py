@@ -23,7 +23,7 @@ def write_log(df: pl.LazyFrame, prefix: str, chrom: typing.Union[str, None], out
     _write_text_pgzip(df=df, sep = ',', fout=fout)
 
 
-def write_scorefiles(matches: pl.LazyFrame, split: bool, dataset: str):
+def write_scorefiles(matches: pl.LazyFrame, split: bool, combined: bool, dataset: str):
     _check_column_types(matches)
     additive: pl.LazyFrame
     dominant: pl.LazyFrame
@@ -49,7 +49,8 @@ def write_scorefiles(matches: pl.LazyFrame, split: bool, dataset: str):
 
             # 4. pivot and write!
             _write_split(deduped, chrom, dataset)
-    else:
+
+    if combined:
         # 1. split by effect type
         additive, dominant, recessive = _split_effect_type(matches)
 

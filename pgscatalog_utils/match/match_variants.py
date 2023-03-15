@@ -89,7 +89,7 @@ def log_and_write(matches: pl.LazyFrame, scorefile: pl.LazyFrame, dataset: str, 
         logger.critical("Error: no target variants match any variants in scoring files")
         raise Exception("No valid matches found")
 
-    write_scorefiles(valid_matches, args.split, dataset)
+    write_scorefiles(matches=valid_matches, split=args.split, combined=args.combined, dataset=dataset)
 
     big_log: pl.LazyFrame = make_logs(scorefile=scorefile, match_candidates=matches, dataset=dataset)
     summary_log: pl.LazyFrame = make_summary_log(match_candidates=matches, filter_summary=filter_summary,
@@ -218,6 +218,8 @@ def _parse_args(args=None):
                         help='<Required> Output directory')
     parser.add_argument('--split', dest='split', default=False, action='store_true',
                         help='<Optional> Split scorefile per chromosome?')
+    parser.add_argument('--combined', dest='combined', default=False, action='store_true',
+                        help='<Optional> Write scorefiles in combined format?')
     parser.add_argument('-n', dest='n_threads', default=1, help='<Optional> n threads for matching', type=int)
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
@@ -272,6 +274,10 @@ def _check_args(args):
         logger.warning("Invalid arguments: --only_match and --keep_first_match, --ignore_strand_flips,"
                         "keep_multiallelic, or keep_ambiguous")
         logger.warning("Pass these arguments to combine_matches instead")
+
+    if (args.combined is False) and (args.split is False):
+        logger.warning("No output format specified, writing to combined scoring file")
+        args.combined = True
 
     return args
 

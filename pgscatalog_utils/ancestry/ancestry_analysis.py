@@ -1,7 +1,6 @@
 import argparse
 import textwrap
 import logging
-import glob
 import os
 
 import pandas as pd
@@ -21,13 +20,13 @@ def ancestry_analysis():
 
     # Load PCA data
     maxPCs = max([10, args.nPCs_assignment, args.nPCs_normalization])  # save memory by not using all PCs
-    loc_ref_pcs = glob.glob('*{}*.pcs'.format(args.d_ref))
+    loc_ref_pcs = args.ref_pcs
     reference_df = read_pcs(loc_pcs=loc_ref_pcs, dataset=args.d_ref,
                             loc_related_ids=args.ref_related, nPCs=maxPCs)
-    loc_ref_psam = glob.glob('GRCh38_{}_ALL.psam'.format(args.d_ref))[0]
+    loc_ref_psam = args.psam
     reference_df = extract_ref_psam_cols(loc_ref_psam, args.d_ref, reference_df, keepcols=[args.ref_label])
 
-    loc_target_sscores = glob.glob('*{}*.pcs'.format(args.d_target))
+    loc_target_sscores = args.target_pcs
     target_df = read_pcs(loc_pcs=loc_target_sscores, dataset=args.d_target, nPCs=maxPCs)
 
     # Load PGS data & merge with PCA data
@@ -80,6 +79,12 @@ def _parse_args(args=None):
                         help='<Required> Label of the TARGET genomic dataset')
     parser.add_argument('-r', '--reference', dest='d_ref', required=True,
                         help='<Required> Label of the REFERENCE genomic dataset')
+    parser.add_argument('--ref_pcs', dest='ref_pcs', required=True, nargs='+',
+                        help='<Required> Principal components path (output from fraposa_pgsc)')
+    parser.add_argument('--target_pcs', dest='target_pcs', required=True, nargs='+',
+                        help='<Required> Principal components path (output from fraposa_pgsc)')
+    parser.add_argument('--psam', dest='psam', required=True,
+                        help='<Required> Reference sample information file path in plink2 psam format)')
     parser.add_argument('-x', '--reference_related', dest='ref_related',
                         help='File of related sample IDs (excluded from training ancestry assignments)')
     parser.add_argument('-p', '--pop_label', dest='ref_label', default='SuperPop',

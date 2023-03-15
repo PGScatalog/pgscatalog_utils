@@ -1,12 +1,11 @@
-from pgscatalog_utils import config
-
 import argparse
 import logging
 import math
 import pathlib
-import sys
 
 import pandas as pd
+
+from pgscatalog_utils import config
 
 logger = logging.getLogger(__name__)
 

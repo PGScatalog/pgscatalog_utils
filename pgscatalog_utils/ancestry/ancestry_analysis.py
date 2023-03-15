@@ -7,8 +7,8 @@ import pandas as pd
 
 import pgscatalog_utils.config as config
 from pgscatalog_utils.ancestry.read import read_pcs, read_pgs, extract_ref_psam_cols
-from pgscatalog_utils.ancestry.tools import assign_ancestry, _assign_method_threshold, choose_pval_threshold, \
-    pgs_adjust, _normalization_methods
+from pgscatalog_utils.ancestry.tools import assign_ancestry, assign_method_threshold, choose_pval_threshold, \
+    pgs_adjust, normalization_methods
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ def _parse_args(args=None):
                         help='Population labels in REFERENCE psam to use for assignment')
     parser.add_argument('-s', '--agg_scores', dest='scorefile', default='aggregated_scores.txt.gz',
                         help='Aggregated scores in PGS Catalog format ([sampleset, IID] indexed)')
-    parser.add_argument('-a', '--assignment_method', dest='method_assignment', choices=_assign_method_threshold.keys(),
+    parser.add_argument('-a', '--assignment_method', dest='method_assignment', choices=assign_method_threshold.keys(),
                         help='Method used for population/ancestry assignment')
     parser.add_argument('--n_assignment', dest='nPCs_assignment', type=int, metavar="[1-20]", choices=range(1, 21),
                         default=10,
@@ -99,7 +99,7 @@ def _parse_args(args=None):
     parser.add_argument('-t', '--pval_threshold', dest='pThreshold',
                         help='p-value threshold used to exclude low-confidence ancestry assignments')
     parser.add_argument('-n', '--normalization_method', nargs='+', dest='method_normalization',
-                        choices=_normalization_methods, default=["empirical", "mean", "mean+var"],
+                        choices=normalization_methods, default=["empirical", "mean", "mean+var"],
                         help='Method used for normalization of genetic ancestry')
     parser.add_argument('--n_normalization', dest='nPCs_normalization', type=int, metavar="[1-20]",
                         choices=range(1, 21), default=5,

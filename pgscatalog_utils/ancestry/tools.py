@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Methods for assigning ancestry using PCA data & population labels
 ###
 
-_assign_method_threshold = {"Mahalanobis": 1e-10,
+assign_method_threshold = {"Mahalanobis": 1e-10,
                            "RandomForest": 0.5} # default p-value thresholds to define suitable population matches
 _mahalanobis_methods = ["MinCovDet", "EmpiricalCovariance"]
 
@@ -22,7 +22,7 @@ def choose_pval_threshold(args):
     if args.pThreshold != None:
         return args.pThreshold
     else:
-        return _assign_method_threshold[args.method_assignment]
+        return assign_method_threshold[args.method_assignment]
 
 
 def assign_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFrame, ref_train_col=None, n_pcs=4, method='RandomForest',
@@ -40,7 +40,7 @@ def assign_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFr
     :return: dataframes for reference (predictions on training set) and target (predicted labels) datasets
     """
     # Check that datasets have the correct columns
-    assert method in _assign_method_threshold.keys(), 'ancestry assignment method parameter must be Mahalanobis or RF'
+    assert method in assign_method_threshold.keys(), 'ancestry assignment method parameter must be Mahalanobis or RF'
     if method == 'Mahalanobis':
         assert covariance_method in _mahalanobis_methods, 'covariance estimation method must be MinCovDet or EmpiricalCovariance'
 
@@ -145,7 +145,7 @@ def assign_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFr
 ####
 # Methods for adjusting/reporting polygenic score results that account for genetic ancestry
 ####
-_normalization_methods = ["empirical", "mean", "mean+var"]
+normalization_methods = ["empirical", "mean", "mean+var"]
 
 
 def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, use_method:list, ref_train_col=None, n_pcs=5):

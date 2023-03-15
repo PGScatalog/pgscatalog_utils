@@ -1,32 +1,46 @@
+import logging
 import pandas as pd
+import numpy as np
 from sklearn.covariance import MinCovDet, EmpiricalCovariance
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression
 from scipy.stats import chi2, percentileofscore
 
+logger = logging.getLogger(__name__)
+
+
 ####
 # Methods for assigning ancestry using PCA data & population labels
 ###
 
-_assign_methods = ["Mahalanobis", "RF"]
+assign_method_threshold = {"Mahalanobis": 1e-10,
+                           "RandomForest": 0.5} # default p-value thresholds to define suitable population matches
 _mahalanobis_methods = ["MinCovDet", "EmpiricalCovariance"]
 
 
-def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4, method='RF', covariance_method = 'MinCovDet', p_threshold=None):
-    """
+def choose_pval_threshold(args):
+    if args.pThreshold != None:
+        return args.pThreshold
+    else:
+        return assign_method_threshold[args.method_assignment]
 
-    :param ref_df:
-    :param ref_pop_col:
-    :param target_df:
-    :param ref_train_col:
-    :param n_pcs:
-    :param method:
-    :param covariance_method:
-    :param p_threshold: suggest 0.9 for RF and 0.001 for Mahalanobis
-    :return:
+
+def assign_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFrame, ref_train_col=None, n_pcs=4, method='RandomForest',
+                    covariance_method='EmpiricalCovariance', p_threshold=None):
+    """
+    Function to train and assign ancestry using common methods
+    :param ref_df: reference dataset
+    :param ref_pop_col: training labels for population assignment in reference dataset
+    :param target_df: target dataset
+    :param ref_train_col: column name of TRUE/FALSE labels for inclusion in training ancestry assignments (e.g. unrelated)
+    :param n_pcs: number of PCs to use in ancestry assignment
+    :param method: One of Mahalanobis or RandomForest
+    :param covariance_method: Used to calculate Mahalanobis distances One of EmpiricalCovariance or MinCovDet
+    :param p_threshold: used to define LowConfidence population assignments
+    :return: dataframes for reference (predictions on training set) and target (predicted labels) datasets
     """
     # Check that datasets have the correct columns
-    assert method in _assign_methods, 'ancestry assignment method parameter must be Mahalanobis or RF'
+    assert method in assign_method_threshold.keys(), 'ancestry assignment method parameter must be Mahalanobis or RF'
     if method == 'Mahalanobis':
         assert covariance_method in _mahalanobis_methods, 'covariance estimation method must be MinCovDet or EmpiricalCovariance'
 
@@ -38,11 +52,11 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
     assert ref_pop_col in ref_df.columns, "Population label column ({}) is missing from reference dataframe".format(ref_pop_col)
     ref_populations = ref_df[ref_pop_col].unique()
 
-    ## Extract columns for analysis
+    # Extract columns for analysis
     ref_df = ref_df[cols_pcs + [ref_pop_col, ref_train_col]].copy()
     target_df = target_df[cols_pcs].copy()
 
-    ## Create Training dfs
+    # Create Training dfs
     if ref_train_col:
         assert ref_train_col in ref_df.columns, "Training index column({}) is missing from reference dataframe".format(ref_train_col)
         ref_train_df = ref_df.loc[ref_df[ref_train_col] == True,]
@@ -51,6 +65,7 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
 
     # Run Ancestry Assignment methods
     if method == 'Mahalanobis':
+        logger.debug("Calculating Mahalanobis distances")
         # Calculate population distances
         pval_cols = []
         for pop in ref_populations:
@@ -58,15 +73,15 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
             colname_dist = 'Mahalanobis_dist_{}'.format(pop)
             colname_pval = 'Mahalanobis_P_{}'.format(pop)
 
-            if covariance_method == 'MinCovDet':
-                # Robust method
-                covariance_fit = MinCovDet().fit(
-                    ref_train_df.loc[ref_train_df[ref_pop_col] == pop, cols_pcs]
-                )
-            elif covariance_method == 'EmpiricalCovariance':
-                covariance_fit = EmpiricalCovariance().fit(
-                    ref_train_df.loc[ref_train_df[ref_pop_col] == pop, cols_pcs]
-                )
+            match covariance_method:
+                case 'MinCovDet':
+                    covariance_model = MinCovDet()
+                case 'EmpiricalCovariance':
+                    covariance_model = EmpiricalCovariance()
+                case _:
+                    assert False, "Invalid covariance method"
+
+            covariance_fit = covariance_model.fit(ref_train_df.loc[ref_train_df[ref_pop_col] == pop, cols_pcs])
 
             # Caclulate Mahalanobis distance of each sample to that population
             # Reference Samples
@@ -79,37 +94,50 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
             pval_cols.append(colname_pval)
 
         # Assign population (maximum probability)
+        logger.debug("Assigning Populations (max Mahalanobis probability)")
         ref_assign = ref_df[pval_cols].copy()
-        ref_assign = ref_assign.assign(Predicted_Population=ref_assign.idxmax(axis=1))
+        ref_assign = ref_assign.assign(PopAssignment=ref_assign.idxmax(axis=1))
 
         target_assign = target_df[pval_cols].copy()
-        target_assign = target_assign.assign(Predicted_Population=target_assign.idxmax(axis=1))
+        target_assign = target_assign.assign(PopAssignment=target_assign.idxmax(axis=1))
 
         if p_threshold:
-            ref_assign['Predicted_Population'] = [x.split('_')[-1] if (ref_assign[x][i] > p_threshold) else 'OTH' for i,x in enumerate(ref_assign['Predicted_Population'])]
-            target_assign['Predicted_Population'] = [x.split('_')[-1] if (target_assign[x][i] > p_threshold) else 'OTH' for i, x in enumerate(target_assign['Predicted_Population'])]
+            logger.debug("Defining Population Assignment Confidence")
+            ref_assign['Assignment_LowConfidence'] = [(ref_assign[x][i] < p_threshold)
+                                                      for i,x in enumerate(ref_assign['PopAssignment'])]
+            target_assign['Assignment_LowConfidence'] = [(target_assign[x][i] < p_threshold)
+                                                         for i, x in enumerate(target_assign['PopAssignment'])]
+            ref_assign['PopAssignment'] = [x.split('_')[-1] for x in ref_assign['PopAssignment']]
+            target_assign['PopAssignment'] = [x.split('_')[-1] for x in target_assign['PopAssignment']]
         else:
-            ref_assign['Predicted_Population'] = [x.split('_')[-1] for x in ref_assign['Predicted_Population']]
-            target_assign['Predicted_Population'] = [x.split('_')[-1] for x in target_assign['Predicted_Population']]
+            ref_assign['PopAssignment'] = [x.split('_')[-1] for x in ref_assign['PopAssignment']]
+            target_assign['PopAssignment'] = [x.split('_')[-1] for x in target_assign['PopAssignment']]
+            ref_assign['Assignment_LowConfidence'] = np.nan
+            target_assign['Assignment_LowConfidence'] = np.nan
 
-    elif method == 'RF':
+    elif method == 'RandomForest':
         # Assign SuperPop Using Random Forest (PCA loadings)
-        clf_rf = RandomForestClassifier()
+        logger.debug("Training RandomForest classifier")
+        clf_rf = RandomForestClassifier(random_state=32)
         clf_rf.fit(ref_train_df[cols_pcs],  # X (training PCs)
                    ref_train_df[ref_pop_col].astype(str))  # Y (pop label)
         # Assign population
+        logger.debug("Assigning Populations (max RF probability)")
         ref_assign = pd.DataFrame(clf_rf.predict_proba(ref_df[cols_pcs]), index=ref_df.index, columns=['RF_P_{}'.format(x) for x in clf_rf.classes_])
-        ref_assign['Predicted_Population'] = clf_rf.predict(ref_df[cols_pcs])
+        ref_assign['PopAssignment'] = clf_rf.predict(ref_df[cols_pcs])
 
         target_assign = pd.DataFrame(clf_rf.predict_proba(target_df[cols_pcs]), index=target_df.index, columns=['RF_P_{}'.format(x) for x in clf_rf.classes_])
-        target_assign['Predicted_Population'] = clf_rf.predict(target_df[cols_pcs])
+        target_assign['PopAssignment'] = clf_rf.predict(target_df[cols_pcs])
 
         if p_threshold:
-            ref_assign['Predicted_Population'] = [x if (ref_assign['RF_P_{}'.format(x)][i] > p_threshold) else 'OTH'
-                                                  for i, x in enumerate(clf_rf.predict(ref_df[cols_pcs]))]
-            target_assign['Predicted_Population'] = [
-                x if (target_assign['RF_P_{}'.format(x)][i] > p_threshold) else 'OTH' for i, x in
-                enumerate(clf_rf.predict(target_df[cols_pcs]))]
+            logger.debug("Defining Population Assignment Confidence")
+            ref_assign['Assignment_LowConfidence'] = [(ref_assign['RF_P_{}'.format(x)][i] < p_threshold)
+                                                      for i, x in enumerate(clf_rf.predict(ref_df[cols_pcs]))]
+            target_assign['Assignment_LowConfidence'] = [(target_assign['RF_P_{}'.format(x)][i] < p_threshold)
+                                                         for i, x in enumerate(clf_rf.predict(target_df[cols_pcs]))]
+        else:
+            ref_assign['Assignment_LowConfidence'] = np.nan
+            target_assign['Assignment_LowConfidence'] = np.nan
 
     return ref_assign, target_assign
 
@@ -117,8 +145,22 @@ def assign_ancestry(ref_df, ref_pop_col, target_df, ref_train_col=None, n_pcs=4,
 ####
 # Methods for adjusting/reporting polygenic score results that account for genetic ancestry
 ####
+normalization_methods = ["empirical", "mean", "mean+var"]
 
-def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, ref_train_col=None, n_pcs=5):
+
+def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, use_method:list, ref_train_col=None, n_pcs=5):
+    """
+    Function to adjust PGS using population references and/or genetic ancestry (PCs)
+    :param ref_df:
+    :param target_df:
+    :param scorecols:
+    :param ref_pop_col:
+    :param target_pop_col:
+    :param use_method:
+    :param ref_train_col:
+    :param n_pcs:
+    :return:
+    """
     # Check that datasets have the correct columns
     ## Check that score is in both dfs
     assert all(
@@ -139,9 +181,6 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
     ref_populations = ref_df[ref_pop_col].unique()
     assert target_pop_col in target_df.columns, "Population label column ({}) is missing from target dataframe".format(
         target_pop_col)
-    ## Extract columns for analysis
-    ref_df = ref_df[cols_pcs + [ref_pop_col, ref_train_col]].copy()
-    target_df = target_df[cols_pcs + [target_pop_col]].copy()
 
     ## Create Training dfs
     if ref_train_col:
@@ -152,60 +191,59 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
         ref_train_df = ref_df
 
     # Empirical adjustment with reference population assignments
-    for pop in ref_populations:
-        if pop == 'OTH':
-            # ToDo: implement handling of individuals who don't have population label (weighted average based on distance?)
-            continue
+    if 'empirical' in use_method:
+        for pop in ref_populations:
+            ref_pop = ref_train_df[ref_train_df[ref_pop_col] == pop]  # Reference dataset
+            i_ref_pop = (ref_df[ref_pop_col] == pop)
+            i_target_pop = (target_df[target_pop_col] == pop)
 
-        ref_pop = ref_train_df[ref_train_df[ref_pop_col] == pop]  # Reference dataset
-        i_ref_pop = (ref_df[ref_col_pop] == pop)
-        i_target_pop = (target_df[target_pop_col] == pop)
+            for c_pgs in scorecols:
+                # Score Distribution
+                c_pgs_pop_dist = ref_pop[c_pgs]
 
-        for c_pgs in scorecols:
-            # Score Distribution
-            c_pgs_pop_dist = ref_pop[c_pgs]
+                # Calculate Percentile
+                percentile_col = '{}.adj_empirical_percentile'.format(c_pgs)
+                ref_df.loc[i_ref_pop, percentile_col] = percentileofscore(c_pgs_pop_dist, ref_df.loc[i_ref_pop, c_pgs])
+                target_df.loc[i_target_pop, percentile_col] = percentileofscore(c_pgs_pop_dist, target_df.loc[i_target_pop, c_pgs])
 
-            # Calculate Percentile
-            percentile_col = '{}.adj_empirical_percentile'.format(c_pgs)
-            ref_df.loc[i_ref_pop, percentile_col] = percentileofscore(c_pgs_pop_dist, ref_df.loc[i_ref_pop, c_pgs])
-            target_df.loc[i_target_pop, percentile_col] = percentileofscore(c_pgs_pop_dist, target_df.loc[i_target_pop, c_pgs])
+                # Calculate Z
+                z_col = '{}.adj_empirical_Z'.format(c_pgs)
+                c_pgs_mean = c_pgs_pop_dist.mean()
+                c_pgs_std = c_pgs_pop_dist.std(ddof=0)
 
-            # Calculate Z
-            z_col = '{}.adj_empirical_Z'.format(c_pgs)
-            c_pgs_mean = c_pgs_pop_dist.mean()
-            c_pgs_std = c_pgs_pop_dist.std(ddof=0)
-
-            ref_df.loc[i_ref_pop, z_col] = (ref_df.loc[i_ref_pop, c_pgs] - c_pgs_mean)/c_pgs_std
-            target_df.loc[i_target_pop, z_col] = (target_df.loc[i_target_pop, c_pgs] - c_pgs_mean)/c_pgs_std
-
+                ref_df.loc[i_ref_pop, z_col] = (ref_df.loc[i_ref_pop, c_pgs] - c_pgs_mean)/c_pgs_std
+                target_df.loc[i_target_pop, z_col] = (target_df.loc[i_target_pop, c_pgs] - c_pgs_mean)/c_pgs_std
+        # ToDo: implement handling of individuals who have low-confidence population labels
+        #  Possible Soln: weighted average based on probabilities? Small Mahalanobis P-values will complicate this
     # PCA-based adjustment
-    for c_pgs in scorecols:
-        ## Method 1 (Khera): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
-        ### Fit to Reference Data
-        pcs2pgs_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_df[c_pgs])
-        ref_train_pgs_pred = pcs2pgs_fit.predict(ref_train_df[cols_pcs])
-        ref_train_pgs_resid = ref_train_df[c_pgs] - ref_train_pgs_pred
-        ref_train_pgs_resid_mean = ref_train_pgs_resid.mean()
-        ref_train_pgs_resid_std = ref_train_pgs_resid.std(ddof=0)
+    if any([x in use_method for x in ['mean', 'mean+var']]):
+        for c_pgs in scorecols:
+            # Method 1 (Khera): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
+            # Fit to Reference Data
+            pcs2pgs_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_df[c_pgs])
+            ref_train_pgs_pred = pcs2pgs_fit.predict(ref_train_df[cols_pcs])
+            ref_train_pgs_resid = ref_train_df[c_pgs] - ref_train_pgs_pred
+            ref_train_pgs_resid_mean = ref_train_pgs_resid.mean()
+            ref_train_pgs_resid_std = ref_train_pgs_resid.std(ddof=0)
 
-        ref_pgs_resid = ref_df[c_pgs] - pcs2pgs_fit.predict(ref_df[cols_pcs])
-        ref_df['{}.adj_1_Khera'.format(pgs_col)] = ref_pgs_resid / ref_train_pgs_resid_std
-        ### Apply to Target Data
-        target_pgs_pred = pcs2pgs_fit.predict(target_df[cols_pcs])
-        target_pgs_resid = target_df[pgs_col] - target_pgs_pred
-        target_df['{}.adj_1_Khera'.format(pgs_col)] = target_pgs_resid / ref_train_pgs_resid_std
+            ref_pgs_resid = ref_df[c_pgs] - pcs2pgs_fit.predict(ref_df[cols_pcs])
+            ref_df['{}.adj_1_Khera'.format(c_pgs)] = ref_pgs_resid / ref_train_pgs_resid_std
+            # Apply to Target Data
+            target_pgs_pred = pcs2pgs_fit.predict(target_df[cols_pcs])
+            target_pgs_resid = target_df[c_pgs] - target_pgs_pred
+            target_df['{}.adj_1_Khera'.format(c_pgs)] = target_pgs_resid / ref_train_pgs_resid_std
 
-        ## Method 2 (Khan): normalize variance (doi:10.1038/s41591-022-01869-1)
-        ### Normalize based on residual deviation from mean of the distribution
-        ### (e.g. reduce the effect of genetic ancestry on how far away you are from the mean [equalize population sds])
-        pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean)**2)
+            if 'mean+var' in use_method:
+                # Method 2 (Khan): normalize variance (doi:10.1038/s41591-022-01869-1)
+                # Normalize based on residual deviation from mean of the distribution [equalize population sds]
+                # (e.g. reduce the correlation between genetic ancestry and how far away you are from the mean)
+                pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean)**2)
 
-        ### Alternative (not adjusting for the mean... which should be 0 anyways because we're trying to fit it)
-        #pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_pgs_resid**2)
+                # Alternative (not adjusting for the mean... which should be 0 already because we've tried to fit it)
+                # ---> pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_pgs_resid**2)
 
-        ref_df['{}.adj_2_Khan'.format(pgs_col)] = ref_pgs_resid / np.sqrt(pcs2var_fit.predict(ref_df[cols_pcs]))
-        ### Apply to Target
-        target_df['{}.adj_2_Khan'.format(pgs_col)] = target_pgs_resid / np.sqrt(pcs2var_fit.predict(target_df[cols_pcs]))
+                ref_df['{}.adj_2_Khan'.format(c_pgs)] = ref_pgs_resid / np.sqrt(pcs2var_fit.predict(ref_df[cols_pcs]))
+                # Apply to Target
+                target_df['{}.adj_2_Khan'.format(c_pgs)] = target_pgs_resid / np.sqrt(pcs2var_fit.predict(target_df[cols_pcs]))
 
-    # Output adjustment columns in reference and target dataframes
-    #return ref_df[x if ('.adj_' in x) for x in ref_df.columns], target_df[x if ('.adj_' in x) for x in target_df.columns]
+    return ref_df, target_df

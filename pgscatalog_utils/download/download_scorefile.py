@@ -4,6 +4,7 @@ import os
 import shutil
 import textwrap
 import time
+import hashlib
 from contextlib import closing
 from functools import reduce
 from urllib import request as request
@@ -16,6 +17,8 @@ from pgscatalog_utils.config import set_logging_level
 
 logger = logging.getLogger(__name__)
 
+md5_sep = '  '
+md5_ext = '.md5'
 
 def download_scorefile() -> None:
     args = _parse_args()
@@ -24,12 +27,17 @@ def download_scorefile() -> None:
     _mkdir(args.outdir)
 
     if args.build is None:
-        logger.critical(f'Downloading scoring file(s) in the author-reported genome build')
+        logger.warning(f'Downloading scoring file(s) in the author-reported genome build')
     elif args.build in ['GRCh37', 'GRCh38']:
-        logger.critical(f'Downloading harmonized scoring file(s) in build: {args.build}.')
+        logger.warning(f'Downloading harmonized scoring file(s) in build: {args.build}.')
     else:
         logger.critical(f'Invalid genome build specified: {args.build}. Only -b GRCh37 and -b GRCh38 are supported')
         raise Exception
+
+    overwrite_existing_file = args.overwrite_existing_file
+    if overwrite_existing_file:
+        logger.debug("--overwrite, overwriting new version of the Scoring file, if available")
+        logger.warning(f'Existing Scoring files will be overwritten if new versions of the Scoring files are available for download.')
 
     pgs_lst: list[list[str]] = []
 
@@ -63,7 +71,17 @@ def download_scorefile() -> None:
             path: str = os.path.join(args.outdir, pgsid + '.txt.gz')
         else:
             path: str = os.path.join(args.outdir, pgsid + f'_hmPOS_{args.build}.txt.gz')
-        _download_ftp(url, path)
+        # Download Scoring file
+        is_downloaded = _download_ftp(url, path, overwrite_existing_file)
+        # Check the download
+        if is_downloaded:
+            # - Generate MD5 checksum for the downloaded Scoring File
+            downloaded_file_md5 = generate_md5_checksum(path)
+            # - Download MD5 checksum from the FTP and compare it with the generated MD5 checksum for the downloaded Scoring File
+            ftp_md5 = get_md5_checksum_from_ftp(url)
+            # - Compare MD5 checksums
+            if downloaded_file_md5 != ftp_md5:
+                raise RuntimeError("The download of the file wasn't done properly: the generated MD5 Checksums from the downloaded file differs with the MD5 Checksums on the PGS Catalog FTP")
 
 
 def _mkdir(outdir: str) -> None:
@@ -72,26 +90,84 @@ def _mkdir(outdir: str) -> None:
         os.makedirs(outdir)
 
 
-def _download_ftp(url: str, path: str, retry:int = 0) -> None:
-    if os.path.exists(path):
-        logger.warning(f"File already exists at {path}, skipping download")
-        return
-    else:
-        try:
-            with closing(request.urlopen(url)) as r:
-                with open(path, 'wb') as f:
-                    shutil.copyfileobj(r, f)
-        except (HTTPError, URLError) as error:
-            max_retries = 5
-            print(f'Download failed: {error.reason}')
-            # Retry to download the file if the server is busy
-            if '421' in error.reason and retry < max_retries:
-                print(f'> Retry to download the file ... attempt {retry+1} out of {max_retries}.')
-                retry += 1
-                time.sleep(10)
-                _download_ftp(url,path,retry)
+def _download_ftp(url: str, path: str, overwrite_existing_file: bool, retry: int = 0) -> None:
+    """ Download the Scoring file via the PGS Catalog FTP """
+    # Check if Scoring file already exist in the local directory
+    if os.path.exists(path) and retry == 0:
+        existing_file_md5 = generate_md5_checksum(path)
+        ftp_md5 = get_md5_checksum_from_ftp(url)
+        # Overwrite option for the Scoring file
+        if overwrite_existing_file:
+            if existing_file_md5 == ftp_md5:
+                logger.warning(f"Identical Scoring file already exists at {path}, skipping download.")
+                return False
             else:
-                raise RuntimeError("Failed to download '{}'.\nError message: '{}'".format(url, error.reason))
+                logger.warning(f"Existing Scoring file at {path}, will be overwritten by a new version of the file on the FTP.")
+        # No overwrite option
+        else:
+            warning_msg = f"File already exists at {path}, skipping download."
+            if existing_file_md5 != ftp_md5:
+                warning_msg = warning_msg + " However a new version of the Scoring file is available on the FTP. You can overwrite the existing Scoring file using the parameter '--overwrite'."
+            logger.warning(warning_msg)
+            return False
+    # Attempt to download the Scoring file
+    try:
+        with closing(request.urlopen(url)) as r:
+            with open(path, 'wb') as f:
+                shutil.copyfileobj(r, f)
+        return True
+    except (HTTPError, URLError) as error:
+        max_retries = 5
+        logger.warning(f'Download failed: {error.reason}')
+        # Retry to download the file if the server is busy
+        if '421' in error.reason and retry < max_retries:
+            logger.warning(f'> Retry to download the file ... attempt {retry+1} out of {max_retries}.')
+            retry += 1
+            time.sleep(10)
+            is_downloaded = _download_ftp(url,path,overwrite_existing_file,retry)
+            if is_downloaded:
+                return is_downloaded
+        else:
+            raise RuntimeError("Failed to download '{}'.\nError message: '{}'".format(url, error.reason))
+
+
+def generate_md5_checksum(filename,blocksize=4096):
+    """ Returns MD5 checksum for the given file. """
+    md5 = hashlib.md5()
+    try:
+        file = open(filename, 'rb')
+        with file:
+            for block in iter(lambda: file.read(blocksize), b""):
+                md5.update(block)
+    except IOError:
+        logger.warning('File \'' + filename + '\' not found!')
+        return None
+    except:
+        logger.warning("Error: the script couldn't generate a MD5 checksum for '" + filename + "'!")
+        return None
+    return md5.hexdigest()
+
+
+def get_md5_checksum_from_ftp(url:str, retry:int = 0) -> str:
+    """ Download and extract MD5 checksum value from the FTP. """
+    md5 = None
+    try:
+        url_md5 = url+md5_ext
+        with closing(request.urlopen(url_md5)) as file:
+            md5_content = file.read().decode()
+            md5 = md5_content.split(md5_sep)[0]
+    except (HTTPError, URLError) as error:
+        max_retries = 5
+        logger.warning(f'MD5 checksum download failed: {error.reason}')
+        # Retry to download the MD% checksum file if the server is busy
+        if '421' in error.reason and retry < max_retries:
+            logger.warning(f'> Retry to download the file ... attempt {retry+1} out of {max_retries}.')
+            retry += 1
+            time.sleep(10)
+            get_md5_checksum_from_ftp(url,retry)
+        else:
+            raise RuntimeError(f"MD5 file download failed - Error message: '{error.reason}'")
+    return md5
 
 
 def _check_args(args):
@@ -146,6 +222,8 @@ def _parse_args(args=None) -> argparse.Namespace:
     parser.add_argument('-o', '--outdir', dest='outdir', required=True,
                         default='scores/',
                         help='<Required> Output directory to store downloaded files')
+    parser.add_argument('-w', '--overwrite', dest='overwrite_existing_file', action='store_true',
+                        help='<Optional> Overwrite existing Scoring File if a new version is available for download on the FTP')
     parser.add_argument('-c', '--pgsc_calc', dest='pgsc_calc',
                         help='<Optional> Provide information about downloading scoring files via pgsc_calc')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',

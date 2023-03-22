@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from sklearn.covariance import MinCovDet, EmpiricalCovariance
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, GammaRegressor
 from scipy.stats import chi2, percentileofscore
 
 logger = logging.getLogger(__name__)
@@ -230,6 +230,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
     if any([x in use_method for x in ['mean', 'mean+var']]):
         for c_pgs in scorecols:
             # Method 1 (Khera): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
+            adj_col = '{}.adj_1_Khera'.format(c_pgs)
             # Fit to Reference Data
             pcs2pgs_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_df[c_pgs])
             ref_train_pgs_pred = pcs2pgs_fit.predict(ref_train_df[cols_pcs])
@@ -238,24 +239,36 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
             ref_train_pgs_resid_std = ref_train_pgs_resid.std(ddof=0)
 
             ref_pgs_resid = ref_df[c_pgs] - pcs2pgs_fit.predict(ref_df[cols_pcs])
-            results_ref['{}.adj_1_Khera'.format(c_pgs)] = ref_pgs_resid / ref_train_pgs_resid_std
+            results_ref[adj_col] = ref_pgs_resid / ref_train_pgs_resid_std
             # Apply to Target Data
             target_pgs_pred = pcs2pgs_fit.predict(target_df[cols_pcs])
             target_pgs_resid = target_df[c_pgs] - target_pgs_pred
-            results_target['{}.adj_1_Khera'.format(c_pgs)] = target_pgs_resid / ref_train_pgs_resid_std
+            results_target[adj_col] = target_pgs_resid / ref_train_pgs_resid_std
 
             if 'mean+var' in use_method:
                 # Method 2 (Khan): normalize variance (doi:10.1038/s41591-022-01869-1)
                 # Normalize based on residual deviation from mean of the distribution [equalize population sds]
                 # (e.g. reduce the correlation between genetic ancestry and how far away you are from the mean)
+                adj_col = '{}.adj_2_Khan'.format(c_pgs)
                 pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean)**2)
 
                 # Alternative (not adjusting for the mean... which should be 0 already because we've tried to fit it)
                 # ---> pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_pgs_resid**2)
 
-                results_ref['{}.adj_2_Khan'.format(c_pgs)] = ref_pgs_resid / np.sqrt(pcs2var_fit.predict(ref_df[cols_pcs]))
+                results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit.predict(ref_df[cols_pcs]))
                 # Apply to Target
-                results_target['{}.adj_2_Khan'.format(c_pgs)] = target_pgs_resid / np.sqrt(pcs2var_fit.predict(target_df[cols_pcs]))
+                results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit.predict(target_df[cols_pcs]))
+
+                # Check for NAs
+                has_null = sum(results_ref['{}.adj_2_Khan'.format(c_pgs)].isnull()) + sum(results_target['{}.adj_2_Khan'.format(c_pgs)].isnull())
+                if has_null > 0:
+                    print('{}.adj_2_Khan'.format(c_pgs), sum(results_ref['{}.adj_2_Khan'.format(c_pgs)].isnull()), sum(results_target['{}.adj_2_Khan'.format(c_pgs)].isnull()))
+
+                # Attempt gamma distribution for predicted variance to constrain it to be positive (e.g. using linear regression we can get negative predictions for the sd)
+                pcs2var_fit_gamma = GammaRegressor(max_iter=1000).fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean) ** 2)
+                adj_col = '{}.adj_2_Gamma'.format(c_pgs)
+                results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_df[cols_pcs]))
+                results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(target_df[cols_pcs]))
 
     # Aggregate results
     ref_df = pd.merge(ref_df, pd.DataFrame(results_ref), left_index=True, right_index=True)

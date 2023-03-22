@@ -91,12 +91,13 @@ def _parse_args(args=None):
                         help='Population labels in REFERENCE psam to use for assignment')
     parser.add_argument('-s', '--agg_scores', dest='scorefile', default='aggregated_scores.txt.gz',
                         help='Aggregated scores in PGS Catalog format ([sampleset, IID] indexed)')
-    parser.add_argument('-a', '--assignment_method', dest='method_assignment', choices=assign_method_threshold.keys(),
+    parser.add_argument('-a', '--assignment_method', dest='method_assignment',
+                        choices=assign_method_threshold.keys(), default='RandomForest',
                         help='Method used for population/ancestry assignment')
     parser.add_argument('--n_assignment', dest='nPCs_assignment', type=int, metavar="[1-20]", choices=range(1, 21),
                         default=10,
                         help='Number of PCs used for population ASSIGNMENT (default = 10)')
-    parser.add_argument('-t', '--pval_threshold', dest='pThreshold',
+    parser.add_argument('-t', '--pval_threshold', dest='pThreshold', type=float,
                         help='p-value threshold used to exclude low-confidence ancestry assignments')
     parser.add_argument('-n', '--normalization_method', nargs='+', dest='method_normalization',
                         choices=normalization_methods, default=["empirical", "mean", "mean+var"],

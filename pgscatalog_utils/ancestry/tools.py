@@ -19,10 +19,13 @@ _mahalanobis_methods = ["MinCovDet", "EmpiricalCovariance"]
 
 
 def choose_pval_threshold(args):
-    if args.pThreshold != None:
-        return args.pThreshold
-    else:
-        return assign_method_threshold[args.method_assignment]
+    set_threshold = assign_method_threshold[args.method_assignment] # method default
+    if args.pThreshold is not None:
+        if (args.pThreshold > 0) and (args.pThreshold < 1):
+            set_threshold = args.pThreshold
+        else:
+            logging.warning("p-value threshold out of range, assigning as method default: {}")
+    return set_threshold
 
 
 def assign_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFrame, ref_train_col=None, n_pcs=4, method='RandomForest',

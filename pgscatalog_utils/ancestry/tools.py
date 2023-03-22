@@ -199,33 +199,35 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
 
     # Empirical adjustment with reference population assignments
     if 'empirical' in use_method:
-        for pop in ref_populations:
-            ref_pop = ref_train_df[ref_train_df[ref_pop_col] == pop]  # Reference dataset
-            i_ref_pop = (ref_df[ref_pop_col] == pop)
-            i_target_pop = (target_df[target_pop_col] == pop)
+        for c_pgs in scorecols:
+            # Initialize Output
+            percentile_col = '{}.adj_empirical_percentile'.format(c_pgs)
+            results_ref[percentile_col] = pd.Series(index=ref_df.index, dtype='float64')
+            results_target[percentile_col] = pd.Series(index=target_df.index, dtype='float64')
+            z_col = '{}.adj_empirical_Z'.format(c_pgs)
+            results_ref[z_col] = pd.Series(index=ref_df.index, dtype='float64')
+            results_target[z_col] = pd.Series(index=target_df.index, dtype='float64')
 
-            for c_pgs in scorecols:
-                # Score Distribution
-                c_pgs_pop_dist = ref_pop[c_pgs]
+            # Predict each population
+            for pop in ref_populations:
+                i_ref_pop = (ref_df[ref_pop_col] == pop)
+                i_target_pop = (target_df[target_pop_col] == pop)
+
+                # Reference Score Distribution
+                c_pgs_pop_dist = ref_train_df.loc[ref_train_df[ref_pop_col] == pop, c_pgs]
 
                 # Calculate Percentile
-                percentile_col = '{}.adj_empirical_percentile'.format(c_pgs)
-                results_ref[percentile_col] = pd.Series(index=ref_df.index, dtype='float64')
-                results_target[percentile_col] = pd.Series(index=target_df.index, dtype='float64')
                 results_ref[percentile_col].loc[i_ref_pop] = percentileofscore(c_pgs_pop_dist, ref_df.loc[i_ref_pop, c_pgs])
                 results_target[percentile_col].loc[i_target_pop] = percentileofscore(c_pgs_pop_dist, target_df.loc[i_target_pop, c_pgs])
 
                 # Calculate Z
-                z_col = '{}.adj_empirical_Z'.format(c_pgs)
-                results_ref[z_col] = pd.Series(index=ref_df.index, dtype='float64')
-                results_target[z_col] = pd.Series(index=target_df.index, dtype='float64')
                 c_pgs_mean = c_pgs_pop_dist.mean()
                 c_pgs_std = c_pgs_pop_dist.std(ddof=0)
 
                 results_ref[z_col].loc[i_ref_pop] = (ref_df.loc[i_ref_pop, c_pgs] - c_pgs_mean)/c_pgs_std
                 results_target[z_col].loc[i_target_pop] = (target_df.loc[i_target_pop, c_pgs] - c_pgs_mean)/c_pgs_std
-        # ToDo: explore handling of individuals who have low-confidence population labels
-        #  -> Possible Soln: weighted average based on probabilities? Small Mahalanobis P-values will complicate this
+            # ToDo: explore handling of individuals who have low-confidence population labels
+            #  -> Possible Soln: weighted average based on probabilities? Small Mahalanobis P-values will complicate this
     # PCA-based adjustment
     if any([x in use_method for x in ['mean', 'mean+var']]):
         for c_pgs in scorecols:
@@ -272,6 +274,6 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
 
     # Aggregate results
     ref_df = pd.merge(ref_df, pd.DataFrame(results_ref), left_index=True, right_index=True)
-    target_df = pd.merge(ref_df, pd.DataFrame(results_target), left_index=True, right_index=True)
+    target_df = pd.merge(target_df, pd.DataFrame(results_target), left_index=True, right_index=True)
 
     return ref_df, target_df

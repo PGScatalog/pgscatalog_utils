@@ -30,7 +30,7 @@ def test_label(small_scorefile, small_target):
     scorefile, target = _cast_cat(small_scorefile, small_target)
 
     # get_all_matches calls label_matches
-    params = {'skip_flip': True, 'remove_ambiguous': True, 'remove_multiallelic': False, 'keep_first_match': False}
+    params = {'filter_IDs': [], 'skip_flip': True, 'remove_ambiguous': True, 'remove_multiallelic': False, 'keep_first_match': False}
     labelled: pl.DataFrame = (pl.concat(get_all_matches(scorefile=scorefile, target=target))
                               .pipe(label_matches, params=params)
                               .collect())
@@ -46,7 +46,7 @@ def test_label(small_scorefile, small_target):
 def test_ambiguous_label(small_flipped_scorefile, small_target):
     """ Test ambiguous variant labels change when they're kept for match candidates with one match per position """
     scorefile, target = _cast_cat(small_flipped_scorefile, small_target)
-    no_flip = {'skip_flip': True, 'remove_ambiguous': True, 'remove_multiallelic': False, 'keep_first_match': False}
+    no_flip = {'filter_IDs': [], 'skip_flip': True, 'remove_ambiguous': True, 'remove_multiallelic': False, 'keep_first_match': False}
     no_ambiguous: pl.DataFrame = (pl.concat(get_all_matches(scorefile=scorefile, target=target))
                                   .pipe(label_matches, params=no_flip)
                                   .collect())
@@ -61,7 +61,7 @@ def test_ambiguous_label(small_flipped_scorefile, small_target):
     assert no_ambiguous['match_status'].to_list() == ["excluded", "excluded", "not_best", "excluded"]
 
     # otherwise, ambiguous variants are kept
-    flip_params = {'skip_flip': True, 'remove_ambiguous': False, 'remove_multiallelic': False,
+    flip_params = {'filter_IDs': [], 'skip_flip': True, 'remove_ambiguous': False, 'remove_multiallelic': False,
                    'keep_first_match': False}
     labelled = (pl.concat(get_all_matches(scorefile=scorefile, target=target))
                 .pipe(label_matches, params=flip_params)
@@ -123,7 +123,7 @@ def duplicated_matches(small_scorefile, small_target, request) -> pl.DataFrame:
 
     scorefile, target = _cast_cat(dups, small_target)
 
-    params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False,
+    params = {'filter_IDs': [], 'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False,
               'keep_first_match': request.param}
     return (pl.concat(get_all_matches(scorefile=scorefile, target=target))
             .pipe(label_matches, params=params)
@@ -135,7 +135,7 @@ def multiple_match_types(small_target, small_scorefile) -> pl.DataFrame:
     # skip flip will return two candidate matches for one target position: refalt + refalt_flip
     scorefile, target = _cast_cat(small_scorefile, small_target)
 
-    params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False, 'keep_first_match': False}
+    params = {'filter_IDs': [], 'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False, 'keep_first_match': False}
     return (pl.concat(get_all_matches(scorefile=scorefile, target=target))
             .pipe(label_matches, params=params)
             .filter(pl.col('chr_name') == '2')
@@ -150,7 +150,7 @@ def duplicate_best_match(small_target, small_scorefile_no_oa) -> pl.DataFrame:
 
     scorefile, target = _cast_cat(small_scorefile_no_oa, pl.DataFrame(odd_target))
 
-    params = {'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False, 'keep_first_match': False}
+    params = {'filter_IDs': [], 'skip_flip': False, 'remove_ambiguous': False, 'remove_multiallelic': False, 'keep_first_match': False}
     return (pl.concat(get_all_matches(scorefile=scorefile, target=target))
             .pipe(label_matches, params=params)
             .collect())

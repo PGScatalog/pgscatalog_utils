@@ -31,7 +31,7 @@ def ancestry_analysis():
 
     # Load PGS data & merge with PCA data
     pgs = read_pgs(args.scorefile, onlySUM=True)
-    scorecols = pgs.columns
+    scorecols = list(pgs.columns)
     reference_df = pd.merge(reference_df, pgs, left_index=True, right_index=True)
     target_df = pd.merge(target_df, pgs, left_index=True, right_index=True)
     del pgs  # clear raw PGS from memory
@@ -48,20 +48,37 @@ def ancestry_analysis():
 
     reference_df = pd.concat([reference_df, ancestry_ref], axis=1)
     target_df = pd.concat([target_df, ancestry_target], axis=1)
+    print(reference_df.shape, target_df.shape)
     del ancestry_ref, ancestry_target
 
     # Adjust PGS values
-    reference_df, target_df = pgs_adjust(reference_df, target_df, scorecols,
-                                         args.ref_label, 'PopAssignment',
-                                         use_method=args.method_normalization,
-                                         ref_train_col='Unrelated',
-                                         n_pcs=args.nPCs_normalization)
+    adjpgs_ref, adjpgs_target = pgs_adjust(reference_df, target_df, scorecols,
+                                           args.ref_label, 'PopAssignment',
+                                           use_method=args.method_normalization,
+                                           ref_train_col='Unrelated',
+                                           n_pcs=args.nPCs_normalization)
+    adjpgs = pd.concat([adjpgs_ref, adjpgs_target], axis=0)
+    print(adjpgs_ref.shape, adjpgs_target.shape, adjpgs.shape)
+    del adjpgs_ref, adjpgs_target
 
     # Write outputs
     dout = os.path.abspath(config.OUTDIR)
     reference_df['REFERENCE'] = True
     target_df['REFERENCE'] = False
-    pd.concat([target_df, reference_df]).to_csv(os.path.join(dout, f"{args.d_target}_adjusted.txt.gz"), sep='\t')
+    final_df = pd.concat([target_df, reference_df], axis=0)
+    del reference_df, target_df
+
+    # Melt PGS
+    adjpgs = adjpgs.melt(ignore_index=False)
+    adjpgs[['method', 'PGS']] = adjpgs.variable.str.split("|", expand=True)
+    # Currently each PGS will have it's own row... but it might be more optimal for each normalization method
+    #  to be on separate rows? My logic is that you might want to check correaltion between methods and it is easiest
+    #  in this format.
+    adjpgs = adjpgs.drop('variable', axis=1).reset_index().pivot(index=['sampleset', 'IID', 'PGS'], columns='method', values='value')
+    adjpgs.to_csv(os.path.join(dout, f"{args.d_target}_pgs.txt.gz"), sep='\t')
+
+    # Write ancestry
+    final_df.drop(scorecols, axis=1).to_csv(os.path.join(dout, f"{args.d_target}_ancestry.txt.gz"), sep='\t')
 
 
 def _description_text() -> str:

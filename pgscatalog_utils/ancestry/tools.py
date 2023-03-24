@@ -196,15 +196,20 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
     ## Create results structures
     results_ref = {}
     results_target = {}
+    for c_pgs in scorecols:
+        # Makes melting easier later
+        sum_col = 'SUM|{}'.format(c_pgs)
+        results_ref[sum_col] = ref_df[c_pgs]
+        results_target[sum_col] = target_df[c_pgs]
 
     # Empirical adjustment with reference population assignments
     if 'empirical' in use_method:
         for c_pgs in scorecols:
             # Initialize Output
-            percentile_col = '{}.adj_empirical_percentile'.format(c_pgs)
+            percentile_col = 'adj_empirical_percentile|{}'.format(c_pgs)
             results_ref[percentile_col] = pd.Series(index=ref_df.index, dtype='float64')
             results_target[percentile_col] = pd.Series(index=target_df.index, dtype='float64')
-            z_col = '{}.adj_empirical_Z'.format(c_pgs)
+            z_col = 'adj_empirical_Z|{}'.format(c_pgs)
             results_ref[z_col] = pd.Series(index=ref_df.index, dtype='float64')
             results_target[z_col] = pd.Series(index=target_df.index, dtype='float64')
 
@@ -232,7 +237,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
     if any([x in use_method for x in ['mean', 'mean+var']]):
         for c_pgs in scorecols:
             # Method 1 (Khera): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
-            adj_col = '{}.adj_1_Khera'.format(c_pgs)
+            adj_col = 'adj_1_Khera|{}'.format(c_pgs)
             # Fit to Reference Data
             pcs2pgs_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_df[c_pgs])
             ref_train_pgs_pred = pcs2pgs_fit.predict(ref_train_df[cols_pcs])
@@ -251,7 +256,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 # Method 2 (Khan): normalize variance (doi:10.1038/s41591-022-01869-1)
                 # Normalize based on residual deviation from mean of the distribution [equalize population sds]
                 # (e.g. reduce the correlation between genetic ancestry and how far away you are from the mean)
-                adj_col = '{}.adj_2_Khan'.format(c_pgs)
+                adj_col = 'adj_2_Khan|{}'.format(c_pgs)
                 pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean)**2)
 
                 # Alternative (not adjusting for the mean... which should be 0 already because we've tried to fit it)
@@ -262,18 +267,17 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit.predict(target_df[cols_pcs]))
 
                 # Check for NAs
-                has_null = sum(results_ref['{}.adj_2_Khan'.format(c_pgs)].isnull()) + sum(results_target['{}.adj_2_Khan'.format(c_pgs)].isnull())
+                has_null = sum(results_ref[adj_col].isnull()) + sum(results_target[adj_col].isnull())
                 if has_null > 0:
-                    print('{}.adj_2_Khan'.format(c_pgs), sum(results_ref['{}.adj_2_Khan'.format(c_pgs)].isnull()), sum(results_target['{}.adj_2_Khan'.format(c_pgs)].isnull()))
+                    print('adj_2_Khan', c_pgs, sum(results_ref[adj_col].isnull()), sum(results_target[adj_col].isnull()))
 
                 # Attempt gamma distribution for predicted variance to constrain it to be positive (e.g. using linear regression we can get negative predictions for the sd)
                 pcs2var_fit_gamma = GammaRegressor(max_iter=1000).fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean) ** 2)
-                adj_col = '{}.adj_2_Gamma'.format(c_pgs)
+                adj_col = 'adj_2_Gamma|{}'.format(c_pgs)
                 results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_df[cols_pcs]))
                 results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(target_df[cols_pcs]))
 
-    # Aggregate results
-    ref_df = pd.merge(ref_df, pd.DataFrame(results_ref), left_index=True, right_index=True)
-    target_df = pd.merge(target_df, pd.DataFrame(results_target), left_index=True, right_index=True)
-
-    return ref_df, target_df
+    # Only return results
+    results_ref = pd.DataFrame(results_ref)
+    results_target = pd.DataFrame(results_target)
+    return results_ref, results_target

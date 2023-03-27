@@ -79,6 +79,7 @@ def ancestry_analysis():
 
     # Write ancestry
     final_df.drop(scorecols, axis=1).to_csv(os.path.join(dout, f"{args.d_target}_ancestry.txt.gz"), sep='\t')
+    logger.info("Finished ancestry analysis")
 
 
 def _description_text() -> str:

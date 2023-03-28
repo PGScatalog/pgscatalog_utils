@@ -223,6 +223,12 @@ def _check_genotype_field(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _check_reserved_names(df: pd.DataFrame):
+    if any(df['sampleset'] == 'reference'):
+        logger.critical("Samplesets must not be named 'reference', please rename in the sample sheet")
+        raise Exception
+
+
 def check_samplesheet() -> None:
     """
     This function checks that the samplesheet follows the following structure:
@@ -234,6 +240,7 @@ def check_samplesheet() -> None:
     df = _read_samplesheet(args.FILE_IN)
 
     # check df for errors
+    _check_reserved_names(df)
     _check_colnames(df)
     _check_paths(df)
     _check_chrom(df)

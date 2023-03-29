@@ -1,10 +1,12 @@
 import argparse
 import logging
 import math
+import os
 import pathlib
 
 import pandas as pd
 
+from pathlib import Path
 from pgscatalog_utils import config
 
 logger = logging.getLogger(__name__)
@@ -179,6 +181,13 @@ def _resolve_compressed_variant_path(path: str) -> pathlib.Path:
 def _resolve_paths(path_list: list[str], filetype: str) -> list[str]:
     resolved_list: list[str] = []
     for path in path_list:
+        if not Path(path).is_absolute():
+            logger.warning("Relative path detected in samplesheet. Set absolute paths to silence this warning.")
+            logger.warning("Assuming program working directory is a nextflow work directory (e.g. work/4c/8585/...)")
+            base_dir: Path = Path(os.getcwd()).parent.parent.parent
+            logger.warning(f"Resolving paths relative to work directory parent {base_dir}")
+            path = str(base_dir.joinpath(path))
+
         match filetype:
             case 'pfile' | 'bfile':
                 if path.endswith('.bim') or path.endswith('.pvar'):

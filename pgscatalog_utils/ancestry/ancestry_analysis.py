@@ -48,7 +48,6 @@ def ancestry_analysis():
 
     reference_df = pd.concat([reference_df, ancestry_ref], axis=1)
     target_df = pd.concat([target_df, ancestry_target], axis=1)
-    print(reference_df.shape, target_df.shape)
     del ancestry_ref, ancestry_target
 
     # Adjust PGS values
@@ -58,7 +57,6 @@ def ancestry_analysis():
                                            ref_train_col='Unrelated',
                                            n_pcs=args.nPCs_normalization)
     adjpgs = pd.concat([adjpgs_ref, adjpgs_target], axis=0)
-    print(adjpgs_ref.shape, adjpgs_target.shape, adjpgs.shape)
     del adjpgs_ref, adjpgs_target
 
     # Write outputs

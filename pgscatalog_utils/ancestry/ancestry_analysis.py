@@ -7,7 +7,7 @@ import pandas as pd
 
 import pgscatalog_utils.config as config
 from pgscatalog_utils.ancestry.read import read_pcs, read_pgs, extract_ref_psam_cols
-from pgscatalog_utils.ancestry.tools import assign_ancestry, assign_method_threshold, choose_pval_threshold, \
+from pgscatalog_utils.ancestry.tools import compare_ancestry, comparison_method_threshold, choose_pval_threshold, \
     pgs_adjust, normalization_methods
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ def ancestry_analysis():
     config.OUTDIR = args.outdir
 
     # Load PCA data
-    maxPCs = max([10, args.nPCs_assignment, args.nPCs_normalization])  # save memory by not using all PCs
+    maxPCs = max([10, args.nPCs_popcomp, args.nPCs_normalization])  # save memory by not using all PCs
     loc_ref_pcs = args.ref_pcs
     reference_df = read_pcs(loc_pcs=loc_ref_pcs, dataset=args.d_ref,
                             loc_related_ids=args.ref_related, nPCs=maxPCs)
@@ -36,15 +36,15 @@ def ancestry_analysis():
     target_df = pd.merge(target_df, pgs, left_index=True, right_index=True)
     del pgs  # clear raw PGS from memory
 
-
-    # Assign ancestry
+    # Compare target sample ancestry/PCs to reference panel
     assignment_threshold_p = choose_pval_threshold(args)
-    ancestry_ref, ancestry_target = assign_ancestry(ref_df=reference_df,
-                                                    ref_pop_col=args.ref_label, ref_train_col='Unrelated',
-                                                    target_df=target_df,
-                                                    n_pcs=args.nPCs_assignment,
-                                                    method=args.method_assignment,
-                                                    p_threshold=assignment_threshold_p)
+
+    ancestry_ref, ancestry_target = compare_ancestry(ref_df=reference_df,
+                                                     ref_pop_col=args.ref_label, ref_train_col='Unrelated',
+                                                     target_df=target_df,
+                                                     n_pcs=args.nPCs_popcomp,
+                                                     method=args.method_compare,
+                                                     p_threshold=assignment_threshold_p)
 
     reference_df = pd.concat([reference_df, ancestry_ref], axis=1)
     target_df = pd.concat([target_df, ancestry_target], axis=1)
@@ -52,7 +52,7 @@ def ancestry_analysis():
 
     # Adjust PGS values
     adjpgs_ref, adjpgs_target = pgs_adjust(reference_df, target_df, scorecols,
-                                           args.ref_label, 'PopAssignment',
+                                           args.ref_label, 'MostSimilarPop',
                                            use_method=args.method_normalization,
                                            ref_train_col='Unrelated',
                                            n_pcs=args.nPCs_normalization)
@@ -61,6 +61,8 @@ def ancestry_analysis():
 
     # Write outputs
     dout = os.path.abspath(config.OUTDIR)
+    if os.path.isdir(dout) is False:
+        os.mkdir(dout)
     reference_df['REFERENCE'] = True
     target_df['REFERENCE'] = False
     final_df = pd.concat([target_df, reference_df], axis=0)
@@ -106,17 +108,17 @@ def _parse_args(args=None):
                         help='Population labels in REFERENCE psam to use for assignment')
     parser.add_argument('-s', '--agg_scores', dest='scorefile', default='aggregated_scores.txt.gz',
                         help='Aggregated scores in PGS Catalog format ([sampleset, IID] indexed)')
-    parser.add_argument('-a', '--assignment_method', dest='method_assignment',
-                        choices=assign_method_threshold.keys(), default='RandomForest',
+    parser.add_argument('-a', '--ancestry_method', dest='method_compare',
+                        choices=comparison_method_threshold.keys(), default='RandomForest',
                         help='Method used for population/ancestry assignment')
-    parser.add_argument('--n_assignment', dest='nPCs_assignment', type=int, metavar="[1-20]", choices=range(1, 21),
-                        default=10,
-                        help='Number of PCs used for population ASSIGNMENT (default = 10)')
+    parser.add_argument('--n_popcomp', dest='nPCs_popcomp', type=int, metavar="[1-20]", choices=range(1, 21),
+                        default=5,
+                        help='Number of PCs used for population comparison (default = 5)')
     parser.add_argument('-t', '--pval_threshold', dest='pThreshold', type=float,
-                        help='p-value threshold used to exclude low-confidence ancestry assignments')
+                        help='p-value threshold used to identify low-confidence ancestry similarities')
     parser.add_argument('-n', '--normalization_method', nargs='+', dest='method_normalization',
                         choices=normalization_methods, default=["empirical", "mean", "mean+var"],
-                        help='Method used for normalization of genetic ancestry')
+                        help='Method used for adjustment of PGS using genetic ancestry')
     parser.add_argument('--n_normalization', dest='nPCs_normalization', type=int, metavar="[1-20]",
                         choices=range(1, 21), default=5,
                         help='Number of PCs used for population NORMALIZATION (default = 5)')

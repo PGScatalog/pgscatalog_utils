@@ -6,24 +6,24 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression, GammaRegressor
 from scipy.stats import chi2, percentileofscore
 
-import seaborn as sns
-import matplotlib.pyplot as plt
+# import seaborn as sns
+# import matplotlib.pyplot as plt
 
 
 logger = logging.getLogger(__name__)
 
 
 ####
-# Methods for assigning ancestry using PCA data & population labels
+# Methods for comparing sample ancestry to a reference dataset using PCA data & population labels
 ###
 
-assign_method_threshold = {"Mahalanobis": 1e-10,
-                           "RandomForest": 0.5} # default p-value thresholds to define suitable population matches
+comparison_method_threshold = {"Mahalanobis": 1e-10,
+                           "RandomForest": 0.5}  # default p-value thresholds to define suitable population matches
 _mahalanobis_methods = ["MinCovDet", "EmpiricalCovariance"]
 
 
 def choose_pval_threshold(args):
-    set_threshold = assign_method_threshold[args.method_assignment] # method default
+    set_threshold = comparison_method_threshold[args.method_compare]  # method default
     if args.pThreshold is not None:
         if (args.pThreshold > 0) and (args.pThreshold < 1):
             set_threshold = args.pThreshold
@@ -32,10 +32,10 @@ def choose_pval_threshold(args):
     return set_threshold
 
 
-def assign_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFrame, ref_train_col=None, n_pcs=4, method='RandomForest',
-                    covariance_method='EmpiricalCovariance', p_threshold=None):
+def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFrame, ref_train_col=None, n_pcs=4, method='RandomForest',
+                     covariance_method='EmpiricalCovariance', p_threshold=None):
     """
-    Function to train and assign ancestry using common methods
+    Function to compare target sample ancestry to a reference panel with PCA data
     :param ref_df: reference dataset
     :param ref_pop_col: training labels for population assignment in reference dataset
     :param target_df: target dataset
@@ -47,15 +47,15 @@ def assign_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFr
     :return: dataframes for reference (predictions on training set) and target (predicted labels) datasets
     """
     # Check that datasets have the correct columns
-    assert method in assign_method_threshold.keys(), 'ancestry assignment method parameter must be Mahalanobis or RF'
+    assert method in comparison_method_threshold.keys(), 'comparison method parameter must be Mahalanobis or RF'
     if method == 'Mahalanobis':
-        assert covariance_method in _mahalanobis_methods, 'covariance estimation method must be MinCovDet or EmpiricalCovariance'
+        assert covariance_method in _mahalanobis_methods, 'ovariance estimation method must be MinCovDet or EmpiricalCovariance'
 
     cols_pcs = ['PC{}'.format(x + 1) for x in range(0, n_pcs)]
     assert all([col in ref_df.columns for col in cols_pcs]), \
-        "Reference Dataset (ref_df) is missing some PC columns for population assignment (max:{})".format(n_pcs)
+        "Reference Dataset (ref_df) is missing some PC columns for ancestry comparison (max:{})".format(n_pcs)
     assert all([col in target_df.columns for col in cols_pcs]), \
-        "Target Dataset (target_df) is missing some PC columns for population assignment (max:{})".format(n_pcs)
+        "Target Dataset (target_df) is missing some PC columns for ancestry comparison (max:{})".format(n_pcs)
     assert ref_pop_col in ref_df.columns, "Population label column ({}) is missing from reference dataframe".format(ref_pop_col)
     ref_populations = ref_df[ref_pop_col].unique()
 
@@ -103,24 +103,24 @@ def assign_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFr
         # Assign population (maximum probability)
         logger.debug("Assigning Populations (max Mahalanobis probability)")
         ref_assign = ref_df[pval_cols].copy()
-        ref_assign = ref_assign.assign(PopAssignment=ref_assign.idxmax(axis=1))
+        ref_assign = ref_assign.assign(MostSimilarPop=ref_assign.idxmax(axis=1))
 
         target_assign = target_df[pval_cols].copy()
-        target_assign = target_assign.assign(PopAssignment=target_assign.idxmax(axis=1))
+        target_assign = target_assign.assign(MostSimilarPop=target_assign.idxmax(axis=1))
+
+        ref_assign['MostSimilarPop_LowConfidence'] = np.nan
+        target_assign['MostSimilarPop_LowConfidence'] = np.nan
 
         if p_threshold:
-            logger.debug("Defining Population Assignment Confidence")
-            ref_assign['Assignment_LowConfidence'] = [(ref_assign[x][i] < p_threshold)
-                                                      for i,x in enumerate(ref_assign['PopAssignment'])]
-            target_assign['Assignment_LowConfidence'] = [(target_assign[x][i] < p_threshold)
-                                                         for i, x in enumerate(target_assign['PopAssignment'])]
-            ref_assign['PopAssignment'] = [x.split('_')[-1] for x in ref_assign['PopAssignment']]
-            target_assign['PopAssignment'] = [x.split('_')[-1] for x in target_assign['PopAssignment']]
-        else:
-            ref_assign['PopAssignment'] = [x.split('_')[-1] for x in ref_assign['PopAssignment']]
-            target_assign['PopAssignment'] = [x.split('_')[-1] for x in target_assign['PopAssignment']]
-            ref_assign['Assignment_LowConfidence'] = np.nan
-            target_assign['Assignment_LowConfidence'] = np.nan
+            logger.debug("Comparing Population Similarity to p-value threshold (p < {})".format(p_threshold))
+            ref_assign['MostSimilarPop_LowConfidence'] = [(ref_assign[x][i] < p_threshold)
+                                                      for i,x in enumerate(ref_assign['MostSimilarPop'])]
+            target_assign['MostSimilarPop_LowConfidence'] = [(target_assign[x][i] < p_threshold)
+                                                         for i, x in enumerate(target_assign['MostSimilarPop'])]
+
+        # Cleanup variable names
+        ref_assign['MostSimilarPop'] = [x.split('_')[-1] for x in ref_assign['MostSimilarPop']]
+        target_assign['MostSimilarPop'] = [x.split('_')[-1] for x in target_assign['MostSimilarPop']]
 
     elif method == 'RandomForest':
         # Assign SuperPop Using Random Forest (PCA loadings)
@@ -128,23 +128,25 @@ def assign_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFr
         clf_rf = RandomForestClassifier(random_state=32)
         clf_rf.fit(ref_train_df[cols_pcs],  # X (training PCs)
                    ref_train_df[ref_pop_col].astype(str))  # Y (pop label)
-        # Assign population
-        logger.debug("Assigning Populations (max RF probability)")
+
+        # Predict most similar population using RF classifier
+        logger.debug("Find most similar Populations (max RF probability)")
         ref_assign = pd.DataFrame(clf_rf.predict_proba(ref_df[cols_pcs]), index=ref_df.index, columns=['RF_P_{}'.format(x) for x in clf_rf.classes_])
-        ref_assign['PopAssignment'] = clf_rf.predict(ref_df[cols_pcs])
+        ref_assign['MostSimilarPop'] = clf_rf.predict(ref_df[cols_pcs])
 
         target_assign = pd.DataFrame(clf_rf.predict_proba(target_df[cols_pcs]), index=target_df.index, columns=['RF_P_{}'.format(x) for x in clf_rf.classes_])
-        target_assign['PopAssignment'] = clf_rf.predict(target_df[cols_pcs])
+        target_assign['MostSimilarPop'] = clf_rf.predict(target_df[cols_pcs])
+
+        # Define confidence using p-value thresholds
+        ref_assign['MostSimilarPop_LowConfidence'] = np.nan
+        target_assign['MostSimilarPop_LowConfidence'] = np.nan
 
         if p_threshold:
-            logger.debug("Defining Population Assignment Confidence")
-            ref_assign['Assignment_LowConfidence'] = [(ref_assign['RF_P_{}'.format(x)][i] < p_threshold)
+            logger.debug("Comparing Population Similarity to p-value threshold (p < {})".format(p_threshold))
+            ref_assign['MostSimilarPop_LowConfidence'] = [(ref_assign['RF_P_{}'.format(x)][i] < p_threshold)
                                                       for i, x in enumerate(clf_rf.predict(ref_df[cols_pcs]))]
-            target_assign['Assignment_LowConfidence'] = [(target_assign['RF_P_{}'.format(x)][i] < p_threshold)
+            target_assign['MostSimilarPop_LowConfidence'] = [(target_assign['RF_P_{}'.format(x)][i] < p_threshold)
                                                          for i, x in enumerate(clf_rf.predict(target_df[cols_pcs]))]
-        else:
-            ref_assign['Assignment_LowConfidence'] = np.nan
-            target_assign['Assignment_LowConfidence'] = np.nan
 
     return ref_assign, target_assign
 
@@ -206,7 +208,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
         results_ref[sum_col] = ref_df[c_pgs]
         results_target[sum_col] = target_df[c_pgs]
 
-    # Empirical adjustment with reference population assignments
+    # Report PGS values with respect to distribution of PGS in the most similar reference population
     if 'empirical' in use_method:
         for c_pgs in scorecols:
             # Initialize Output
@@ -217,7 +219,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
             results_ref[z_col] = pd.Series(index=ref_df.index, dtype='float64')
             results_target[z_col] = pd.Series(index=target_df.index, dtype='float64')
 
-            # Predict each population
+            # Adjust for each population
             for pop in ref_populations:
                 i_ref_pop = (ref_df[ref_pop_col] == pop)
                 i_target_pop = (target_df[target_pop_col] == pop)
@@ -266,20 +268,26 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 # Alternative (not adjusting for the mean... which should be 0 already because we've tried to fit it)
                 # ---> pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_pgs_resid**2)
 
-                results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit.predict(ref_df[cols_pcs]))
+                # Handle NAs
+                pred_var_ref = pcs2var_fit.predict(ref_df[cols_pcs])
+                pred_var_ref[pred_var_ref < 0] = np.nan
+                results_ref[adj_col] = ref_pgs_resid / np.sqrt(pred_var_ref)
                 # Apply to Target
-                results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit.predict(target_df[cols_pcs]))
+                pred_var_target = pcs2var_fit.predict(target_df[cols_pcs])
+                pred_var_target[pred_var_target < 0] = np.nan
+                results_target[adj_col] = target_pgs_resid / np.sqrt(pred_var_target)
 
                 # Check for NAs
-                has_null = sum(results_ref[adj_col].isnull()) + sum(results_target[adj_col].isnull())
-                if has_null > 0:
-                    print('adj_2_Khan', c_pgs, sum(results_ref[adj_col].isnull()), sum(results_target[adj_col].isnull()))
-                    fig_outloc = 'resid/HasNA/{}.png'.format(c_pgs)
-                    fig = sns.histplot((ref_train_pgs_resid - ref_train_pgs_resid_mean) ** 2)
-                    plt.savefig(fig_outloc)
-                    plt.clf()
+                # has_null = sum(results_ref[adj_col].isnull()) + sum(results_target[adj_col].isnull())
+                # if has_null > 0:
+                #     print('adj_2_Khan', c_pgs, sum(results_ref[adj_col].isnull()), sum(results_target[adj_col].isnull()))
+                #     fig_outloc = 'resid/HasNA/{}.png'.format(c_pgs)
+                #     fig = sns.histplot((ref_train_pgs_resid - ref_train_pgs_resid_mean) ** 2)
+                #     plt.savefig(fig_outloc)
+                #     plt.clf()
 
-                # Attempt gamma distribution for predicted variance to constrain it to be positive (e.g. using linear regression we can get negative predictions for the sd)
+                # Attempt gamma distribution for predicted variance to constrain it to be positive
+                # (b/c using linear regression we can get negative predictions for the sd)
                 pcs2var_fit_gamma = GammaRegressor(max_iter=1000).fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean) ** 2)
                 adj_col = 'adj_2_Gamma|{}'.format(c_pgs)
                 results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_df[cols_pcs]))

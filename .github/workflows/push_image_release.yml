@@ -11,7 +11,7 @@ jobs:
   build_docker_release:
     name: build docker release image
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'pgscatalog/fraposa_pgsc' }}
+    if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
 
     steps:
       - name: Set up QEMU
@@ -44,7 +44,7 @@ jobs:
     needs: build_docker_release
     name: build singularity release image
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'pgscatalog/fraposa_pgsc' }}
+    if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
 
     steps:
       - name: Cache singularity setup

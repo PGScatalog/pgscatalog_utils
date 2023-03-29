@@ -1,10 +1,12 @@
 import argparse
 import logging
 import math
+import os
 import pathlib
 
 import pandas as pd
 
+from pathlib import Path
 from pgscatalog_utils import config
 
 logger = logging.getLogger(__name__)
@@ -80,8 +82,11 @@ def _get_chrom_list(df: pd.DataFrame) -> dict[str, list[str | None]]:
     for idx, row in df.iterrows():
         key = row['sampleset']
         value = row['chrom']
-        if math.isnan(value):
-            value = None
+        try:
+            if math.isnan(value):
+                value = None
+        except TypeError:
+            pass
         chroms = chrom_dict.get(key, [])
         chroms.append(value)
         chrom_dict.update({key: chroms})
@@ -176,6 +181,13 @@ def _resolve_compressed_variant_path(path: str) -> pathlib.Path:
 def _resolve_paths(path_list: list[str], filetype: str) -> list[str]:
     resolved_list: list[str] = []
     for path in path_list:
+        if not Path(path).is_absolute():
+            logger.warning("Relative path detected in samplesheet. Set absolute paths to silence this warning.")
+            logger.warning("Assuming program working directory is a nextflow work directory (e.g. work/4c/8585/...)")
+            base_dir: Path = Path(os.getcwd()).parent.parent.parent
+            logger.warning(f"Resolving paths relative to work directory parent {base_dir}")
+            path = str(base_dir.joinpath(path))
+
         match filetype:
             case 'pfile' | 'bfile':
                 if path.endswith('.bim') or path.endswith('.pvar'):
@@ -223,6 +235,12 @@ def _check_genotype_field(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _check_reserved_names(df: pd.DataFrame):
+    if any(df['sampleset'] == 'reference'):
+        logger.critical("Samplesets must not be named 'reference', please rename in the sample sheet")
+        raise Exception
+
+
 def check_samplesheet() -> None:
     """
     This function checks that the samplesheet follows the following structure:
@@ -234,6 +252,7 @@ def check_samplesheet() -> None:
     df = _read_samplesheet(args.FILE_IN)
 
     # check df for errors
+    _check_reserved_names(df)
     _check_colnames(df)
     _check_paths(df)
     _check_chrom(df)

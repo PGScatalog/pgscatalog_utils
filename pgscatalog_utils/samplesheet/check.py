@@ -80,8 +80,11 @@ def _get_chrom_list(df: pd.DataFrame) -> dict[str, list[str | None]]:
     for idx, row in df.iterrows():
         key = row['sampleset']
         value = row['chrom']
-        if math.isnan(value):
-            value = None
+        try:
+            if math.isnan(value):
+                value = None
+        except TypeError:
+            pass
         chroms = chrom_dict.get(key, [])
         chroms.append(value)
         chrom_dict.update({key: chroms})

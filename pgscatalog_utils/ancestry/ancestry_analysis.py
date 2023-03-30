@@ -8,7 +8,7 @@ import pandas as pd
 import pgscatalog_utils.config as config
 from pgscatalog_utils.ancestry.read import read_pcs, read_pgs, extract_ref_psam_cols
 from pgscatalog_utils.ancestry.tools import compare_ancestry, comparison_method_threshold, choose_pval_threshold, \
-    pgs_adjust, normalization_methods
+    pgs_adjust, normalization_methods, write_model
 
 logger = logging.getLogger(__name__)
 
@@ -51,11 +51,11 @@ def ancestry_analysis():
     del ancestry_ref, ancestry_target
 
     # Adjust PGS values
-    adjpgs_ref, adjpgs_target = pgs_adjust(reference_df, target_df, scorecols,
-                                           args.ref_label, 'MostSimilarPop',
-                                           use_method=args.method_normalization,
-                                           ref_train_col='Unrelated',
-                                           n_pcs=args.nPCs_normalization)
+    adjpgs_ref, adjpgs_target, adjpgs_models = pgs_adjust(reference_df, target_df, scorecols,
+                                                          args.ref_label, 'MostSimilarPop',
+                                                          use_method=args.method_normalization,
+                                                          ref_train_col='Unrelated',
+                                                          n_pcs=args.nPCs_normalization)
     adjpgs = pd.concat([adjpgs_ref, adjpgs_target], axis=0)
     del adjpgs_ref, adjpgs_target
 
@@ -67,6 +67,9 @@ def ancestry_analysis():
     target_df['REFERENCE'] = False
     final_df = pd.concat([target_df, reference_df], axis=0)
     del reference_df, target_df
+
+    # Write Models
+    write_model(adjpgs_models, os.path.join(dout, f"{args.d_target}_models.json.gz"))
 
     # Melt PGS
     adjpgs = adjpgs.melt(ignore_index=False)

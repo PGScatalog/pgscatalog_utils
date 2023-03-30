@@ -5,6 +5,8 @@ from sklearn.covariance import MinCovDet, EmpiricalCovariance
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression, GammaRegressor
 from scipy.stats import chi2, percentileofscore
+import json
+import gzip
 
 # import seaborn as sns
 # import matplotlib.pyplot as plt
@@ -76,6 +78,7 @@ def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataF
         # Calculate population distances
         pval_cols = []
         for pop in ref_populations:
+            logger.debug("Fitting Mahalanobis distances: {}".format(pop))
             # Fit the covariance matrix for the current population
             colname_dist = 'Mahalanobis_dist_{}'.format(pop)
             colname_pval = 'Mahalanobis_P_{}'.format(pop)
@@ -202,6 +205,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
     ## Create results structures
     results_ref = {}
     results_target = {}
+    results_models = {}  # used to store regression information
     for c_pgs in scorecols:
         # Makes melting easier later
         sum_col = 'SUM|{}'.format(c_pgs)
@@ -210,6 +214,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
 
     # Report PGS values with respect to distribution of PGS in the most similar reference population
     if 'empirical' in use_method:
+        logger.debug("Adjusting PGS using most similar reference population distribution.")
         for c_pgs in scorecols:
             # Initialize Output
             percentile_col = 'adj_empirical_percentile|{}'.format(c_pgs)
@@ -218,9 +223,12 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
             z_col = 'adj_empirical_Z|{}'.format(c_pgs)
             results_ref[z_col] = pd.Series(index=ref_df.index, dtype='float64')
             results_target[z_col] = pd.Series(index=target_df.index, dtype='float64')
+            
+            r_model = {}
 
             # Adjust for each population
             for pop in ref_populations:
+                r_pop = {}
                 i_ref_pop = (ref_df[ref_pop_col] == pop)
                 i_target_pop = (target_df[target_pop_col] == pop)
 
@@ -230,17 +238,23 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 # Calculate Percentile
                 results_ref[percentile_col].loc[i_ref_pop] = percentileofscore(c_pgs_pop_dist, ref_df.loc[i_ref_pop, c_pgs])
                 results_target[percentile_col].loc[i_target_pop] = percentileofscore(c_pgs_pop_dist, target_df.loc[i_target_pop, c_pgs])
+                r_pop['percentiles'] = np.percentile(c_pgs_pop_dist, range(0,101,1))
 
                 # Calculate Z
-                c_pgs_mean = c_pgs_pop_dist.mean()
-                c_pgs_std = c_pgs_pop_dist.std(ddof=0)
+                r_pop['mean'] = c_pgs_pop_dist.mean()
+                r_pop['std'] = c_pgs_pop_dist.std(ddof=0)
 
-                results_ref[z_col].loc[i_ref_pop] = (ref_df.loc[i_ref_pop, c_pgs] - c_pgs_mean)/c_pgs_std
-                results_target[z_col].loc[i_target_pop] = (target_df.loc[i_target_pop, c_pgs] - c_pgs_mean)/c_pgs_std
+                results_ref[z_col].loc[i_ref_pop] = (ref_df.loc[i_ref_pop, c_pgs] - r_pop['mean'])/r_pop['std']
+                results_target[z_col].loc[i_target_pop] = (target_df.loc[i_target_pop, c_pgs] - r_pop['mean'])/r_pop['std']
+
+                r_model[pop] = r_pop
+
+            results_models['adj_empirical|{}'.format(c_pgs)] = r_model
             # ToDo: explore handling of individuals who have low-confidence population labels
             #  -> Possible Soln: weighted average based on probabilities? Small Mahalanobis P-values will complicate this
     # PCA-based adjustment
     if any([x in use_method for x in ['mean', 'mean+var']]):
+        logger.debug("Adjusting PGS using PCA projections")
         for c_pgs in scorecols:
             # Method 1 (Khera): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
             adj_col = 'adj_1_Khera|{}'.format(c_pgs)
@@ -257,6 +271,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
             target_pgs_pred = pcs2pgs_fit.predict(target_df[cols_pcs])
             target_pgs_resid = target_df[c_pgs] - target_pgs_pred
             results_target[adj_col] = target_pgs_resid / ref_train_pgs_resid_std
+            results_models[adj_col] = package_regression(pcs2pgs_fit)
 
             if 'mean+var' in use_method:
                 # Method 2 (Khan): normalize variance (doi:10.1038/s41591-022-01869-1)
@@ -276,6 +291,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 pred_var_target = pcs2var_fit.predict(target_df[cols_pcs])
                 pred_var_target[pred_var_target < 0] = np.nan
                 results_target[adj_col] = target_pgs_resid / np.sqrt(pred_var_target)
+                results_models[adj_col] = package_regression(pcs2var_fit)
 
                 # Check for NAs
                 # has_null = sum(results_ref[adj_col].isnull()) + sum(results_target[adj_col].isnull())
@@ -292,8 +308,43 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 adj_col = 'adj_2_Gamma|{}'.format(c_pgs)
                 results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_df[cols_pcs]))
                 results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(target_df[cols_pcs]))
+                results_models[adj_col] = package_regression(pcs2var_fit_gamma)
 
     # Only return results
+    logger.debug("Outputting adjusted PGS & models")
     results_ref = pd.DataFrame(results_ref)
     results_target = pd.DataFrame(results_target)
-    return results_ref, results_target
+    return results_ref, results_target, results_models
+
+
+def package_regression(model):
+    """Extract relevant details from sklearn regression model"""
+    return {'params': model.get_params(),
+            '_intercept': model.intercept_,
+            '_coef': dict(zip(model.feature_names_in_, model.coef_))
+            }
+
+
+class NumpyEncoder(json.JSONEncoder):
+    """ Special json encoder for numpy types (taken from:
+    https://stackoverflow.com/questions/26646362/numpy-array-is-not-json-serializable)"""
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
+
+
+def write_model(dict, outname):
+    """Use numpy encoder to write json file for models"""
+    logger.debug("Writing PGS adjustment models to: {}".format(outname))
+    if outname.endswith('.gz'):
+        outfile = gzip.open(outname, "wt")
+    else:
+        outfile = open(outname, "w")
+
+    outfile.write(json.dumps(dict, indent=2, cls=NumpyEncoder))
+    outfile.close()

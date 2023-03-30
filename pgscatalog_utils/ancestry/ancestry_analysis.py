@@ -68,8 +68,7 @@ def ancestry_analysis():
     del reference_df, target_df
 
     # Write Models
-    adjpgs_models['compare_pcs'] = compare_info
-    write_model(adjpgs_models, os.path.join(dout, f"{args.d_target}_info.json.gz"))
+    write_model({'pgs': adjpgs_models, 'compare_pcs': compare_info}, os.path.join(dout, f"{args.d_target}_info.json.gz"))
 
     # Melt PGS
     adjpgs = adjpgs.melt(ignore_index=False)

@@ -220,6 +220,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
         sum_col = 'SUM|{}'.format(c_pgs)
         results_ref[sum_col] = ref_df[c_pgs]
         results_target[sum_col] = target_df[c_pgs]
+        results_models[c_pgs] = {}
 
     # Report PGS values with respect to distribution of PGS in the most similar reference population
     if 'empirical' in use_method:
@@ -258,7 +259,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
 
                 r_model[pop] = r_pop
 
-            results_models['adj_empirical|{}'.format(c_pgs)] = r_model
+            results_models[c_pgs]['adj_empirical'] = r_model
             # ToDo: explore handling of individuals who have low-confidence population labels
             #  -> Possible Soln: weighted average based on probabilities? Small Mahalanobis P-values will complicate this
     # PCA-based adjustment
@@ -280,7 +281,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
             target_pgs_pred = pcs2pgs_fit.predict(target_df[cols_pcs])
             target_pgs_resid = target_df[c_pgs] - target_pgs_pred
             results_target[adj_col] = target_pgs_resid / ref_train_pgs_resid_std
-            results_models[adj_col] = package_regression(pcs2pgs_fit)
+            results_models[c_pgs]['adj_1_Khera'] = package_regression(pcs2pgs_fit)
 
             if 'mean+var' in use_method:
                 # Method 2 (Khan): normalize variance (doi:10.1038/s41591-022-01869-1)
@@ -300,7 +301,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 pred_var_target = pcs2var_fit.predict(target_df[cols_pcs])
                 pred_var_target[pred_var_target < 0] = np.nan
                 results_target[adj_col] = target_pgs_resid / np.sqrt(pred_var_target)
-                results_models[adj_col] = package_regression(pcs2var_fit)
+                results_models[c_pgs]['adj_2_Khan'] = package_regression(pcs2var_fit)
 
                 # Check for NAs
                 # has_null = sum(results_ref[adj_col].isnull()) + sum(results_target[adj_col].isnull())
@@ -317,7 +318,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 adj_col = 'adj_2_Gamma|{}'.format(c_pgs)
                 results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_df[cols_pcs]))
                 results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(target_df[cols_pcs]))
-                results_models[adj_col] = package_regression(pcs2var_fit_gamma)
+                results_models[c_pgs]['adj_2_Gamma'] = package_regression(pcs2var_fit_gamma)
 
     # Only return results
     logger.debug("Outputting adjusted PGS & models")

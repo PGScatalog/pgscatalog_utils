@@ -38,13 +38,12 @@ def ancestry_analysis():
 
     # Compare target sample ancestry/PCs to reference panel
     assignment_threshold_p = choose_pval_threshold(args)
-
-    ancestry_ref, ancestry_target = compare_ancestry(ref_df=reference_df,
-                                                     ref_pop_col=args.ref_label, ref_train_col='Unrelated',
-                                                     target_df=target_df,
-                                                     n_pcs=args.nPCs_popcomp,
-                                                     method=args.method_compare,
-                                                     p_threshold=assignment_threshold_p)
+    ancestry_ref, ancestry_target, compare_info = compare_ancestry(ref_df=reference_df,
+                                                                   ref_pop_col=args.ref_label, ref_train_col='Unrelated',
+                                                                   target_df=target_df,
+                                                                   n_pcs=args.nPCs_popcomp,
+                                                                   method=args.method_compare,
+                                                                   p_threshold=assignment_threshold_p)
 
     reference_df = pd.concat([reference_df, ancestry_ref], axis=1)
     target_df = pd.concat([target_df, ancestry_target], axis=1)
@@ -69,7 +68,8 @@ def ancestry_analysis():
     del reference_df, target_df
 
     # Write Models
-    write_model(adjpgs_models, os.path.join(dout, f"{args.d_target}_models.json.gz"))
+    adjpgs_models['compare_pcs'] = compare_info
+    write_model(adjpgs_models, os.path.join(dout, f"{args.d_target}_info.json.gz"))
 
     # Melt PGS
     adjpgs = adjpgs.melt(ignore_index=False)
@@ -80,8 +80,8 @@ def ancestry_analysis():
     adjpgs = adjpgs.drop('variable', axis=1).reset_index().pivot(index=['sampleset', 'IID', 'PGS'], columns='method', values='value')
     adjpgs.to_csv(os.path.join(dout, f"{args.d_target}_pgs.txt.gz"), sep='\t')
 
-    # Write ancestry
-    final_df.drop(scorecols, axis=1).to_csv(os.path.join(dout, f"{args.d_target}_ancestry.txt.gz"), sep='\t')
+    # Write results of PCA & population similarity
+    final_df.drop(scorecols, axis=1).to_csv(os.path.join(dout, f"{args.d_target}_popsimilarity.txt.gz"), sep='\t')
     logger.info("Finished ancestry analysis")
 
 

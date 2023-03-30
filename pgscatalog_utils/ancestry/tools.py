@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.covariance import MinCovDet, EmpiricalCovariance
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression, GammaRegressor
-from scipy.stats import chi2, percentileofscore
+from scipy.stats import chi2, percentileofscore, mannwhitneyu
 import json
 import gzip
 
@@ -71,6 +71,15 @@ def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataF
         ref_train_df = ref_df.loc[ref_df[ref_train_col] == True,]
     else:
         ref_train_df = ref_df
+
+    # Check if PCs only capture target/reference stratification
+    compare_info = {}
+    for col_pc in cols_pcs:
+        mwu_pc = mannwhitneyu(ref_train_df[col_pc], target_df[col_pc])
+        compare_info[col_pc] = {'U': mwu_pc.statistic, 'pvalue': mwu_pc.pvalue}
+        if mwu_pc.pvalue < 1e-4:
+            logger.warning("{} *may* be capturing target/reference stratification (Mann-Whitney p-value={}), "
+                           "use visual inspection of PC plot to confirm".format(col_pc, mwu_pc.pvalue))
 
     # Run Ancestry Assignment methods
     if method == 'Mahalanobis':
@@ -151,7 +160,7 @@ def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataF
             target_assign['MostSimilarPop_LowConfidence'] = [(target_assign['RF_P_{}'.format(x)][i] < p_threshold)
                                                          for i, x in enumerate(clf_rf.predict(target_df[cols_pcs]))]
 
-    return ref_assign, target_assign
+    return ref_assign, target_assign, compare_info
 
 
 ####

@@ -2,6 +2,7 @@ import argparse
 import textwrap
 import logging
 import os
+import gzip
 
 import pandas as pd
 
@@ -70,14 +71,25 @@ def ancestry_analysis():
     # Write Models
     write_model({'pgs': adjpgs_models, 'compare_pcs': compare_info}, os.path.join(dout, f"{args.d_target}_info.json.gz"))
 
-    # Melt PGS
-    adjpgs = adjpgs.melt(ignore_index=False)
-    adjpgs[['method', 'PGS']] = adjpgs.variable.str.split("|", expand=True)
+    # Melt & write PGS
     # Currently each PGS will have it's own row... but it might be more optimal for each normalization method
     #  to be on separate rows? My logic is that you might want to check correaltion between methods and it is easiest
     #  in this format.
-    adjpgs = adjpgs.drop('variable', axis=1).reset_index().pivot(index=['sampleset', 'IID', 'PGS'], columns='method', values='value')
-    adjpgs.to_csv(os.path.join(dout, f"{args.d_target}_pgs.txt.gz"), sep='\t')
+    loc_pgs_out = os.path.join(dout, f"{args.d_target}_pgs.txt.gz")
+    with gzip.open(loc_pgs_out, 'wt') as outf:
+        logger.debug('Writing adjusted PGS values (long format) to: {}'.format(loc_pgs_out))
+        for i, pgs_id in enumerate(scorecols):
+            df_pgs = adjpgs.loc[:, adjpgs.columns.str.endswith(pgs_id)].melt(ignore_index=False)  # filter to 1 PGS
+            df_pgs[['method', 'PGS']] = df_pgs.variable.str.split("|", expand=True)
+            df_pgs = df_pgs.drop('variable', axis=1).reset_index().pivot(index=['sampleset', 'IID', 'PGS'],
+                                                                         columns='method', values='value')
+            if i == 0:
+                logger.debug('{}/{}: Writing {}'.format(i+1, len(scorecols), pgs_id))
+                colorder = list(df_pgs.columns)  # to ensure sort order
+                df_pgs.to_csv(outf, sep='\t')
+            else:
+                logger.debug('{}/{}: Appending {}'.format(i+1, len(scorecols), pgs_id))
+                df_pgs[colorder].to_csv(outf, sep='\t', header=False)
 
     # Write results of PCA & population similarity
     final_df.drop(scorecols, axis=1).to_csv(os.path.join(dout, f"{args.d_target}_popsimilarity.txt.gz"), sep='\t')

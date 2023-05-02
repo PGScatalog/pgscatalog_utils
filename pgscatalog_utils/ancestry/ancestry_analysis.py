@@ -135,8 +135,8 @@ def _parse_args(args=None):
                         choices=normalization_methods, default=["empirical", "mean", "mean+var"],
                         help='Method used for adjustment of PGS using genetic ancestry')
     parser.add_argument('--n_normalization', dest='nPCs_normalization', type=int, metavar="[1-20]",
-                        choices=range(1, 21), default=5,
-                        help='Number of PCs used for population NORMALIZATION (default = 5)')
+                        choices=range(1, 21), default=4,
+                        help='Number of PCs used for population NORMALIZATION (default = 4)')
     parser.add_argument('--outdir', dest='outdir', required=True,
                         help='<Required> Output directory')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',

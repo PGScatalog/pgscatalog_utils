@@ -169,7 +169,7 @@ def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataF
 normalization_methods = ["empirical", "mean", "mean+var"]
 
 
-def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, use_method:list, ref_train_col=None, n_pcs=5):
+def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, use_method:list, ref_train_col=None, n_pcs=4):
     """
     Function to adjust PGS using population references and/or genetic ancestry (PCs)
     :param ref_df:

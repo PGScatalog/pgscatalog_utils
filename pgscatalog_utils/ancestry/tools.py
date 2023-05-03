@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 ###
 
 comparison_method_threshold = {"Mahalanobis": 1e-10,
-                           "RandomForest": 0.5}  # default p-value thresholds to define suitable population matches
+                               "RandomForest": 0.5}  # default p-value thresholds to define low-confidence population matching
 _mahalanobis_methods = ["MinCovDet", "EmpiricalCovariance"]
 
 
@@ -297,6 +297,10 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 results_models[c_pgs]['adj_2_Khan'] = package_skl_regression(pcs2var_fit_gamma)
 
                 # Method 2 (full-likelihood model)
+                # This jointly re-fits the regression parameters from the mean and variance prediction to better
+                # fit the observed PGS distribution. It seems to mostly change the intercept. This implementation is
+                # adapted from https://github.com/broadinstitute/palantir-workflows/blob/v0.14/ImputationPipeline/ScoringTasks.wdl,
+                # which is distributed under a BDS-3 license.
                 adj_col = 'adj_2_FULL|{}'.format(c_pgs)
                 params_initial = np.concatenate([[pcs2pgs_fit.intercept_], pcs2pgs_fit.coef_,
                                                  [pcs2var_fit_gamma.intercept_], pcs2var_fit_gamma.coef_])
@@ -312,14 +316,14 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
     return results_ref, results_target, results_models
 
 
-def f_var(df, theta):
-    """Predict the result of a Gamma regression (log link)"""
-    return np.exp(theta[0] + np.inner(theta[1:], df))
+def f_var(df, beta):
+    """Predict the result of a Gamma regression (log link) w/ intercept"""
+    return np.exp(beta[0] + np.inner(beta[1:], df))
 
 
-def f_mu(df, theta):
-    """Predict the result of a Gaussian regression"""
-    return theta[0] + np.inner(theta[1:], df)
+def f_mu(df, beta):
+    """Predict the result of a Gaussian regression w/ intercept"""
+    return beta[0] + np.inner(beta[1:], df)
 
 
 def nLL_mu_and_var(theta, df, c_score, l_predictors):
@@ -340,20 +344,20 @@ def grdnt_mu_and_var(theta, df, c_score, l_predictors):
     Adapted from https://github.com/broadinstitute/palantir-workflows/blob/v0.14/ImputationPipeline/ScoringTasks.wdl,
     which is distributed under a BDS-3 license."""
     i_split = int(1 + (len(theta) - 2) / 2)
-    theta_mu = theta[0:i_split]
-    theta_var = theta[i_split:]
+    beta_mu = theta[0:i_split]
+    beta_var = theta[i_split:
     x = df[c_score]
 
-    r_var = f_var(df[l_predictors], theta_var)
+    pred_var = f_var(df[l_predictors], beta_var)  # current prediction of variance
 
-    mu_coeff = -(x - f_mu(df[l_predictors], theta_mu)) / f_var(df[l_predictors], theta_var)
-    sig_coeff = 1 / (2 * f_var(df[l_predictors], theta_var)) - (1 / 2) * (
-                x - f_mu(df[l_predictors], theta_mu)) ** 2 / (
-                            f_var(df[l_predictors], theta_var) ** 2)
+    mu_coeff = -(x - f_mu(df[l_predictors], beta_mu)) / f_var(df[l_predictors], beta_var)
+    sig_coeff = 1 / (2 * f_var(df[l_predictors], beta_var)) - (1 / 2) * (
+                x - f_mu(df[l_predictors], beta_mu)) ** 2 / (
+                            f_var(df[l_predictors], beta_var) ** 2)
 
     grad = np.concatenate([[sum(mu_coeff * 1)], [sum(mu_coeff * df[x]) for x in l_predictors],
-                           [sum(sig_coeff * (1 * r_var))],
-                           [sum(sig_coeff * (df[x] * r_var)) for x in l_predictors]])
+                           [sum(sig_coeff * (1 * pred_var))],
+                           [sum(sig_coeff * (df[x] * pred_var)) for x in l_predictors]])
 
     return grad
 

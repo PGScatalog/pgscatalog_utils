@@ -5,6 +5,7 @@ from sklearn.covariance import MinCovDet, EmpiricalCovariance
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression, GammaRegressor
 from scipy.stats import chi2, percentileofscore, mannwhitneyu
+from scipy import optimize as opt
 import json
 import gzip
 
@@ -281,44 +282,28 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
             target_pgs_pred = pcs2pgs_fit.predict(target_df[cols_pcs])
             target_pgs_resid = target_df[c_pgs] - target_pgs_pred
             results_target[adj_col] = target_pgs_resid / ref_train_pgs_resid_std
-            results_models[c_pgs]['adj_1_Khera'] = package_regression(pcs2pgs_fit)
+            results_models[c_pgs]['adj_1_Khera'] = package_skl_regression(pcs2pgs_fit)
 
             if 'mean+var' in use_method:
                 # Method 2 (Khan): normalize variance (doi:10.1038/s41591-022-01869-1)
                 # Normalize based on residual deviation from mean of the distribution [equalize population sds]
                 # (e.g. reduce the correlation between genetic ancestry and how far away you are from the mean)
+                # USE gamma distribution for predicted variance to constrain it to be positive (b/c using linear
+                # regression we can get negative predictions for the sd)
                 adj_col = 'adj_2_Khan|{}'.format(c_pgs)
-                pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean)**2)
-
-                # Alternative (not adjusting for the mean... which should be 0 already because we've tried to fit it)
-                # ---> pcs2var_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_pgs_resid**2)
-
-                # Handle NAs
-                pred_var_ref = pcs2var_fit.predict(ref_df[cols_pcs])
-                pred_var_ref[pred_var_ref < 0] = np.nan
-                results_ref[adj_col] = ref_pgs_resid / np.sqrt(pred_var_ref)
-                # Apply to Target
-                pred_var_target = pcs2var_fit.predict(target_df[cols_pcs])
-                pred_var_target[pred_var_target < 0] = np.nan
-                results_target[adj_col] = target_pgs_resid / np.sqrt(pred_var_target)
-                results_models[c_pgs]['adj_2_Khan'] = package_regression(pcs2var_fit)
-
-                # Check for NAs
-                # has_null = sum(results_ref[adj_col].isnull()) + sum(results_target[adj_col].isnull())
-                # if has_null > 0:
-                #     print('adj_2_Khan', c_pgs, sum(results_ref[adj_col].isnull()), sum(results_target[adj_col].isnull()))
-                #     fig_outloc = 'resid/HasNA/{}.png'.format(c_pgs)
-                #     fig = sns.histplot((ref_train_pgs_resid - ref_train_pgs_resid_mean) ** 2)
-                #     plt.savefig(fig_outloc)
-                #     plt.clf()
-
-                # Attempt gamma distribution for predicted variance to constrain it to be positive
-                # (b/c using linear regression we can get negative predictions for the sd)
                 pcs2var_fit_gamma = GammaRegressor(max_iter=1000).fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean) ** 2)
-                adj_col = 'adj_2_Gamma|{}'.format(c_pgs)
                 results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_df[cols_pcs]))
                 results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(target_df[cols_pcs]))
-                results_models[c_pgs]['adj_2_Gamma'] = package_regression(pcs2var_fit_gamma)
+                results_models[c_pgs]['adj_2_Khan'] = package_skl_regression(pcs2var_fit_gamma)
+
+                # Method 2 (full-likelihood model)
+                adj_col = 'adj_2_FULL|{}'.format(c_pgs)
+                params_initial = np.concatenate([[pcs2pgs_fit.intercept_], pcs2pgs_fit.coef_,
+                                                 [pcs2var_fit_gamma.intercept_], pcs2var_fit_gamma.coef_])
+                pcs2full_fit = fullLL_fit(df_score=ref_train_df, scorecol=c_pgs,
+                                          predictors=cols_pcs, initial_params=params_initial)
+                results_ref[adj_col] = fullLL_predict(pcs2full_fit, ref_df, c_pgs)
+                results_target[adj_col] = fullLL_predict(pcs2full_fit, target_df, c_pgs)
 
     # Only return results
     logger.debug("Outputting adjusted PGS & models")
@@ -327,7 +312,82 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
     return results_ref, results_target, results_models
 
 
-def package_regression(model):
+def f_var(df, theta):
+    """Predict the result of a Gamma regression (log link)"""
+    return np.exp(theta[0] + np.inner(theta[1:], df))
+
+
+def f_mu(df, theta):
+    """Predict the result of a Gaussian regression"""
+    return theta[0] + np.inner(theta[1:], df)
+
+
+def nLL_mu_and_var(theta, df, c_score, l_predictors):
+    """Negative log-likelihood for regression that fits the expected mean and variance based on a
+    set of predictors. In this case fitting the PGS as a function of geneitc ancestry (PCA loadings).
+    Adapted from https://github.com/broadinstitute/palantir-workflows/blob/v0.14/ImputationPipeline/ScoringTasks.wdl,
+    which is distributed under a BDS-3 license."""
+    i_split = int(1 + (len(theta) - 2) / 2)
+    theta_mu = theta[0:i_split]
+    theta_var = theta[i_split:]
+    x = df[c_score]
+    return sum(np.log(np.sqrt(f_var(df[l_predictors], theta_var))) + (1 / 2) * (
+                x - f_mu(df[l_predictors], theta_mu)) ** 2 / f_var(df[l_predictors], theta_var))
+
+
+def grdnt_mu_and_var(theta, df, c_score, l_predictors):
+    """Gradient used to optimize the nLL_mu_and_var fit function.
+    Adapted from https://github.com/broadinstitute/palantir-workflows/blob/v0.14/ImputationPipeline/ScoringTasks.wdl,
+    which is distributed under a BDS-3 license."""
+    i_split = int(1 + (len(theta) - 2) / 2)
+    theta_mu = theta[0:i_split]
+    theta_var = theta[i_split:]
+    x = df[c_score]
+
+    r_var = f_var(df[l_predictors], theta_var)
+
+    mu_coeff = -(x - f_mu(df[l_predictors], theta_mu)) / f_var(df[l_predictors], theta_var)
+    sig_coeff = 1 / (2 * f_var(df[l_predictors], theta_var)) - (1 / 2) * (
+                x - f_mu(df[l_predictors], theta_mu)) ** 2 / (
+                            f_var(df[l_predictors], theta_var) ** 2)
+
+    grad = np.concatenate([[sum(mu_coeff * 1)], [sum(mu_coeff * df[x]) for x in l_predictors],
+                           [sum(sig_coeff * (1 * r_var))],
+                           [sum(sig_coeff * (df[x] * r_var)) for x in l_predictors]])
+
+    return grad
+
+
+def fullLL_fit(df_score, scorecol, predictors, initial_params):
+    """Fit the regression of values based on predictors that effect the mean and variance of the distribution"""
+    fit_result = opt.minimize(fun=nLL_mu_and_var, x0=initial_params,
+                              method='BFGS', jac=grdnt_mu_and_var,
+                              args=(df_score, scorecol, predictors))
+
+    # package result for output and use in prediction
+    rp = dict(fit_result)
+    x = rp.pop('x') # fitted params
+
+    i_split = int(1 + (len(x) - 2) / 2)
+    x_mu = x[0:i_split]
+    x_var = x[i_split:]
+    return {'params': rp,
+            'mu_intercept': x_mu[0],
+            'mu_coef': dict(zip(predictors, x_mu[1:])),
+            'var_intercept': x_var[0],
+            'var_coef': dict(zip(predictors, x_var[1:]))
+            }
+
+def fullLL_predict(fullLL_model, df_score, scorecol):
+    """Function to adjust PGS based on the full likelihood fit"""
+    predictors = fullLL_model['mu_coef'].keys()
+    mu_coef = np.concatenate([[fullLL_model['mu_intercept']], list(fullLL_model['mu_coef'].values())])
+    var_coef = np.concatenate([[fullLL_model['var_intercept']], list(fullLL_model['var_coef'].values())])
+    return (df_score[scorecol] - f_mu(df_score[predictors], mu_coef)) / np.sqrt(f_var(df_score[predictors], var_coef))
+
+
+
+def package_skl_regression(model):
     """Extract relevant details from sklearn regression model"""
     return {'params': model.get_params(),
             '_intercept': model.intercept_,

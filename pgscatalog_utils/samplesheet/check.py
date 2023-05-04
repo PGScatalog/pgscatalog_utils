@@ -206,7 +206,7 @@ def _resolve_paths(path_list: list[str], filetype: str) -> list[str]:
             resolved_list.append(str(resolved))
         else:
             logger.critical(f"{resolved} doesn't exist, please check samplesheet path_prefix and try again")
-            raise Exception
+            raise FileNotFoundError
 
     return resolved_list
 
@@ -251,7 +251,7 @@ def _check_one_sampleset(df: pd.DataFrame):
         Individual VCFs should be merged into a multi-sample VCF
         If you want to process multiple cohorts, please run pgsc_calc multiple times with different samplesheets. """
         [logger.critical(x.strip()) for x in sampleset_error.split('\n')]
-        raise Exception
+        raise Exception("Multiple samplesets")
 
 
 def check_samplesheet() -> None:

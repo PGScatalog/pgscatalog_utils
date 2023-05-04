@@ -39,6 +39,15 @@ def bad_samplesheet(samplesheet_df, tmp_path):
 
 
 @pytest.fixture
+def multi_samplesets(samplesheet_df, tmp_path):
+    path = tmp_path / "multi_samplesets.csv"
+    multi_samplesets = pd.concat([samplesheet_df, samplesheet_df], ignore_index=True)
+    multi_samplesets.loc[multi_samplesets.index == 1, 'sampleset'] = 'a_different_name'
+    multi_samplesets.to_csv(path, index=False)
+    return str(path)
+
+
+@pytest.fixture
 def vcf_dosage(samplesheet_df, tmp_path):
     path = tmp_path / "vcf_dosage.csv"
     dosage_samplesheet = samplesheet_df.copy()
@@ -67,7 +76,15 @@ def test_bad_samplesheet(bad_samplesheet, tmp_path):
     out_path = str(tmp_path / "out.json")
     args = ['samplesheet_to_json', bad_samplesheet, out_path]
     with patch('sys.argv', args):
-        with pytest.raises(Exception):
+        with pytest.raises(FileNotFoundError):
+            check_samplesheet()
+
+
+def test_multi_samplesets(multi_samplesets, tmp_path):
+    out_path = str(tmp_path / "out.json")
+    args = ['samplesheet_to_json', multi_samplesets, out_path]
+    with patch('sys.argv', args):
+        with pytest.raises(Exception, match="Multiple samplesets"):
             check_samplesheet()
 
 

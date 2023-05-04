@@ -298,7 +298,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
 
                 # Method 2 (full-likelihood model)
                 # This jointly re-fits the regression parameters from the mean and variance prediction to better
-                # fit the observed PGS distribution. It seems to mostly change the intercept. This implementation is
+                # fit the observed PGS distribution. It seems to mostly change the intercepts. This implementation is
                 # adapted from https://github.com/broadinstitute/palantir-workflows/blob/v0.14/ImputationPipeline/ScoringTasks.wdl,
                 # which is distributed under a BDS-3 license.
                 adj_col = 'adj_2_FULL|{}'.format(c_pgs)
@@ -306,8 +306,8 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                                                  [pcs2var_fit_gamma.intercept_], pcs2var_fit_gamma.coef_])
                 pcs2full_fit = fullLL_fit(df_score=ref_train_df, scorecol=c_pgs,
                                           predictors=cols_pcs, initial_params=params_initial)
-                results_ref[adj_col] = fullLL_predict(pcs2full_fit, ref_df, c_pgs)
-                results_target[adj_col] = fullLL_predict(pcs2full_fit, target_df, c_pgs)
+                results_ref[adj_col] = fullLL_adjust(pcs2full_fit, ref_df, c_pgs)
+                results_target[adj_col] = fullLL_adjust(pcs2full_fit, target_df, c_pgs)
 
     # Only return results
     logger.debug("Outputting adjusted PGS & models")
@@ -345,7 +345,7 @@ def grdnt_mu_and_var(theta, df, c_score, l_predictors):
     which is distributed under a BDS-3 license."""
     i_split = int(1 + (len(theta) - 2) / 2)
     beta_mu = theta[0:i_split]
-    beta_var = theta[i_split:
+    beta_var = theta[i_split:]
     x = df[c_score]
 
     pred_var = f_var(df[l_predictors], beta_var)  # current prediction of variance
@@ -370,7 +370,7 @@ def fullLL_fit(df_score, scorecol, predictors, initial_params):
 
     # package result for output and use in prediction
     rp = dict(fit_result)
-    x = rp.pop('x') # fitted params
+    x = rp.pop('x')  # fitted coefficients
 
     i_split = int(1 + (len(x) - 2) / 2)
     x_mu = x[0:i_split]
@@ -382,13 +382,13 @@ def fullLL_fit(df_score, scorecol, predictors, initial_params):
             'var_coef': dict(zip(predictors, x_var[1:]))
             }
 
-def fullLL_predict(fullLL_model, df_score, scorecol):
+
+def fullLL_adjust(fullLL_model, df_score, scorecol):
     """Function to adjust PGS based on the full likelihood fit"""
     predictors = fullLL_model['mu_coef'].keys()
     mu_coef = np.concatenate([[fullLL_model['mu_intercept']], list(fullLL_model['mu_coef'].values())])
     var_coef = np.concatenate([[fullLL_model['var_intercept']], list(fullLL_model['var_coef'].values())])
     return (df_score[scorecol] - f_mu(df_score[predictors], mu_coef)) / np.sqrt(f_var(df_score[predictors], var_coef))
-
 
 
 def package_skl_regression(model):
@@ -412,7 +412,7 @@ class NumpyEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-def write_model(dict, outname):
+def write_model(d: dict, outname):
     """Use numpy encoder to write json file for models"""
     logger.debug("Writing PGS adjustment models to: {}".format(outname))
     if outname.endswith('.gz'):
@@ -420,5 +420,5 @@ def write_model(dict, outname):
     else:
         outfile = open(outname, "w")
 
-    outfile.write(json.dumps(dict, indent=2, cls=NumpyEncoder))
+    outfile.write(json.dumps(d, indent=2, cls=NumpyEncoder))
     outfile.close()

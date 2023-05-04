@@ -228,10 +228,10 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
         logger.debug("Adjusting PGS using most similar reference population distribution.")
         for c_pgs in scorecols:
             # Initialize Output
-            percentile_col = 'adj_empirical_percentile|{}'.format(c_pgs)
+            percentile_col = 'percentile_MostSimilarPop|{}'.format(c_pgs)
             results_ref[percentile_col] = pd.Series(index=ref_df.index, dtype='float64')
             results_target[percentile_col] = pd.Series(index=target_df.index, dtype='float64')
-            z_col = 'adj_empirical_Z|{}'.format(c_pgs)
+            z_col = 'Z_MostSimilarPop|{}'.format(c_pgs)
             results_ref[z_col] = pd.Series(index=ref_df.index, dtype='float64')
             results_target[z_col] = pd.Series(index=target_df.index, dtype='float64')
             
@@ -268,7 +268,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
         logger.debug("Adjusting PGS using PCA projections")
         for c_pgs in scorecols:
             # Method 1 (Khera): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
-            adj_col = 'adj_1_Khera|{}'.format(c_pgs)
+            adj_col = 'Z_1_Khera|{}'.format(c_pgs)
             # Fit to Reference Data
             pcs2pgs_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_df[c_pgs])
             ref_train_pgs_pred = pcs2pgs_fit.predict(ref_train_df[cols_pcs])
@@ -282,7 +282,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
             target_pgs_pred = pcs2pgs_fit.predict(target_df[cols_pcs])
             target_pgs_resid = target_df[c_pgs] - target_pgs_pred
             results_target[adj_col] = target_pgs_resid / ref_train_pgs_resid_std
-            results_models[c_pgs]['adj_1_Khera'] = package_skl_regression(pcs2pgs_fit)
+            results_models[c_pgs][adj_col] = package_skl_regression(pcs2pgs_fit)
 
             if 'mean+var' in use_method:
                 # Method 2 (Khan): normalize variance (doi:10.1038/s41591-022-01869-1)
@@ -290,25 +290,29 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 # (e.g. reduce the correlation between genetic ancestry and how far away you are from the mean)
                 # USE gamma distribution for predicted variance to constrain it to be positive (b/c using linear
                 # regression we can get negative predictions for the sd)
-                adj_col = 'adj_2_Khan|{}'.format(c_pgs)
+                adj_col = 'Z_2_Khan|{}'.format(c_pgs)
                 pcs2var_fit_gamma = GammaRegressor(max_iter=1000).fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean) ** 2)
                 results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_df[cols_pcs]))
                 results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(target_df[cols_pcs]))
-                results_models[c_pgs]['adj_2_Khan'] = package_skl_regression(pcs2var_fit_gamma)
+                results_models[c_pgs][adj_col] = package_skl_regression(pcs2var_fit_gamma)
 
                 # Method 2 (full-likelihood model)
                 # This jointly re-fits the regression parameters from the mean and variance prediction to better
                 # fit the observed PGS distribution. It seems to mostly change the intercepts. This implementation is
                 # adapted from https://github.com/broadinstitute/palantir-workflows/blob/v0.14/ImputationPipeline/ScoringTasks.wdl,
                 # which is distributed under a BDS-3 license.
-                adj_col = 'adj_2_FULL|{}'.format(c_pgs)
+                adj_col = 'Z_2_FULL|{}'.format(c_pgs)
                 params_initial = np.concatenate([[pcs2pgs_fit.intercept_], pcs2pgs_fit.coef_,
                                                  [pcs2var_fit_gamma.intercept_], pcs2var_fit_gamma.coef_])
                 pcs2full_fit = fullLL_fit(df_score=ref_train_df, scorecol=c_pgs,
                                           predictors=cols_pcs, initial_params=params_initial)
+
                 results_ref[adj_col] = fullLL_adjust(pcs2full_fit, ref_df, c_pgs)
                 results_target[adj_col] = fullLL_adjust(pcs2full_fit, target_df, c_pgs)
 
+                if pcs2full_fit['params']['success'] is False:
+                    logger.warning("{} full-likelihood: {} {}".format(c_pgs, pcs2full_fit['params']['status'], pcs2full_fit['params']['message']))
+                results_models[c_pgs][adj_col] = pcs2full_fit
     # Only return results
     logger.debug("Outputting adjusted PGS & models")
     results_ref = pd.DataFrame(results_ref)
@@ -335,9 +339,8 @@ def nLL_mu_and_var(theta, df, c_score, l_predictors):
     theta_mu = theta[0:i_split]
     theta_var = theta[i_split:]
     x = df[c_score]
-    return sum(np.log(np.sqrt(f_var(df[l_predictors], theta_var))) + (1 / 2) * (
-                x - f_mu(df[l_predictors], theta_mu)) ** 2 / f_var(df[l_predictors], theta_var))
-
+    return sum(np.log(np.sqrt(f_var(df[l_predictors], theta_var))) +
+               (1/2)*(x - f_mu(df[l_predictors], theta_mu))**2/f_var(df[l_predictors], theta_var))
 
 def grdnt_mu_and_var(theta, df, c_score, l_predictors):
     """Gradient used to optimize the nLL_mu_and_var fit function.
@@ -351,9 +354,8 @@ def grdnt_mu_and_var(theta, df, c_score, l_predictors):
     pred_var = f_var(df[l_predictors], beta_var)  # current prediction of variance
 
     mu_coeff = -(x - f_mu(df[l_predictors], beta_mu)) / f_var(df[l_predictors], beta_var)
-    sig_coeff = 1 / (2 * f_var(df[l_predictors], beta_var)) - (1 / 2) * (
-                x - f_mu(df[l_predictors], beta_mu)) ** 2 / (
-                            f_var(df[l_predictors], beta_var) ** 2)
+    sig_coeff = 1/(2 * f_var(df[l_predictors], beta_var)) -(1/2)*(x - f_mu(df[l_predictors], beta_mu))**2 /(f_var(df[l_predictors], beta_var)**2)
+
 
     grad = np.concatenate([[sum(mu_coeff * 1)], [sum(mu_coeff * df[x]) for x in l_predictors],
                            [sum(sig_coeff * (1 * pred_var))],
@@ -366,7 +368,7 @@ def fullLL_fit(df_score, scorecol, predictors, initial_params):
     """Fit the regression of values based on predictors that effect the mean and variance of the distribution"""
     fit_result = opt.minimize(fun=nLL_mu_and_var, x0=initial_params,
                               method='BFGS', jac=grdnt_mu_and_var,
-                              args=(df_score, scorecol, predictors))
+                              args=(df_score, scorecol, predictors), options={'maxiter': 1000})
 
     # package result for output and use in prediction
     rp = dict(fit_result)

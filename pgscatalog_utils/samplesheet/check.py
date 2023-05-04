@@ -241,6 +241,19 @@ def _check_reserved_names(df: pd.DataFrame):
         raise Exception
 
 
+def _check_one_sampleset(df: pd.DataFrame):
+    samplesets = set(df['sampleset'].to_list())
+    if len(samplesets) > 1:
+        logger.critical(f"Multiple samplesets defined in the samplesheet {samplesets}")
+        sampleset_error = """ Only one sampleset per samplesheet is supported
+        Your genomic data should _only_ be split by chromosome
+        pgsc_calc works best with cohorts
+        Individual VCFs should be merged into a multi-sample VCF
+        If you want to process multiple cohorts, please run pgsc_calc multiple times with different samplesheets. """
+        [logger.critical(x.strip()) for x in sampleset_error.split('\n')]
+        raise Exception
+
+
 def check_samplesheet() -> None:
     """
     This function checks that the samplesheet follows the following structure:
@@ -252,6 +265,7 @@ def check_samplesheet() -> None:
     df = _read_samplesheet(args.FILE_IN)
 
     # check df for errors
+    _check_one_sampleset(df)
     _check_reserved_names(df)
     _check_colnames(df)
     _check_paths(df)

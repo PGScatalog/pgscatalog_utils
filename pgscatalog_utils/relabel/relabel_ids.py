@@ -104,9 +104,9 @@ def _relabel_target(args, mapping, split_output):
                     _relabel(in_target=io.TextIOWrapper(reader), mapping=mapping, split_output=split_output, args=args)
             case 'gzip':
                 with gzip.open(f) as reader:
-                    _relabel(in_target=reader, mapping=mapping, split_output=split_output, args=args)
+                    _relabel(in_target=io.TextIOWrapper(reader), mapping=mapping, split_output=split_output, args=args)
             case 'text':
-                _relabel(in_target=f, mapping=mapping, split_output=split_output, args=args)
+                _relabel(in_target=io.TextIOWrapper(f), mapping=mapping, split_output=split_output, args=args)
             case _:
                 raise Exception("Can't detect target format")
 

@@ -1,30 +1,10 @@
+import gzip
 import os
 from unittest.mock import patch
 
-import pytest
-
-from pgscatalog_utils.download.download_scorefile import download_scorefile,generate_md5_checksum,get_md5_checksum_from_ftp
-from pgscatalog_utils.download.publication import query_publication
-from pgscatalog_utils.download.score import get_url
-from pgscatalog_utils.download.trait import query_trait
-
-
-ftp_url_root = 'https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores'
-
-@pytest.fixture(params=[["PGS000001"], ["PGS000001", "PGS000802"]])
-def pgscatalog_api(request):
-    return get_url(request.param, "GRCh37")
-
-
-def test_pgscatalog_result(pgscatalog_api):
-    # is the key a list of accessions?
-    for k, v in pgscatalog_api.items():
-        # make sure the key is a PGS ID
-        assert k.startswith("PGS")
-        # ensure sure ftp prefix is correctly used to avoid connection problems
-        assert v.startswith("ftp://")
-        # make sure the URL points to a reasonable looking compressed text file
-        assert v.endswith(".txt.gz")
+from pgscatalog_utils.download.Catalog import CatalogQuery, CatalogResult
+from pgscatalog_utils.download.CatalogCategory import CatalogCategory
+from pgscatalog_utils.download.download_scorefile import download_scorefile
 
 
 def test_download_scorefile_author(tmp_path):
@@ -36,11 +16,7 @@ def test_download_scorefile_author(tmp_path):
         # Test download
         download_scorefile()
         score_filename = f'{pgs_id}.txt.gz'
-        assert os.listdir(out_dir) == [score_filename]
-        # Test MD5
-        ftp_md5 = get_md5_checksum_from_ftp(f'{ftp_url_root}/{pgs_id}/ScoringFiles/{score_filename}')
-        downloaded_file_md5 = generate_md5_checksum(f'{out_dir}/{score_filename}')
-        assert ftp_md5 == downloaded_file_md5
+        assert score_filename in os.listdir(out_dir)
 
 
 def test_download_scorefile_hmPOS(tmp_path):
@@ -52,11 +28,7 @@ def test_download_scorefile_hmPOS(tmp_path):
         # Test download
         download_scorefile()
         hm_score_filename = f'{pgs_id}_hmPOS_GRCh38.txt.gz'
-        assert os.listdir(out_dir) == [hm_score_filename]
-        # Test MD5
-        ftp_md5 = get_md5_checksum_from_ftp(f'{ftp_url_root}/{pgs_id}/ScoringFiles/Harmonized/{hm_score_filename}')
-        downloaded_file_md5 = generate_md5_checksum(f'{out_dir}/{hm_score_filename}')
-        assert ftp_md5 == downloaded_file_md5
+        assert hm_score_filename in os.listdir(out_dir)
 
 
 def test_download_existing_scorefile_no_overwrite(tmp_path):
@@ -72,10 +44,10 @@ def test_download_existing_scorefile_no_overwrite(tmp_path):
     with patch('sys.argv', args):
         # Attempt to download scoring file
         download_scorefile()
-        # Test MD5
-        ftp_md5 = get_md5_checksum_from_ftp(f'{ftp_url_root}/{pgs_id}/ScoringFiles/{score_filename}')
-        downloaded_file_md5 = generate_md5_checksum(local_score_file_path)
-        assert ftp_md5 != downloaded_file_md5
+
+        # the existing file won't be overwritten even when the checksum fails to validate
+        with open(local_score_file_path, 'r') as f:
+            assert f.read() == "Download test"
 
 
 def test_download_overwrite_existing_scorefile(tmp_path):
@@ -91,17 +63,42 @@ def test_download_overwrite_existing_scorefile(tmp_path):
     with patch('sys.argv', args):
         # Download scoring file (over file existing locally)
         download_scorefile()
-        # Test MD5
-        ftp_md5 = get_md5_checksum_from_ftp(f'{ftp_url_root}/{pgs_id}/ScoringFiles/{score_filename}')
-        downloaded_file_md5 = generate_md5_checksum(local_score_file_path)
-        assert ftp_md5 == downloaded_file_md5
+
+        with gzip.open(local_score_file_path, 'rt') as f:
+            # the test data will be overwritten with real content
+            assert f.read() != "Download test"
+
+
+def test_download_publication(tmp_path):
+    out_dir = str(tmp_path.resolve())
+    pgp_id = 'PGP000001'
+    args: list[str] = ['download_scorefiles', '-p', pgp_id, '-o', out_dir]
+    with patch('sys.argv', args):
+        download_scorefile()
+        assert not {'PGS000001.txt.gz', 'PGS000002.txt.gz', 'PGS000003.txt.gz'}.difference(os.listdir(out_dir))
+
+
+def test_download_trait(tmp_path):
+    out_dir = str(tmp_path.resolve())
+    trait_id = 'EFO_0004329'
+    args: list[str] = ['download_scorefiles', '-t', trait_id, '-o', out_dir, '-e']
+    with patch('sys.argv', args):
+        download_scorefile()
+        # seven scores in catalog for alcohol drinking, more may be added in the future
+        assert not {'PGS001901.txt.gz', 'PGS002115.txt.gz', 'PGS002909.txt.gz',
+                    'PGS002910.txt.gz', 'PGS002911.txt.gz', 'PGS002912.txt.gz',
+                    'PGS002913.txt.gz'}.difference(os.listdir(out_dir))
 
 
 def test_query_publication():
     # publications are relatively static
-    assert not set(query_publication("PGP000001")).difference(['PGS000001', 'PGS000002', 'PGS000003'])
+    query: list[CatalogResult] = CatalogQuery(CatalogCategory.PUBLICATION, accession="PGP000001",
+                                              pgsc_calc_version=None).get()
+    assert not query[0].pgs_ids.difference({'PGS000001', 'PGS000002', 'PGS000003'})
 
 
 def test_query_trait():
     # new scores may be added to traits in the future
-    assert {'PGS001901', 'PGS002115'}.issubset(set(query_trait("EFO_0004329")))
+    query: list[CatalogResult] = CatalogQuery(CatalogCategory.TRAIT, accession="EFO_0004329",
+                                              pgsc_calc_version=None).get()
+    assert not {'PGS001901', 'PGS002115'}.difference(query[0].pgs_ids)

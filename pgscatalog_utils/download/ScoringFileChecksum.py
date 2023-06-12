@@ -4,6 +4,7 @@ import pathlib
 import typing
 from dataclasses import dataclass, field
 
+from pgscatalog_utils import config
 from pgscatalog_utils.download.ScoringFile import ScoringFile
 from pgscatalog_utils.download.download_file import download_file
 
@@ -50,7 +51,7 @@ class ScoringFileChecksum:
 
         # grab checksum from pgs catalog and read it
         remote_checksum: str = ""
-        download_file(url=md5_url, local_path=md5_local_path, overwrite=True, ftp_fallback=True)
+        download_file(url=md5_url, local_path=md5_local_path, overwrite=config.OVERWRITE, ftp_fallback=True)
         with open(md5_local_path, 'r') as f:
             remote_checksum = f.read().split(md5_sep)[0]
 

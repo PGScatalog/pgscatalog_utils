@@ -12,6 +12,7 @@ N_THREADS: int = 1  # dummy value, is reset by args.n_threads (default: 1)
 OUTDIR: str = "."  # dummy value, reset by args.outdir
 TEMPDIR: tempfile.TemporaryDirectory
 PGSC_CALC_VERSION: typing.Union[None, str] = None
+OVERWRITE: bool = False
 
 logger = logging.getLogger(__name__)
 

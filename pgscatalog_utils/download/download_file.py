@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 def download_file(url: str, local_path: str, overwrite: bool, ftp_fallback: bool) -> None:
     if pathlib.Path(local_path).exists():
         if not overwrite:
-            logger.warning("File exists and overwrite is false, skipping download")
+            logger.warning(f"{local_path} exists and overwrite is false, skipping download")
             return
-        else:
-            logger.warning("Overwriting existing scoring file")
+        elif overwrite:
+            logger.warning(f"Overwriting {local_path}")
 
     logger.info(f"Downloading {local_path} from {url}")
     max_retries: int = 5

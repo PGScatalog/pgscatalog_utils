@@ -7,7 +7,7 @@ import typing
 
 from pgscatalog_utils import config
 from pgscatalog_utils.download.CatalogCategory import CatalogCategory
-from pgscatalog_utils.download.CatalogQuery import CatalogQuery, CatalogResult
+from pgscatalog_utils.download.Catalog import CatalogQuery, CatalogResult
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 from pgscatalog_utils.download.ScoringFileDownloader import ScoringFileDownloader
 
@@ -50,6 +50,8 @@ def download_scorefile() -> None:
     config.OUTDIR.mkdir(exist_ok=True)
     os.chdir(config.OUTDIR)
 
+    config.OVERWRITE = args.overwrite_existing_file
+
     results: list[list[CatalogResult]] = []
     if args.efo:
         if args.efo_include_children:
@@ -76,10 +78,16 @@ def download_scorefile() -> None:
 
     flat_results = [element for sublist in results for element in sublist]
 
-    ScoringFileDownloader(results=flat_results, genome_build=build).download_files()
+    ScoringFileDownloader(results=flat_results, genome_build=build, overwrite=config.OVERWRITE).download_files()
 
     # warn if missing PGS IDs in downloaded files
-    missing_pgs: set[str] = set(args.pgs).difference(flat_results[-1].pgs_ids)
+    requested_pgs: set[str]
+    if args.pgs is None:
+        requested_pgs = set()
+    else:
+        requested_pgs = set(args.pgs)
+    missing_pgs: set[str] = requested_pgs.difference(flat_results[-1].pgs_ids)
+
     if missing_pgs:
         logger.warning(f"Requested PGS scoring file not downloaded: {missing_pgs}")
         logger.warning("Check if the accessions are valid")

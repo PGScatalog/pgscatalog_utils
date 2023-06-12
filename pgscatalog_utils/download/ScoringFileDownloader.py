@@ -2,7 +2,8 @@ import logging
 import typing
 from dataclasses import dataclass
 
-from pgscatalog_utils.download.CatalogQuery import CatalogResult
+from pgscatalog_utils import config
+from pgscatalog_utils.download.Catalog import CatalogResult
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 from pgscatalog_utils.download.ScoringFile import ScoringFile
 from pgscatalog_utils.download.ScoringFileChecksum import ScoringFileChecksum
@@ -45,7 +46,7 @@ class ScoringFileDownloader:
                 attempt = 0
                 while attempt < max_attempt:
                     download_file(scoring_file.url, scoring_file.local_path, ftp_fallback=self.ftp_fallback,
-                                  overwrite=True)
+                                  overwrite=config.OVERWRITE)
                     checksum: ScoringFileChecksum = ScoringFileChecksum.from_scoring_file(scoring_file)
 
                     if checksum.matches:

@@ -78,13 +78,13 @@ def download_scorefile() -> None:
 
     ScoringFileDownloader(results=flat_results, genome_build=build).download_files()
 
-    # TODO: checksum
-    # TODO: pgsc_calc version number in UA?
-    # TODO: set local download directory
-    # TODO: warn if missing PGS?
+    # warn if missing PGS IDs in downloaded files
+    missing_pgs: set[str] = set(args.pgs).difference(flat_results[-1].pgs_ids)
+    if missing_pgs:
+        logger.warning(f"Requested PGS scoring file not downloaded: {missing_pgs}")
+        logger.warning("Check if the accessions are valid")
+
     logger.info("Downloads complete")
-
-
 
 
 def _check_args(args):

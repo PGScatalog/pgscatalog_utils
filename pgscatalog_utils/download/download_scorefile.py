@@ -43,30 +43,32 @@ def download_scorefile() -> None:
 
     pgs_lst: list[list[str]] = []
 
-    pgsc_calc_info = None
     if args.pgsc_calc:
-        pgsc_calc_info = args.pgsc_calc
+        config.PGSC_CALC_VERSION = args.pgsc_calc_info
 
     results: list[list[CatalogResult]] = []
     if args.efo:
         if args.efo_include_children:
             logger.debug("--trait set, querying traits (including PGS for child terms)")
             for term in args.efo:
-                results.append(CatalogQuery(CatalogCategory.TRAIT, term, include_children=True).get())
+                results.append(CatalogQuery(CatalogCategory.TRAIT, term, include_children=True,
+                                            pgsc_calc_version=config.PGSC_CALC_VERSION).get())
         else:
             logger.debug("--trait set, querying traits")
             for term in args.efo:
-                results.append(CatalogQuery(CatalogCategory.TRAIT, term, include_children=False).get())
+                results.append(CatalogQuery(CatalogCategory.TRAIT, term, include_children=False,
+                                            pgsc_calc_version=config.PGSC_CALC_VERSION).get())
 
     if args.pgp:
         logger.debug("--pgp set, querying publications")
         for term in args.pgp:
-            results.append(CatalogQuery(CatalogCategory.PUBLICATION, term).get())
+            results.append(CatalogQuery(CatalogCategory.PUBLICATION, term, pgsc_calc_version=config.PGSC_CALC_VERSION).get())
 
     if args.pgs:
         logger.debug("--id set, querying scores")
         results.append(
-            CatalogQuery(CatalogCategory.SCORE, args.pgs).get())  # pgs_lst: a list containing up to three flat lists
+            CatalogQuery(CatalogCategory.SCORE, args.pgs,
+                         pgsc_calc_version=config.PGSC_CALC_VERSION).get())  # pgs_lst: a list containing up to three flat lists
 
     flat_results = [element for sublist in results for element in sublist]
 

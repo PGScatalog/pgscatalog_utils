@@ -2,6 +2,7 @@ import logging
 import time
 import typing
 from dataclasses import dataclass, field
+from functools import reduce
 
 import requests
 
@@ -30,7 +31,7 @@ class CatalogResult:
 
     def _grab_pgs_ids(self) -> set[str]:
         logger.info(f"Valid response from PGS Catalog for term: {self.accession}")
-        pgs: list[str] = []
+        pgs: list[set[str]] = []
 
         match self.category:
             case CatalogCategory.TRAIT | CatalogCategory.PUBLICATION:
@@ -38,12 +39,17 @@ class CatalogResult:
                 if self.include_children:
                     keys.append("child_associated_pgs_ids")
                 for key in keys:
-                    pgs.append(self.response.get(key))
+                    match self.response.get(key):
+                        case list() as pgs_list:
+                            pgs.append(set(pgs_list))
+                        case dict() as pgs_dict:
+                            pgs.append(reduce(lambda x, y: set(x).union(set(y)), pgs_dict.values()))
+
                 return set().union(*pgs)
             case CatalogCategory.SCORE:
                 for result in self.response.get("results"):
-                    pgs.append(result.get("id"))
-                return set(pgs)
+                    pgs.append({result.get("id")})
+                return set().union(*pgs)
             case _:
                 raise Exception(f"Invalid {self.category}")
 

@@ -1,4 +1,5 @@
 import logging
+import os
 import pathlib
 import time
 import urllib.parse
@@ -7,16 +8,18 @@ from urllib.parse import urlsplit
 
 import requests
 
+from pgscatalog_utils import config
+
 logger = logging.getLogger(__name__)
 
 
 def download_file(url: str, local_path: str, overwrite: bool, ftp_fallback: bool) -> None:
-    if pathlib.Path(local_path).exists():
+    if config.OUTDIR.joinpath(local_path).exists():
         if not overwrite:
-            logger.warning(f"{local_path} exists and overwrite is false, skipping download")
+            logger.warning(f"{config.OUTDIR.joinpath(local_path)} exists and overwrite is false, skipping download")
             return
         elif overwrite:
-            logger.warning(f"Overwriting {local_path}")
+            logger.warning(f"Overwriting {config.OUTDIR.joinpath(local_path)}")
 
     logger.info(f"Downloading {local_path} from {url}")
     max_retries: int = 5
@@ -26,7 +29,7 @@ def download_file(url: str, local_path: str, overwrite: bool, ftp_fallback: bool
         response: requests.Response = requests.get(url)
         match response.status_code:
             case 200:
-                with open(local_path, "wb") as f:
+                with open(config.OUTDIR.joinpath(local_path), "wb") as f:
                     f.write(response.content)
                 logger.info("HTTPS download complete")
                 attempt = 0
@@ -44,7 +47,7 @@ def download_file(url: str, local_path: str, overwrite: bool, ftp_fallback: bool
             raise Exception(f"Can't download {url} using HTTPS")
 
 
-def _ftp_fallback_download(url, local_path) -> None:
+def _ftp_fallback_download(url: str, local_path: str) -> None:
     url = url.replace("https://", "ftp://")
     max_retries = 5
     wait_time = 30
@@ -56,7 +59,7 @@ def _ftp_fallback_download(url, local_path) -> None:
             ftp = FTP(spliturl.hostname)
             ftp.login()
             ftp.cwd(str(pathlib.Path(urlsplit(url).path).parent))
-            with open(local_path, "wb") as file:
+            with open(config.OUTDIR.joinpath(local_path), "wb") as file:
                 ftp.retrbinary("RETR " + local_path, file.write)
                 ftp.quit()
                 logger.info("FTP download completed")

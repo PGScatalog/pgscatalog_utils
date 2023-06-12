@@ -48,8 +48,6 @@ def download_scorefile() -> None:
     config.OUTDIR = pathlib.Path(args.outdir).resolve()
     logger.info(f"Download directory: {config.OUTDIR}")
     config.OUTDIR.mkdir(exist_ok=True)
-    os.chdir(config.OUTDIR)
-
     config.OVERWRITE = args.overwrite_existing_file
 
     results: list[list[CatalogResult]] = []

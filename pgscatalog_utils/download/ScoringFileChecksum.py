@@ -39,7 +39,7 @@ class ScoringFileChecksum:
 
     @classmethod
     def from_scoring_file(cls, scoring_file: ScoringFile):
-        assert pathlib.Path(scoring_file.local_path).exists(), "Scoring file must be downloaded first"
+        assert config.OUTDIR.joinpath(scoring_file.local_path).exists(), "Scoring file must be downloaded first"
 
         logger.info("Downloading checksum file")
         md5_url: str = scoring_file.url + '.md5'
@@ -52,7 +52,7 @@ class ScoringFileChecksum:
         # grab checksum from pgs catalog and read it
         remote_checksum: str = ""
         download_file(url=md5_url, local_path=md5_local_path, overwrite=config.OVERWRITE, ftp_fallback=True)
-        with open(md5_local_path, 'r') as f:
+        with open(config.OUTDIR.joinpath(md5_local_path), 'r') as f:
             remote_checksum = f.read().split(md5_sep)[0]
 
         return cls(local_path=md5_local_path, remote_url=md5_url, remote_checksum=remote_checksum,

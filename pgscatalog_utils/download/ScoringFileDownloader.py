@@ -1,47 +1,14 @@
 import logging
-import pathlib
-import time
 import typing
-import urllib.parse
 from dataclasses import dataclass
-from enum import Enum, auto
-from ftplib import FTP
-from urllib.parse import urlsplit
-
-import requests
 
 from pgscatalog_utils.download.CatalogQuery import CatalogResult
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 from pgscatalog_utils.download.ScoringFile import ScoringFile
+from pgscatalog_utils.download.ScoringFileChecksum import ScoringFileChecksum
+from pgscatalog_utils.download.download_file import download_file
 
 logger = logging.getLogger(__name__)
-
-
-def _ftp_fallback_download(url, local_path):
-    url = url.replace("https://", "ftp://")
-    max_retries = 5
-    wait_time = 30
-    retries = 0
-
-    while retries < max_retries:
-        try:
-            spliturl: urllib.parse.SplitResult = urlsplit(url)
-            ftp = FTP(spliturl.hostname)
-            ftp.login()
-            ftp.cwd(str(pathlib.Path(urlsplit(url).path).parent))
-            with open(local_path, "wb") as file:
-                ftp.retrbinary("RETR " + local_path, file.write)
-                ftp.quit()
-                logger.info("FTP download completed")
-                return
-        except Exception as e:
-            if "421" in str(e):
-                retries += 1
-                logger.debug(f"FTP server is busy. Waiting and retrying. Retry {retries} of {max_retries}")
-                time.sleep(wait_time)
-            else:
-                logger.critical(f"Download failed: {e}")
-                raise Exception
 
 
 @dataclass
@@ -51,48 +18,10 @@ class ScoringFileDownloader:
 
     HTTPS is preferred but mysteriously fails sometimes. FTP gets busy.
     """
-    class DownloadMethod(Enum):
-        HTTPS = auto()
-        FTP = auto()
-
     results: list[CatalogResult]
     genome_build: typing.Union[GenomeBuild, None]
-    download_method: DownloadMethod = DownloadMethod.HTTPS
     ftp_fallback: bool = True
     overwrite: bool = True
-
-    def _download_file(self, url, local_path):
-        if pathlib.Path(local_path).exists():
-            if not self.overwrite:
-                logger.warning("File exists and overwrite is false, skipping download")
-                return
-            else:
-                logger.warning("Overwriting existing scoring file")
-
-        logger.info(f"Downloading {local_path} from {url}")
-        max_retries: int = 5
-        attempt: int = 0
-
-        while attempt < max_retries:
-            response: requests.Response = requests.get(url)
-            match response.status_code:
-                case 200:
-                    with open(local_path, "wb") as f:
-                        f.write(response.content)
-                    logger.info("HTTPS download complete")
-                    attempt = 0
-                    break
-                case _:
-                    logger.warning(f"HTTP status {response.status_code} at download attempt {attempt}")
-                    attempt += 1
-                    time.sleep(5)
-
-        if max_retries < attempt:
-            if self.ftp_fallback:
-                logger.warning("Attempting FTP fallback")
-                _ftp_fallback_download(url=url, local_path=local_path)
-            else:
-                raise Exception(f"Can't download {url} using HTTPS")
 
     def download_files(self):
         url_dict = {}
@@ -104,4 +33,26 @@ class ScoringFileDownloader:
             scoring_files.append(list(filter(lambda x: x.build == self.genome_build, scoring_file_list))[0])
 
         for scoring_file in scoring_files:
-            self._download_file(scoring_file.url, scoring_file.local_path)
+            download_file(scoring_file.url, scoring_file.local_path, overwrite=self.overwrite,
+                          ftp_fallback=self.ftp_fallback)
+            checksum: ScoringFileChecksum = ScoringFileChecksum.from_scoring_file(scoring_file)
+
+            if not checksum.matches:
+                logger.warning(f"Scoring file {scoring_file.local_path} fails validation")
+                logger.warning(f"Remote checksum: {checksum.remote_checksum}")
+                logger.warning(f"Local checksum: {checksum.local_checksum}")
+                max_attempt = 3
+                attempt = 0
+                while attempt < max_attempt:
+                    download_file(scoring_file.url, scoring_file.local_path, ftp_fallback=self.ftp_fallback,
+                                  overwrite=True)
+                    checksum: ScoringFileChecksum = ScoringFileChecksum.from_scoring_file(scoring_file)
+
+                    if checksum.matches:
+                        break
+                    else:
+                        attempt += 1
+
+            if checksum.matches:
+                logger.info("Checksum matches")
+                continue

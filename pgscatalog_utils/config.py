@@ -2,6 +2,7 @@ import atexit
 import logging
 import os
 import tempfile
+import typing
 
 import polars as pl
 
@@ -10,6 +11,7 @@ from pgscatalog_utils.match import tempdir
 N_THREADS: int = 1  # dummy value, is reset by args.n_threads (default: 1)
 OUTDIR: str = "."  # dummy value, reset by args.outdir
 TEMPDIR: tempfile.TemporaryDirectory
+PGSC_CALC_VERSION: typing.Union[None, str] = None
 
 logger = logging.getLogger(__name__)
 

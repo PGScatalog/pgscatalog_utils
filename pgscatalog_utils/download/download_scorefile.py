@@ -1,23 +1,24 @@
 import argparse
 import logging
 import os
+import pathlib
 import textwrap
 import typing
 
-from pgscatalog_utils.config import set_logging_level
+from pgscatalog_utils import config
 from pgscatalog_utils.download.CatalogCategory import CatalogCategory
 from pgscatalog_utils.download.CatalogQuery import CatalogQuery, CatalogResult
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 from pgscatalog_utils.download.ScoringFileDownloader import ScoringFileDownloader
+
 
 logger = logging.getLogger(__name__)
 
 
 def download_scorefile() -> None:
     args = _parse_args()
-    set_logging_level(args.verbose)
+    config.set_logging_level(args.verbose)
     _check_args(args)
-    _mkdir(args.outdir)
 
     build: typing.Union[None, GenomeBuild]
     match args.build:
@@ -41,10 +42,13 @@ def download_scorefile() -> None:
         logger.warning(
             "Existing Scoring files will be overwritten if new versions of the Scoring files are available for download.")
 
-    pgs_lst: list[list[str]] = []
-
     if args.pgsc_calc:
         config.PGSC_CALC_VERSION = args.pgsc_calc_info
+
+    config.OUTDIR = pathlib.Path(args.outdir).resolve()
+    logger.info(f"Download directory: {config.OUTDIR}")
+    config.OUTDIR.mkdir(exist_ok=True)
+    os.chdir(config.OUTDIR)
 
     results: list[list[CatalogResult]] = []
     if args.efo:
@@ -81,10 +85,6 @@ def download_scorefile() -> None:
     logger.info("Downloads complete")
 
 
-def _mkdir(outdir: str) -> None:
-    if not os.path.exists(outdir):
-        logger.debug("Creating output directory")
-        os.makedirs(outdir)
 
 
 def _check_args(args):

@@ -1,6 +1,7 @@
 # PGS Catalog utilities
 
 [![CI](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml/badge.svg)](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml)
+[![DOI](https://zenodo.org/badge/513521373.svg)](https://zenodo.org/badge/latestdoi/513521373)
 
 This repository is a collection of useful tools for downloading and working with scoring files from the
 PGS Catalog. This is mostly used internally by the PGS Catalog Calculator ([`PGScatalog/pgsc_calc`](https://github.com/PGScatalog/pgsc_calc)); however, other users may find some of these tools helpful.

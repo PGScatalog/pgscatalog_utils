@@ -14,6 +14,8 @@ OUTDIR: pathlib.Path
 TEMPDIR: tempfile.TemporaryDirectory
 PGSC_CALC_VERSION: typing.Union[None, str] = None
 OVERWRITE: bool = False
+MAX_RETRIES: int = 3
+DOWNLOAD_WAIT_TIME: int = 30
 
 logger = logging.getLogger(__name__)
 

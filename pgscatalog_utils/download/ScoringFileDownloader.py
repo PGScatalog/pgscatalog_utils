@@ -42,9 +42,8 @@ class ScoringFileDownloader:
                 logger.warning(f"Scoring file {scoring_file.local_path} fails validation")
                 logger.warning(f"Remote checksum: {checksum.remote_checksum}")
                 logger.warning(f"Local checksum: {checksum.local_checksum}")
-                max_attempt = 3
                 attempt = 0
-                while attempt < max_attempt:
+                while attempt < config.MAX_RETRIES:
                     download_file(scoring_file.url, scoring_file.local_path, ftp_fallback=self.ftp_fallback,
                                   overwrite=config.OVERWRITE)
                     checksum: ScoringFileChecksum = ScoringFileChecksum.from_scoring_file(scoring_file)

@@ -52,16 +52,15 @@ def download_scorefile() -> None:
 
     results: list[list[CatalogResult]] = []
     if args.efo:
+        inc_child = False
         if args.efo_include_children:
             logger.debug("--trait set, querying traits (including PGS for child terms)")
-            for term in args.efo:
-                results.append(CatalogQuery(CatalogCategory.TRAIT, term, include_children=True,
-                                            pgsc_calc_version=config.PGSC_CALC_VERSION).get())
+            inc_child = True
         else:
             logger.debug("--trait set, querying traits")
-            for term in args.efo:
-                results.append(CatalogQuery(CatalogCategory.TRAIT, term, include_children=False,
-                                            pgsc_calc_version=config.PGSC_CALC_VERSION).get())
+        for term in args.efo:
+            results.append(CatalogQuery(CatalogCategory.TRAIT, term, include_children=inc_child,
+                                    pgsc_calc_version=config.PGSC_CALC_VERSION).get())
 
     if args.pgp:
         logger.debug("--pgp set, querying publications")

@@ -4,7 +4,8 @@ import jq
 import pandas as pd
 import pytest
 
-from pgscatalog_utils.download.score import query_score
+from pgscatalog_utils.download.Catalog import CatalogQuery, CatalogResult
+from pgscatalog_utils.download.CatalogCategory import CatalogCategory
 from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
 
 
@@ -32,6 +33,7 @@ def test_fail_combine(scorefiles, tmp_path_factory):
 
 @pytest.fixture
 def _n_variants(pgs_accessions):
-    json = query_score(pgs_accessions)
+    result = CatalogQuery(CatalogCategory.SCORE, accession=pgs_accessions, pgsc_calc_version=None).get()[0]
+    json = result.response
     n: list[int] = jq.compile("[.results][][].variants_number").input(json).all()
     return sum(n)

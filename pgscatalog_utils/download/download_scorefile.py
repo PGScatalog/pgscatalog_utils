@@ -1,185 +1,110 @@
 import argparse
 import logging
 import os
-import shutil
+import pathlib
 import textwrap
-import time
-import hashlib
-from contextlib import closing
-from functools import reduce
-from urllib import request as request
-from urllib.error import HTTPError, URLError
+import typing
 
-from pgscatalog_utils.download.publication import query_publication
-from pgscatalog_utils.download.score import get_url
-from pgscatalog_utils.download.trait import query_trait
-from pgscatalog_utils.config import set_logging_level
+from pgscatalog_utils import config
+from pgscatalog_utils.download.CatalogCategory import CatalogCategory
+from pgscatalog_utils.download.Catalog import CatalogQuery, CatalogResult
+from pgscatalog_utils.download.GenomeBuild import GenomeBuild
+from pgscatalog_utils.download.ScoringFileDownloader import ScoringFileDownloader
+
 
 logger = logging.getLogger(__name__)
 
-md5_sep = '  '
-md5_ext = '.md5'
 
 def download_scorefile() -> None:
     args = _parse_args()
-    set_logging_level(args.verbose)
+    config.set_logging_level(args.verbose)
     _check_args(args)
-    _mkdir(args.outdir)
 
-    if args.build is None:
-        logger.warning(f'Downloading scoring file(s) in the author-reported genome build')
-    elif args.build in ['GRCh37', 'GRCh38']:
-        logger.warning(f'Downloading harmonized scoring file(s) in build: {args.build}.')
-    else:
-        logger.critical(f'Invalid genome build specified: {args.build}. Only -b GRCh37 and -b GRCh38 are supported')
-        raise Exception
+    build: typing.Union[None, GenomeBuild]
+    match args.build:
+        case None:
+            logger.info("Downloading scoring file(s) in the author-reported genome build")
+            build = None
+        case "GRCh37":
+            build = GenomeBuild.GRCh37
+        case "GRCh38":
+            build = GenomeBuild.GRCh38
+        case _:
+            logger.critical(f"Invalid genome build specified: {args.build}")
+            logger.critical("Only -b GRCh37 and -b GRCh38 are supported")
+            raise Exception
 
-    overwrite_existing_file = args.overwrite_existing_file
-    if overwrite_existing_file:
+    if build is not None:
+        logger.info(f"Downloading harmonised scoring file(s) in build: {build}")
+
+    if args.overwrite_existing_file:
         logger.debug("--overwrite, overwriting new version of the Scoring file, if available")
-        logger.warning(f'Existing Scoring files will be overwritten if new versions of the Scoring files are available for download.')
+        logger.warning(
+            "Existing Scoring files will be overwritten if new versions of the Scoring files are available for download.")
 
-    pgs_lst: list[list[str]] = []
-
-    pgsc_calc_info = None
     if args.pgsc_calc:
-        pgsc_calc_info = args.pgsc_calc
+        config.PGSC_CALC_VERSION = args.pgsc_calc_info
 
+    config.OUTDIR = pathlib.Path(args.outdir).resolve()
+    logger.info(f"Download directory: {config.OUTDIR}")
+    config.OUTDIR.mkdir(exist_ok=True)
+    config.OVERWRITE = args.overwrite_existing_file
+
+    results: list[list[CatalogResult]] = []
     if args.efo:
+        inc_child = False
         if args.efo_include_children:
             logger.debug("--trait set, querying traits (including PGS for child terms)")
+            inc_child = True
         else:
             logger.debug("--trait set, querying traits")
-        pgs_lst = pgs_lst + [query_trait(x, pgsc_calc_info, args.efo_include_children) for x in args.efo]
-
+        for term in args.efo:
+            results.append(CatalogQuery(CatalogCategory.TRAIT, term, include_children=inc_child,
+                                    pgsc_calc_version=config.PGSC_CALC_VERSION).get())
 
     if args.pgp:
         logger.debug("--pgp set, querying publications")
-        pgs_lst = pgs_lst + [query_publication(x, pgsc_calc_info) for x in args.pgp]
+        for term in args.pgp:
+            results.append(CatalogQuery(CatalogCategory.PUBLICATION, term, pgsc_calc_version=config.PGSC_CALC_VERSION).get())
 
     if args.pgs:
         logger.debug("--id set, querying scores")
-        pgs_lst.append(args.pgs)  # pgs_lst: a list containing up to three flat lists
+        results.append(
+            CatalogQuery(CatalogCategory.SCORE, args.pgs,
+                         pgsc_calc_version=config.PGSC_CALC_VERSION).get())  # pgs_lst: a list containing up to three flat lists
 
-    pgs_id: list[str] = list(set(reduce(lambda x, y: x + y, pgs_lst)))
+    flat_results = [element for sublist in results for element in sublist]
 
-    urls: dict[str, str] = get_url(pgs_id, args.build, pgsc_calc_info)
+    ScoringFileDownloader(results=flat_results, genome_build=build, overwrite=config.OVERWRITE).download_files()
 
-    for pgsid, url in urls.items():
-        logger.debug(f"Downloading {pgsid} from {url}")
-        if args.build is None:
-            path: str = os.path.join(args.outdir, pgsid + '.txt.gz')
-        else:
-            path: str = os.path.join(args.outdir, pgsid + f'_hmPOS_{args.build}.txt.gz')
-        # Download Scoring file
-        is_downloaded = _download_ftp(url, path, overwrite_existing_file)
-        # Check the download
-        if is_downloaded:
-            # - Generate MD5 checksum for the downloaded Scoring File
-            downloaded_file_md5 = generate_md5_checksum(path)
-            # - Download MD5 checksum from the FTP and compare it with the generated MD5 checksum for the downloaded Scoring File
-            ftp_md5 = get_md5_checksum_from_ftp(url)
-            # - Compare MD5 checksums
-            if downloaded_file_md5 != ftp_md5:
-                raise RuntimeError("The download of the file wasn't done properly: the generated MD5 Checksums from the downloaded file differs with the MD5 Checksums on the PGS Catalog FTP")
+    # warn if missing PGS IDs in downloaded files
+    requested_pgs: set[str]
+    if args.pgs is None:
+        requested_pgs = set()
+    else:
+        requested_pgs = set(args.pgs)
+    missing_pgs: set[str] = requested_pgs.difference(flat_results[-1].pgs_ids)
 
+    if missing_pgs:
+        logger.warning(f"Requested PGS scoring file not downloaded: {missing_pgs}")
+        logger.warning("Check if the accessions are valid")
 
-def _mkdir(outdir: str) -> None:
-    if not os.path.exists(outdir):
-        logger.debug("Creating output directory")
-        os.makedirs(outdir)
-
-
-def _download_ftp(url: str, path: str, overwrite_existing_file: bool, retry: int = 0) -> None:
-    """ Download the Scoring file via the PGS Catalog FTP """
-    # Check if Scoring file already exist in the local directory
-    if os.path.exists(path) and retry == 0:
-        existing_file_md5 = generate_md5_checksum(path)
-        ftp_md5 = get_md5_checksum_from_ftp(url)
-        # Overwrite option for the Scoring file
-        if overwrite_existing_file:
-            if existing_file_md5 == ftp_md5:
-                logger.warning(f"Identical Scoring file already exists at {path}, skipping download.")
-                return False
-            else:
-                logger.warning(f"Existing Scoring file at {path}, will be overwritten by a new version of the file on the FTP.")
-        # No overwrite option
-        else:
-            warning_msg = f"File already exists at {path}, skipping download."
-            if existing_file_md5 != ftp_md5:
-                warning_msg = warning_msg + " However a new version of the Scoring file is available on the FTP. You can overwrite the existing Scoring file using the parameter '--overwrite'."
-            logger.warning(warning_msg)
-            return False
-    # Attempt to download the Scoring file
-    try:
-        with closing(request.urlopen(url)) as r:
-            with open(path, 'wb') as f:
-                shutil.copyfileobj(r, f)
-        return True
-    except (HTTPError, URLError) as error:
-        max_retries = 5
-        logger.warning(f'Download failed: {error.reason}')
-        # Retry to download the file if the server is busy
-        if '421' in error.reason and retry < max_retries:
-            logger.warning(f'> Retry to download the file ... attempt {retry+1} out of {max_retries}.')
-            retry += 1
-            time.sleep(10)
-            is_downloaded = _download_ftp(url,path,overwrite_existing_file,retry)
-            if is_downloaded:
-                return is_downloaded
-        else:
-            raise RuntimeError("Failed to download '{}'.\nError message: '{}'".format(url, error.reason))
-
-
-def generate_md5_checksum(filename,blocksize=4096):
-    """ Returns MD5 checksum for the given file. """
-    md5 = hashlib.md5()
-    try:
-        file = open(filename, 'rb')
-        with file:
-            for block in iter(lambda: file.read(blocksize), b""):
-                md5.update(block)
-    except IOError:
-        logger.warning('File \'' + filename + '\' not found!')
-        return None
-    except:
-        logger.warning("Error: the script couldn't generate a MD5 checksum for '" + filename + "'!")
-        return None
-    return md5.hexdigest()
-
-
-def get_md5_checksum_from_ftp(url:str, retry:int = 0) -> str:
-    """ Download and extract MD5 checksum value from the FTP. """
-    md5 = None
-    try:
-        url_md5 = url+md5_ext
-        with closing(request.urlopen(url_md5)) as file:
-            md5_content = file.read().decode()
-            md5 = md5_content.split(md5_sep)[0]
-    except (HTTPError, URLError) as error:
-        max_retries = 5
-        logger.warning(f'MD5 checksum download failed: {error.reason}')
-        # Retry to download the MD% checksum file if the server is busy
-        if '421' in error.reason and retry < max_retries:
-            logger.warning(f'> Retry to download the file ... attempt {retry+1} out of {max_retries}.')
-            retry += 1
-            time.sleep(10)
-            get_md5_checksum_from_ftp(url,retry)
-        else:
-            raise RuntimeError(f"MD5 file download failed - Error message: '{error.reason}'")
-    return md5
+    logger.info("Downloads complete")
 
 
 def _check_args(args):
     if not args.efo:
         if not args.pgp:
             if not args.pgs:
-                logger.critical("One of --trait, --pgp, or --id is required to download scorefiles")
+                logger.critical(
+                    "One of --trait, --pgp, or --id is required to download scorefiles"
+                )
                 raise Exception
 
 
 def _description_text() -> str:
-    return textwrap.dedent('''\
+    return textwrap.dedent(
+        """\
     Download a set of scoring files from the PGS Catalog using PGS
     Scoring IDs, traits, or publication IDs.
     
@@ -195,39 +120,87 @@ def _description_text() -> str:
     
     These harmonised scoring files contain genomic coordinates,
     remapped from author-submitted information such as rsids.
-   ''')
+   """
+    )
 
 
 def _epilog_text() -> str:
-    return textwrap.dedent('''\
+    return textwrap.dedent(
+        """\
     download_scorefiles will skip downloading a scoring file if it
     already exists in the download directory. This can be useful if
     the download process is interrupted and needs to be restarted
     later. You can track download progress with the verbose flag.    
-   ''')
+   """
+    )
 
 
 def _parse_args(args=None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=_description_text(), epilog=_epilog_text(),
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('-i', '--pgs', nargs='+', dest='pgs', help='PGS Catalog ID(s) (e.g. PGS000001)')
-    parser.add_argument('-t', '--efo', dest='efo', nargs='+',
-                        help='Traits described by an EFO term(s) (e.g. EFO_0004611)')
-    parser.add_argument('-e', '--efo_direct', dest='efo_include_children', action='store_false',
-                        help='<Optional> Return only PGS tagged with exact EFO term '
-                             '(e.g. no PGS for child/descendant terms in the ontology)')
-    parser.add_argument('-p', '--pgp', dest='pgp', help='PGP publication ID(s) (e.g. PGP000007)', nargs='+')
-    parser.add_argument('-b', '--build', dest='build', choices=['GRCh37', 'GRCh38'],
-                        help='Download Harmonized Scores with Positions in Genome build: GRCh37 or GRCh38')
-    parser.add_argument('-o', '--outdir', dest='outdir', required=True,
-                        default='scores/',
-                        help='<Required> Output directory to store downloaded files')
-    parser.add_argument('-w', '--overwrite', dest='overwrite_existing_file', action='store_true',
-                        help='<Optional> Overwrite existing Scoring File if a new version is available for download on the FTP')
-    parser.add_argument('-c', '--pgsc_calc', dest='pgsc_calc',
-                        help='<Optional> Provide information about downloading scoring files via pgsc_calc')
-    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
-                        help='<Optional> Extra logging information')
+    parser = argparse.ArgumentParser(
+        description=_description_text(),
+        epilog=_epilog_text(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-i", "--pgs", nargs="+", dest="pgs", help="PGS Catalog ID(s) (e.g. PGS000001)"
+    )
+    parser.add_argument(
+        "-t",
+        "--efo",
+        dest="efo",
+        nargs="+",
+        help="Traits described by an EFO term(s) (e.g. EFO_0004611)",
+    )
+    parser.add_argument(
+        "-e",
+        "--efo_direct",
+        dest="efo_include_children",
+        action="store_false",
+        help="<Optional> Return only PGS tagged with exact EFO term "
+             "(e.g. no PGS for child/descendant terms in the ontology)",
+    )
+    parser.add_argument(
+        "-p",
+        "--pgp",
+        dest="pgp",
+        help="PGP publication ID(s) (e.g. PGP000007)",
+        nargs="+",
+    )
+    parser.add_argument(
+        "-b",
+        "--build",
+        dest="build",
+        choices=["GRCh37", "GRCh38"],
+        help="Download Harmonized Scores with Positions in Genome build: GRCh37 or GRCh38",
+    )
+    parser.add_argument(
+        "-o",
+        "--outdir",
+        dest="outdir",
+        required=True,
+        default="scores/",
+        help="<Required> Output directory to store downloaded files",
+    )
+    parser.add_argument(
+        "-w",
+        "--overwrite",
+        dest="overwrite_existing_file",
+        action="store_true",
+        help="<Optional> Overwrite existing Scoring File if a new version is available for download on the FTP",
+    )
+    parser.add_argument(
+        "-c",
+        "--pgsc_calc",
+        dest="pgsc_calc",
+        help="<Optional> Provide information about downloading scoring files via pgsc_calc",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        action="store_true",
+        help="<Optional> Extra logging information",
+    )
     return parser.parse_args(args)
 
 

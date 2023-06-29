@@ -43,7 +43,8 @@ def download_scorefile() -> None:
             "Existing Scoring files will be overwritten if new versions of the Scoring files are available for download.")
 
     if args.pgsc_calc:
-        config.PGSC_CALC_VERSION = args.pgsc_calc_info
+        config.PGSC_CALC_VERSION = args.pgsc_calc
+        logger.info(f"Setting user agent to {config.PGSC_CALC_VERSION} for PGS Catalog API queries")
 
     config.OUTDIR = pathlib.Path(args.outdir).resolve()
     logger.info(f"Download directory: {config.OUTDIR}")

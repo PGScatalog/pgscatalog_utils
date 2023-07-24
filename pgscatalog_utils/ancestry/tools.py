@@ -171,7 +171,7 @@ normalization_methods = ["empirical", "mean", "mean+var"]
 
 
 def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, use_method:list, norm2_2step=False,
-               ref_train_col=None, n_pcs=4):
+               ref_train_col=None, n_pcs=4, norm_centerpgs=True, std_pcs=True):
     """
     Function to adjust PGS using population references and/or genetic ancestry (PCs)
     :param ref_df: reference dataset
@@ -269,7 +269,27 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
     # PCA-based adjustment
     if any([x in use_method for x in ['mean', 'mean+var']]):
         logger.debug("Adjusting PGS using PCA projections")
+
+        if std_pcs:
+            pcs_norm = {}
+            for pc_col in cols_pcs:
+                # Calculate norm factors
+                pc_mean = ref_train_df[pc_col].mean()
+                pc_std = ref_train_df[pc_col].std(ddof=0)
+                pcs_norm[pc_col] = {'mean': pc_mean, 'pc_std': pc_std}
+
+                # Normalize reference
+                ref_train_df[pc_col] = (ref_train_df[pc_col]-pc_mean)/pc_std
+                ref_df[pc_col] = (ref_df[pc_col] - pc_mean) / pc_std
+                target_df[pc_col] = (target_df[pc_col] - pc_mean) / pc_std
+
         for c_pgs in scorecols:
+            if norm_centerpgs:
+                pgs_mean = ref_train_df[c_pgs].mean()
+                ref_train_df[c_pgs] = (ref_train_df[c_pgs] - pgs_mean)
+                ref_df[c_pgs] = (ref_df[c_pgs] - pgs_mean)
+                target_df[c_pgs] = (target_df[c_pgs] - pgs_mean)
+
             # Method 1 (Khera et al. Circulation (2019): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
             adj_col = 'Z_norm1|{}'.format(c_pgs)
             # Fit to Reference Data

@@ -170,18 +170,21 @@ def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataF
 normalization_methods = ["empirical", "mean", "mean+var"]
 
 
-def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, use_method:list, ref_train_col=None, n_pcs=4):
+def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, use_method:list, norm2_2step=False,
+               ref_train_col=None, n_pcs=4):
     """
     Function to adjust PGS using population references and/or genetic ancestry (PCs)
-    :param ref_df:
-    :param target_df:
-    :param scorecols:
-    :param ref_pop_col:
-    :param target_pop_col:
-    :param use_method:
-    :param ref_train_col:
-    :param n_pcs:
-    :return:
+    :param ref_df: reference dataset
+    :param target_df: datagframe with target samples
+    :param scorecols: [list of columns containing PGS that should be adjusted]
+    :param ref_pop_col: ref_df column with population labels
+    :param target_pop_col: target_df column with population labels that will be matched to ref_df population distributions
+    :param use_method: list of ["empirical", "mean", "mean+var"]
+    :param norm2_2step: boolean (default=False) whether to use the two-step model vs. the full-fit
+    :param ref_train_col: column name with true/false labels of samples that should be included in training PGS methods
+    :param n_pcs: number of genetic PCs that will be used for PGS-adjustment
+    :return: [results_ref:df , results_target:df , results_models: dict] adjusted dfs for reference and target
+        populations, and a dictionary with model fit/parameters.
     """
     # Check that datasets have the correct columns
     ## Check that score is in both dfs
@@ -267,8 +270,8 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
     if any([x in use_method for x in ['mean', 'mean+var']]):
         logger.debug("Adjusting PGS using PCA projections")
         for c_pgs in scorecols:
-            # Method 1 (Khera): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
-            adj_col = 'Z_1_Khera|{}'.format(c_pgs)
+            # Method 1 (Khera et al. Circulation (2019): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
+            adj_col = 'Z_norm1|{}'.format(c_pgs)
             # Fit to Reference Data
             pcs2pgs_fit = LinearRegression().fit(ref_train_df[cols_pcs], ref_train_df[c_pgs])
             ref_train_pgs_pred = pcs2pgs_fit.predict(ref_train_df[cols_pcs])
@@ -285,34 +288,35 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
             results_models[c_pgs][adj_col] = package_skl_regression(pcs2pgs_fit)
 
             if 'mean+var' in use_method:
-                # Method 2 (Khan): normalize variance (doi:10.1038/s41591-022-01869-1)
+                # Method 2 (Khan et al. Nature Medicine (2022)): normalize variance (doi:10.1038/s41591-022-01869-1)
                 # Normalize based on residual deviation from mean of the distribution [equalize population sds]
                 # (e.g. reduce the correlation between genetic ancestry and how far away you are from the mean)
                 # USE gamma distribution for predicted variance to constrain it to be positive (b/c using linear
                 # regression we can get negative predictions for the sd)
-                adj_col = 'Z_2_Khan|{}'.format(c_pgs)
+                adj_col = 'Z_norm2|{}'.format(c_pgs)
                 pcs2var_fit_gamma = GammaRegressor(max_iter=1000).fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean) ** 2)
-                results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_df[cols_pcs]))
-                results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(target_df[cols_pcs]))
-                results_models[c_pgs][adj_col] = package_skl_regression(pcs2var_fit_gamma)
+                if norm2_2step:
+                    # Return 2-step adjustment
+                    results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_df[cols_pcs]))
+                    results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(target_df[cols_pcs]))
+                    results_models[c_pgs][adj_col] = package_skl_regression(pcs2var_fit_gamma)
+                else:
+                    # Return full-likelihood adjustment model
+                    # This jointly re-fits the regression parameters from the mean and variance prediction to better
+                    # fit the observed PGS distribution. It seems to mostly change the intercepts. This implementation is
+                    # adapted from https://github.com/broadinstitute/palantir-workflows/blob/v0.14/ImputationPipeline/ScoringTasks.wdl,
+                    # which is distributed under a BDS-3 license.
+                    params_initial = np.concatenate([[pcs2pgs_fit.intercept_], pcs2pgs_fit.coef_,
+                                                     [pcs2var_fit_gamma.intercept_], pcs2var_fit_gamma.coef_])
+                    pcs2full_fit = fullLL_fit(df_score=ref_train_df, scorecol=c_pgs,
+                                              predictors=cols_pcs, initial_params=params_initial)
 
-                # Method 2 (full-likelihood model)
-                # This jointly re-fits the regression parameters from the mean and variance prediction to better
-                # fit the observed PGS distribution. It seems to mostly change the intercepts. This implementation is
-                # adapted from https://github.com/broadinstitute/palantir-workflows/blob/v0.14/ImputationPipeline/ScoringTasks.wdl,
-                # which is distributed under a BDS-3 license.
-                adj_col = 'Z_2_FULL|{}'.format(c_pgs)
-                params_initial = np.concatenate([[pcs2pgs_fit.intercept_], pcs2pgs_fit.coef_,
-                                                 [pcs2var_fit_gamma.intercept_], pcs2var_fit_gamma.coef_])
-                pcs2full_fit = fullLL_fit(df_score=ref_train_df, scorecol=c_pgs,
-                                          predictors=cols_pcs, initial_params=params_initial)
+                    results_ref[adj_col] = fullLL_adjust(pcs2full_fit, ref_df, c_pgs)
+                    results_target[adj_col] = fullLL_adjust(pcs2full_fit, target_df, c_pgs)
 
-                results_ref[adj_col] = fullLL_adjust(pcs2full_fit, ref_df, c_pgs)
-                results_target[adj_col] = fullLL_adjust(pcs2full_fit, target_df, c_pgs)
-
-                if pcs2full_fit['params']['success'] is False:
-                    logger.warning("{} full-likelihood: {} {}".format(c_pgs, pcs2full_fit['params']['status'], pcs2full_fit['params']['message']))
-                results_models[c_pgs][adj_col] = pcs2full_fit
+                    if pcs2full_fit['params']['success'] is False:
+                        logger.warning("{} full-likelihood: {} {}".format(c_pgs, pcs2full_fit['params']['status'], pcs2full_fit['params']['message']))
+                    results_models[c_pgs][adj_col] = pcs2full_fit
     # Only return results
     logger.debug("Outputting adjusted PGS & models")
     results_ref = pd.DataFrame(results_ref)
@@ -372,6 +376,7 @@ def fullLL_fit(df_score, scorecol, predictors, initial_params):
 
     # package result for output and use in prediction
     rp = dict(fit_result)
+    rp['initial_params'] = initial_params
     x = rp.pop('x')  # fitted coefficients
 
     i_split = int(1 + (len(x) - 2) / 2)
@@ -395,7 +400,8 @@ def fullLL_adjust(fullLL_model, df_score, scorecol):
 
 def package_skl_regression(model):
     """Extract relevant details from sklearn regression model"""
-    return {'params': model.get_params(),
+    return {'model': str(type(model)),
+            'params': model.get_params(),
             '_intercept': model.intercept_,
             '_coef': dict(zip(model.feature_names_in_, model.coef_))
             }

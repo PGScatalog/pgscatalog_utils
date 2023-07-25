@@ -224,11 +224,13 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
         sum_col = 'SUM|{}'.format(c_pgs)
         results_ref[sum_col] = ref_df[c_pgs]
         results_target[sum_col] = target_df[c_pgs]
-        results_models[c_pgs] = {}
+        results_models = {}
 
     # Report PGS values with respect to distribution of PGS in the most similar reference population
     if 'empirical' in use_method:
         logger.debug("Adjusting PGS using most similar reference population distribution.")
+        results_models['dist_empirical'] = {}
+
         for c_pgs in scorecols:
             # Initialize Output
             percentile_col = 'percentile_MostSimilarPop|{}'.format(c_pgs)
@@ -263,12 +265,13 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
 
                 r_model[pop] = r_pop
 
-            results_models[c_pgs]['adj_empirical'] = r_model
+            results_models['dist_empirical'][c_pgs] = r_model
             # ToDo: explore handling of individuals who have low-confidence population labels
             #  -> Possible Soln: weighted average based on probabilities? Small Mahalanobis P-values will complicate this
     # PCA-based adjustment
     if any([x in use_method for x in ['mean', 'mean+var']]):
         logger.debug("Adjusting PGS using PCA projections")
+        results_models['adjust_pcs'] = {'PGS': {}}
 
         if std_pcs:
             pcs_norm = {}
@@ -277,18 +280,21 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 pc_mean = ref_train_df[pc_col].mean()
                 pc_std = ref_train_df[pc_col].std(ddof=0)
                 pcs_norm[pc_col] = {'mean': pc_mean, 'pc_std': pc_std}
+                results_models['adjust_pcs']['norm_pcs'] = pcs_norm
 
-                # Normalize reference
+                # Normalize data
                 ref_train_df[pc_col] = (ref_train_df[pc_col]-pc_mean)/pc_std
                 ref_df[pc_col] = (ref_df[pc_col] - pc_mean) / pc_std
                 target_df[pc_col] = (target_df[pc_col] - pc_mean) / pc_std
 
         for c_pgs in scorecols:
+            results_models['adjust_pcs']['PGS'][c_pgs] = {}
             if norm_centerpgs:
                 pgs_mean = ref_train_df[c_pgs].mean()
                 ref_train_df[c_pgs] = (ref_train_df[c_pgs] - pgs_mean)
                 ref_df[c_pgs] = (ref_df[c_pgs] - pgs_mean)
                 target_df[c_pgs] = (target_df[c_pgs] - pgs_mean)
+                results_models['adjust_pcs']['PGS'][c_pgs]['pgs_offset'] = pgs_mean
 
             # Method 1 (Khera et al. Circulation (2019): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
             adj_col = 'Z_norm1|{}'.format(c_pgs)
@@ -305,7 +311,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
             target_pgs_pred = pcs2pgs_fit.predict(target_df[cols_pcs])
             target_pgs_resid = target_df[c_pgs] - target_pgs_pred
             results_target[adj_col] = target_pgs_resid / ref_train_pgs_resid_std
-            results_models[c_pgs][adj_col] = package_skl_regression(pcs2pgs_fit)
+            results_models['adjust_pcs']['PGS'][c_pgs]['Z_norm1'] = package_skl_regression(pcs2pgs_fit)
 
             if 'mean+var' in use_method:
                 # Method 2 (Khan et al. Nature Medicine (2022)): normalize variance (doi:10.1038/s41591-022-01869-1)
@@ -319,7 +325,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                     # Return 2-step adjustment
                     results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_df[cols_pcs]))
                     results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(target_df[cols_pcs]))
-                    results_models[c_pgs][adj_col] = package_skl_regression(pcs2var_fit_gamma)
+                    results_models['adjust_pcs']['PGS'][c_pgs]['Z_norm2'] = package_skl_regression(pcs2var_fit_gamma)
                 else:
                     # Return full-likelihood adjustment model
                     # This jointly re-fits the regression parameters from the mean and variance prediction to better
@@ -336,7 +342,7 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
 
                     if pcs2full_fit['params']['success'] is False:
                         logger.warning("{} full-likelihood: {} {}".format(c_pgs, pcs2full_fit['params']['status'], pcs2full_fit['params']['message']))
-                    results_models[c_pgs][adj_col] = pcs2full_fit
+                    results_models['adjust_pcs']['PGS'][c_pgs]['Z_norm2'] = pcs2full_fit
     # Only return results
     logger.debug("Outputting adjusted PGS & models")
     results_ref = pd.DataFrame(results_ref)

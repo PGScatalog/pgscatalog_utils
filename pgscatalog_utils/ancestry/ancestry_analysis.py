@@ -32,7 +32,7 @@ def ancestry_analysis():
 
     # Load PGS data & merge with PCA data
     pgs = read_pgs(args.scorefile, onlySUM=True)
-    scorecols = list(pgs.columns)[:5]
+    scorecols = list(pgs.columns)
     reference_df = pd.merge(reference_df, pgs, left_index=True, right_index=True)
     target_df = pd.merge(target_df, pgs, left_index=True, right_index=True)
     del pgs  # clear raw PGS from memory

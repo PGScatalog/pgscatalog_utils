@@ -6,12 +6,17 @@ on:
 
 env:
   SINGULARITY_VERSION: "3.8.3"
-
+  REGISTRY_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  REGISTRY_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+  DOCKER_REGISTRY_LOGIN: "dockerhub.ebi.ac.uk"
+  SINGULARITY_REGISTRY_LOGIN: "oras://dockerhub.ebi.ac.uk"
+  DOCKER_REGISTRY: "dockerhub.ebi.ac.uk/gdp-public/pgsc_calc"
+  SINGULARITY_REGISTRY: "oras://dockerhub.ebi.ac.uk/gdp-public/pgsc_calc/singularity"
+    
 jobs:
   build_docker_release:
     name: build docker release image
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
 
     steps:
       - name: Set up QEMU
@@ -44,9 +49,11 @@ jobs:
     needs: build_docker_release
     name: build singularity release image
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
-
+    
     steps:
+      - name: Check out pipeline code
+        uses: actions/checkout@v3
+
       - name: Cache singularity setup
         id: cache-singularity
         uses: actions/cache@v3

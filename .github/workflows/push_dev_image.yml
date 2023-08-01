@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - dev
-
 env:
   REGISTRY_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   REGISTRY_TOKEN: ${{ secrets.DOCKER_TOKEN }}
@@ -13,12 +12,11 @@ env:
   DOCKER_REGISTRY: "dockerhub.ebi.ac.uk/gdp-public/pgscatalog_utils"
   SINGULARITY_REGISTRY: "oras://dockerhub.ebi.ac.uk/gdp-public/pgscatalog_utils/singularity"
   SINGULARITY_VERSION: "3.8.3"
-
+    
 jobs:
   build_docker_dev:
     name: build docker development image
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
 
     steps:
       - name: Set up QEMU
@@ -42,12 +40,12 @@ jobs:
           push: true
           platforms: "linux/amd64,linux/arm64"
           tags: ${{ env.DOCKER_REGISTRY }}/pgscatalog_utils:dev
+    
 
   build_singularity_dev:
     needs: build_docker_dev
     name: build singularity development image
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
 
     steps:
       - name: Check out pipeline code
@@ -70,6 +68,8 @@ jobs:
         if: steps.cache-singularity.outputs.cache-hit == 'true'
         run: |
           echo "/opt/hostedtoolcache/singularity/${{ env.SINGULARITY_VERSION }}/x64/bin" >> $GITHUB_PATH
+          path: /opt/hostedtoolcache/singularity/
+          key: ${{ runner.os }}-singularity     
 
       - name: Build singularity image
         run: singularity build img.sif "docker://${DOCKER_REGISTRY}/pgscatalog_utils:dev"

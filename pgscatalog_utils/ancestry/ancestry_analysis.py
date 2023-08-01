@@ -32,7 +32,7 @@ def ancestry_analysis():
 
     # Load PGS data & merge with PCA data
     pgs = read_pgs(args.scorefile, onlySUM=True)
-    scorecols = list(pgs.columns)
+    scorecols = list(pgs.columns)[:5]
     reference_df = pd.merge(reference_df, pgs, left_index=True, right_index=True)
     target_df = pd.merge(target_df, pgs, left_index=True, right_index=True)
     del pgs  # clear raw PGS from memory
@@ -92,7 +92,9 @@ def ancestry_analysis():
                 df_pgs[colorder].to_csv(outf, sep='\t', header=False)
 
     # Write results of PCA & population similarity
-    final_df.drop(scorecols, axis=1).to_csv(os.path.join(dout, f"{args.d_target}_popsimilarity.txt.gz"), sep='\t')
+    loc_popsim_out = os.path.join(dout, f"{args.d_target}_popsimilarity.txt.gz")
+    logger.debug('Writing PCA and popsim results to: {}'.format(loc_popsim_out))
+    final_df.drop(scorecols, axis=1).to_csv(loc_popsim_out, sep='\t')
     logger.info("Finished ancestry analysis")
 
 

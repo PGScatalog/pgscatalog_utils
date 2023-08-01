@@ -211,9 +211,9 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
     if ref_train_col:
         assert ref_train_col in ref_df.columns, "Training index column({}) is missing from reference dataframe".format(
             ref_train_col)
-        ref_train_df = ref_df.loc[ref_df[ref_train_col] == True,]
+        ref_train_df = ref_df.loc[ref_df[ref_train_col] == True,].copy()
     else:
-        ref_train_df = ref_df
+        ref_train_df = ref_df.copy()
 
     ## Create results structures
     results_ref = {}
@@ -273,6 +273,11 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
         logger.debug("Adjusting PGS using PCA projections")
         results_models['adjust_pcs'] = {'PGS': {}}
 
+        # Make copies of ref/target dfs for normalizing
+        normcols = scorecols + cols_pcs
+        ref_norm = ref_df[normcols].copy()
+        target_norm = target_df[normcols].copy()
+
         if std_pcs:
             pcs_norm = {}
             for pc_col in cols_pcs:
@@ -283,17 +288,17 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 results_models['adjust_pcs']['norm_pcs'] = pcs_norm
 
                 # Normalize data
-                ref_train_df[pc_col] = (ref_train_df[pc_col]-pc_mean)/pc_std
-                ref_df[pc_col] = (ref_df[pc_col] - pc_mean) / pc_std
-                target_df[pc_col] = (target_df[pc_col] - pc_mean) / pc_std
+                ref_train_df[pc_col] = (ref_train_df[pc_col] - pc_mean) / pc_std
+                ref_norm[pc_col] = (ref_norm[pc_col] - pc_mean) / pc_std
+                target_norm[pc_col] = (target_norm[pc_col] - pc_mean) / pc_std
 
         for c_pgs in scorecols:
             results_models['adjust_pcs']['PGS'][c_pgs] = {}
             if norm_centerpgs:
                 pgs_mean = ref_train_df[c_pgs].mean()
                 ref_train_df[c_pgs] = (ref_train_df[c_pgs] - pgs_mean)
-                ref_df[c_pgs] = (ref_df[c_pgs] - pgs_mean)
-                target_df[c_pgs] = (target_df[c_pgs] - pgs_mean)
+                ref_norm[c_pgs] = (ref_norm[c_pgs] - pgs_mean)
+                target_norm[c_pgs] = (target_norm[c_pgs] - pgs_mean)
                 results_models['adjust_pcs']['PGS'][c_pgs]['pgs_offset'] = pgs_mean
 
             # Method 1 (Khera et al. Circulation (2019): normalize mean (doi:10.1161/CIRCULATIONAHA.118.035658)
@@ -305,11 +310,11 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
             ref_train_pgs_resid_mean = ref_train_pgs_resid.mean()
             ref_train_pgs_resid_std = ref_train_pgs_resid.std(ddof=0)
 
-            ref_pgs_resid = ref_df[c_pgs] - pcs2pgs_fit.predict(ref_df[cols_pcs])
+            ref_pgs_resid = ref_norm[c_pgs] - pcs2pgs_fit.predict(ref_norm[cols_pcs])
             results_ref[adj_col] = ref_pgs_resid / ref_train_pgs_resid_std
             # Apply to Target Data
-            target_pgs_pred = pcs2pgs_fit.predict(target_df[cols_pcs])
-            target_pgs_resid = target_df[c_pgs] - target_pgs_pred
+            target_pgs_pred = pcs2pgs_fit.predict(target_norm[cols_pcs])
+            target_pgs_resid = target_norm[c_pgs] - target_pgs_pred
             results_target[adj_col] = target_pgs_resid / ref_train_pgs_resid_std
             results_models['adjust_pcs']['PGS'][c_pgs]['Z_norm1'] = package_skl_regression(pcs2pgs_fit)
 
@@ -320,11 +325,13 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                 # USE gamma distribution for predicted variance to constrain it to be positive (b/c using linear
                 # regression we can get negative predictions for the sd)
                 adj_col = 'Z_norm2|{}'.format(c_pgs)
-                pcs2var_fit_gamma = GammaRegressor(max_iter=1000).fit(ref_train_df[cols_pcs], (ref_train_pgs_resid - ref_train_pgs_resid_mean) ** 2)
+                pcs2var_fit_gamma = GammaRegressor(max_iter=1000).fit(ref_train_df[cols_pcs], (
+                            ref_train_pgs_resid - ref_train_pgs_resid_mean) ** 2)
                 if norm2_2step:
                     # Return 2-step adjustment
-                    results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_df[cols_pcs]))
-                    results_target[adj_col] = target_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(target_df[cols_pcs]))
+                    results_ref[adj_col] = ref_pgs_resid / np.sqrt(pcs2var_fit_gamma.predict(ref_norm[cols_pcs]))
+                    results_target[adj_col] = target_pgs_resid / np.sqrt(
+                        pcs2var_fit_gamma.predict(target_norm[cols_pcs]))
                     results_models['adjust_pcs']['PGS'][c_pgs]['Z_norm2'] = package_skl_regression(pcs2var_fit_gamma)
                 else:
                     # Return full-likelihood adjustment model
@@ -337,8 +344,8 @@ def pgs_adjust(ref_df, target_df, scorecols: list, ref_pop_col, target_pop_col, 
                     pcs2full_fit = fullLL_fit(df_score=ref_train_df, scorecol=c_pgs,
                                               predictors=cols_pcs, initial_params=params_initial)
 
-                    results_ref[adj_col] = fullLL_adjust(pcs2full_fit, ref_df, c_pgs)
-                    results_target[adj_col] = fullLL_adjust(pcs2full_fit, target_df, c_pgs)
+                    results_ref[adj_col] = fullLL_adjust(pcs2full_fit, ref_norm, c_pgs)
+                    results_target[adj_col] = fullLL_adjust(pcs2full_fit, target_norm, c_pgs)
 
                     if pcs2full_fit['params']['success'] is False:
                         logger.warning("{} full-likelihood: {} {}".format(c_pgs, pcs2full_fit['params']['status'], pcs2full_fit['params']['message']))

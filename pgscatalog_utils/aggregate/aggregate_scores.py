@@ -1,11 +1,10 @@
 import argparse
+import logging
 import textwrap
 
 import pandas as pd
 
 from pgscatalog_utils.config import set_logging_level
-import glob
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +13,17 @@ def aggregate_scores():
     args = _parse_args()
     set_logging_level(args.verbose)
     df = aggregate(list(set(args.scores)))
-    logger.debug("Compressing and writing combined scores")
-    df.to_csv('aggregated_scores.txt.gz', sep='\t', compression='gzip')
+
+    if args.split:
+        logger.debug("Splitting aggregated scores by sampleset")
+        for sampleset, group in df.groupby('sampleset'):
+            fout = f"{sampleset}_pgs.txt.gz"
+            logger.debug(f"Compressing sampleset {sampleset}, writing to {fout}")
+            group.to_csv(fout, sep='\t', compression='gzip')
+    else:
+        fout = "aggregated_scores.txt.gz"
+        logger.info(f"Compressing all samplesets and writing combined scores to {fout}")
+        df.to_csv(fout, sep='\t', compression='gzip')
 
 
 def aggregate(scorefiles: list[str]):
@@ -82,6 +90,8 @@ def _parse_args(args=None) -> argparse.Namespace:
                         help='<Required> List of scorefile paths. Use a wildcard (*) to select multiple files.')
     parser.add_argument('-o', '--outdir', dest='outdir', required=True,
                         default='scores/', help='<Required> Output directory to store downloaded files')
+    parser.add_argument('--split', dest='split', required=False, action=argparse.BooleanOptionalAction,
+                        help='<Optional> Make one aggregated file per sampleset')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)
@@ -89,4 +99,3 @@ def _parse_args(args=None) -> argparse.Namespace:
 
 if __name__ == "__main__":
     aggregate_scores()
-

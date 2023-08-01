@@ -22,8 +22,8 @@ def make_summary_log(match_candidates: pl.LazyFrame, scorefile: pl.LazyFrame, fi
             .select(pl.exclude("^.*_right$"))
             .with_columns([pl.col('match_status').fill_null(value='unmatched'),
                            pl.lit(dataset).alias('dataset')])  # fill in unmatched variants
-            .groupby(['dataset', 'accession', 'match_status', 'ambiguous', 'is_multiallelic', 'match_flipped',
-                      'duplicate_best_match', 'duplicate_ID'])
+            .groupby(['dataset', 'accession', 'ambiguous', 'is_multiallelic', 'match_flipped',
+                      'duplicate_best_match', 'duplicate_ID', 'match_IDs', 'match_status'])
             .agg(pl.count())
             .join(filter_summary, how='left', on='accession')
             .pipe(_prettify_summary))
@@ -45,7 +45,7 @@ def check_log_count(scorefile: pl.LazyFrame, summary_log: pl.LazyFrame) -> None:
 
 def _prettify_summary(df: pl.LazyFrame) -> pl.LazyFrame:
     keep_cols = ["dataset", "accession", "score_pass", "match_status", "ambiguous", "is_multiallelic",
-                 "duplicate_best_match", "duplicate_ID", "count", "percent"]
+                 "duplicate_best_match", "duplicate_ID", 'match_flipped', "match_IDs", "count", "percent"]
     return (df.with_column((pl.col("count") / pl.sum("count") * 100)
                            .over(["dataset", "accession"])
                            .alias("percent"))
@@ -55,7 +55,7 @@ def _prettify_summary(df: pl.LazyFrame) -> pl.LazyFrame:
 def _prettify_log(df: pl.LazyFrame) -> pl.LazyFrame:
     keep_cols = ["row_nr", "accession", "chr_name", "chr_position", "effect_allele", "other_allele", "effect_weight",
                  "effect_type", "ID", "REF", "ALT", "matched_effect_allele", "match_type", "is_multiallelic",
-                 "ambiguous", "match_flipped", "best_match", "exclude", "duplicate_best_match", "duplicate_ID",
+                 "ambiguous", "match_flipped", "best_match", "exclude", "duplicate_best_match", "duplicate_ID", "match_IDs",
                  "match_status", "dataset"]
     pretty_df = (df.select(keep_cols)
                  .select(pl.exclude("^.*_right"))

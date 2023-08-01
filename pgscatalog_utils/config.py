@@ -1,15 +1,21 @@
 import atexit
 import logging
 import os
+import pathlib
 import tempfile
+import typing
 
 import polars as pl
 
 from pgscatalog_utils.match import tempdir
 
 N_THREADS: int = 1  # dummy value, is reset by args.n_threads (default: 1)
-OUTDIR: str = "."  # dummy value, reset by args.outdir
+OUTDIR: pathlib.Path
 TEMPDIR: tempfile.TemporaryDirectory
+PGSC_CALC_VERSION: typing.Union[None, str] = None
+OVERWRITE: bool = False
+MAX_RETRIES: int = 3
+DOWNLOAD_WAIT_TIME: int = 30
 
 logger = logging.getLogger(__name__)
 

@@ -85,7 +85,7 @@ def _cast_cat(scorefile, target) -> tuple[pl.LazyFrame, pl.LazyFrame]:
 def test_match_strategies(small_scorefile, small_target):
     scorefile, target = _cast_cat(small_scorefile, small_target)
 
-    params = {'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
+    params = {'filter_IDs': [], 'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
     # check unambiguous matches
     df: pl.DataFrame = (pl.concat(get_all_matches(scorefile, target))
                         .pipe(label_matches, params=params)
@@ -95,7 +95,7 @@ def test_match_strategies(small_scorefile, small_target):
     assert set(df['match_type'].to_list()).issubset(['altref', 'refalt'])
 
     # when keeping ambiguous and flipping alleles
-    flip_params = {'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
+    flip_params = {'filter_IDs': [], 'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
     flip: pl.DataFrame = (pl.concat(get_all_matches(scorefile, target))
                           .pipe(label_matches, params=flip_params)
                           .filter(pl.col('ambiguous') == True)
@@ -108,7 +108,7 @@ def test_match_strategies(small_scorefile, small_target):
 def test_no_oa_match(small_scorefile_no_oa, small_target):
     scorefile, target = _cast_cat(small_scorefile_no_oa, small_target)
 
-    no_ambig = {'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
+    no_ambig = {'filter_IDs': [], 'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
     df: pl.DataFrame = (pl.concat(get_all_matches(scorefile, target))
                         .pipe(label_matches, params=no_ambig)
                         .filter(pl.col('ambiguous') == False)
@@ -118,7 +118,7 @@ def test_no_oa_match(small_scorefile_no_oa, small_target):
     assert set(df['match_type'].to_list()).issubset(['no_oa_alt', 'no_oa_ref'])
 
     # check ambiguous matches
-    ambig = {'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
+    ambig = {'filter_IDs': [], 'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
     flip: pl.DataFrame = (pl.concat(get_all_matches(scorefile, target))
                           .pipe(label_matches, ambig)
                           .filter(pl.col('ambiguous') == True)
@@ -129,7 +129,7 @@ def test_no_oa_match(small_scorefile_no_oa, small_target):
 
 def test_flip_match(small_flipped_scorefile, small_target):
     scorefile, target = _cast_cat(small_flipped_scorefile, small_target)
-    params = {'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
+    params = {'filter_IDs': [], 'skip_flip': True, 'remove_ambiguous': False, 'keep_first_match': False, 'remove_multiallelic': False}
     df: pl.DataFrame = (pl.concat(get_all_matches(scorefile, target))
                         .pipe(label_matches, params=params)
                         .collect())
@@ -138,7 +138,7 @@ def test_flip_match(small_flipped_scorefile, small_target):
     assert df['match_type'].to_list() == ['refalt', 'refalt_flip', 'altref_flip', 'altref_flip']
     assert df['match_status'].to_list() == ['matched', 'excluded', 'not_best', 'excluded']  # flipped -> excluded
 
-    no_flip_params = {'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False,
+    no_flip_params = {'filter_IDs': [], 'skip_flip': False, 'remove_ambiguous': False, 'keep_first_match': False,
                       'remove_multiallelic': False}
     flip: pl.DataFrame = (pl.concat(get_all_matches(scorefile, target))
                           .pipe(label_matches, params=no_flip_params)

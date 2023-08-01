@@ -1,109 +1,111 @@
 import argparse
 import logging
 import os
-import shutil
+import pathlib
 import textwrap
-import time
-from contextlib import closing
-from functools import reduce
-from urllib import request as request
-from urllib.error import HTTPError, URLError
+import typing
 
-from pgscatalog_utils.download.publication import query_publication
-from pgscatalog_utils.download.score import get_url
-from pgscatalog_utils.download.trait import query_trait
-from pgscatalog_utils.config import set_logging_level
+from pgscatalog_utils import config
+from pgscatalog_utils.download.CatalogCategory import CatalogCategory
+from pgscatalog_utils.download.Catalog import CatalogQuery, CatalogResult
+from pgscatalog_utils.download.GenomeBuild import GenomeBuild
+from pgscatalog_utils.download.ScoringFileDownloader import ScoringFileDownloader
+
 
 logger = logging.getLogger(__name__)
 
 
 def download_scorefile() -> None:
     args = _parse_args()
-    set_logging_level(args.verbose)
+    config.set_logging_level(args.verbose)
     _check_args(args)
-    _mkdir(args.outdir)
 
-    if args.build is None:
-        logger.critical(f'Downloading scoring file(s) in the author-reported genome build')
-    elif args.build in ['GRCh37', 'GRCh38']:
-        logger.critical(f'Downloading harmonized scoring file(s) in build: {args.build}.')
-    else:
-        logger.critical(f'Invalid genome build specified: {args.build}. Only -b GRCh37 and -b GRCh38 are supported')
-        raise Exception
+    build: typing.Union[None, GenomeBuild]
+    match args.build:
+        case None:
+            logger.info("Downloading scoring file(s) in the author-reported genome build")
+            build = None
+        case "GRCh37":
+            build = GenomeBuild.GRCh37
+        case "GRCh38":
+            build = GenomeBuild.GRCh38
+        case _:
+            logger.critical(f"Invalid genome build specified: {args.build}")
+            logger.critical("Only -b GRCh37 and -b GRCh38 are supported")
+            raise Exception
 
-    pgs_lst: list[list[str]] = []
+    if build is not None:
+        logger.info(f"Downloading harmonised scoring file(s) in build: {build}")
 
-    pgsc_calc_info = None
+    if args.overwrite_existing_file:
+        logger.debug("--overwrite, overwriting new version of the Scoring file, if available")
+        logger.warning(
+            "Existing Scoring files will be overwritten if new versions of the Scoring files are available for download.")
+
     if args.pgsc_calc:
-        pgsc_calc_info = args.pgsc_calc
+        config.PGSC_CALC_VERSION = args.pgsc_calc
+        logger.info(f"Setting user agent to {config.PGSC_CALC_VERSION} for PGS Catalog API queries")
 
+    config.OUTDIR = pathlib.Path(args.outdir).resolve()
+    logger.info(f"Download directory: {config.OUTDIR}")
+    config.OUTDIR.mkdir(exist_ok=True)
+    config.OVERWRITE = args.overwrite_existing_file
+
+    results: list[list[CatalogResult]] = []
     if args.efo:
+        inc_child = False
         if args.efo_include_children:
             logger.debug("--trait set, querying traits (including PGS for child terms)")
+            inc_child = True
         else:
             logger.debug("--trait set, querying traits")
-        pgs_lst = pgs_lst + [query_trait(x, pgsc_calc_info, args.efo_include_children) for x in args.efo]
-
+        for term in args.efo:
+            results.append(CatalogQuery(CatalogCategory.TRAIT, term, include_children=inc_child,
+                                    pgsc_calc_version=config.PGSC_CALC_VERSION).get())
 
     if args.pgp:
         logger.debug("--pgp set, querying publications")
-        pgs_lst = pgs_lst + [query_publication(x, pgsc_calc_info) for x in args.pgp]
+        for term in args.pgp:
+            results.append(CatalogQuery(CatalogCategory.PUBLICATION, term, pgsc_calc_version=config.PGSC_CALC_VERSION).get())
 
     if args.pgs:
         logger.debug("--id set, querying scores")
-        pgs_lst.append(args.pgs)  # pgs_lst: a list containing up to three flat lists
+        results.append(
+            CatalogQuery(CatalogCategory.SCORE, args.pgs,
+                         pgsc_calc_version=config.PGSC_CALC_VERSION).get())  # pgs_lst: a list containing up to three flat lists
 
-    pgs_id: list[str] = list(set(reduce(lambda x, y: x + y, pgs_lst)))
+    flat_results = [element for sublist in results for element in sublist]
 
-    urls: dict[str, str] = get_url(pgs_id, args.build, pgsc_calc_info)
+    ScoringFileDownloader(results=flat_results, genome_build=build, overwrite=config.OVERWRITE).download_files()
 
-    for pgsid, url in urls.items():
-        logger.debug(f"Downloading {pgsid} from {url}")
-        if args.build is None:
-            path: str = os.path.join(args.outdir, pgsid + '.txt.gz')
-        else:
-            path: str = os.path.join(args.outdir, pgsid + f'_hmPOS_{args.build}.txt.gz')
-        _download_ftp(url, path)
-
-
-def _mkdir(outdir: str) -> None:
-    if not os.path.exists(outdir):
-        logger.debug("Creating output directory")
-        os.makedirs(outdir)
-
-
-def _download_ftp(url: str, path: str, retry:int = 0) -> None:
-    if os.path.exists(path):
-        logger.warning(f"File already exists at {path}, skipping download")
-        return
+    # warn if missing PGS IDs in downloaded files
+    requested_pgs: set[str]
+    if args.pgs is None:
+        requested_pgs = set()
     else:
-        try:
-            with closing(request.urlopen(url)) as r:
-                with open(path, 'wb') as f:
-                    shutil.copyfileobj(r, f)
-        except (HTTPError, URLError) as error:
-            max_retries = 5
-            print(f'Download failed: {error.reason}')
-            # Retry to download the file if the server is busy
-            if '421' in error.reason and retry < max_retries:
-                print(f'> Retry to download the file ... attempt {retry+1} out of {max_retries}.')
-                retry += 1
-                time.sleep(10)
-                _download_ftp(url,path,retry)
-            else:
-                raise RuntimeError("Failed to download '{}'.\nError message: '{}'".format(url, error.reason))
+        requested_pgs = set(args.pgs)
+    missing_pgs: set[str] = requested_pgs.difference(flat_results[-1].pgs_ids)
+
+    if missing_pgs:
+        logger.warning(f"Requested PGS scoring file not downloaded: {missing_pgs}")
+        logger.warning("Check if the accessions are valid")
+
+    logger.info("Downloads complete")
 
 
 def _check_args(args):
     if not args.efo:
         if not args.pgp:
             if not args.pgs:
-                logger.critical("One of --trait, --pgp, or --id is required to download scorefiles")
+                logger.critical(
+                    "One of --trait, --pgp, or --id is required to download scorefiles"
+                )
                 raise Exception
 
 
 def _description_text() -> str:
-    return textwrap.dedent('''\
+    return textwrap.dedent(
+        """\
     Download a set of scoring files from the PGS Catalog using PGS
     Scoring IDs, traits, or publication IDs.
     
@@ -119,37 +121,87 @@ def _description_text() -> str:
     
     These harmonised scoring files contain genomic coordinates,
     remapped from author-submitted information such as rsids.
-   ''')
+   """
+    )
 
 
 def _epilog_text() -> str:
-    return textwrap.dedent('''\
+    return textwrap.dedent(
+        """\
     download_scorefiles will skip downloading a scoring file if it
     already exists in the download directory. This can be useful if
     the download process is interrupted and needs to be restarted
     later. You can track download progress with the verbose flag.    
-   ''')
+   """
+    )
 
 
 def _parse_args(args=None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=_description_text(), epilog=_epilog_text(),
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('-i', '--pgs', nargs='+', dest='pgs', help='PGS Catalog ID(s) (e.g. PGS000001)')
-    parser.add_argument('-t', '--efo', dest='efo', nargs='+',
-                        help='Traits described by an EFO term(s) (e.g. EFO_0004611)')
-    parser.add_argument('-e', '--efo_direct', dest='efo_include_children', action='store_false',
-                        help='<Optional> Return only PGS tagged with exact EFO term '
-                             '(e.g. no PGS for child/descendant terms in the ontology)')
-    parser.add_argument('-p', '--pgp', dest='pgp', help='PGP publication ID(s) (e.g. PGP000007)', nargs='+')
-    parser.add_argument('-b', '--build', dest='build', choices=['GRCh37', 'GRCh38'],
-                        help='Download Harmonized Scores with Positions in Genome build: GRCh37 or GRCh38')
-    parser.add_argument('-o', '--outdir', dest='outdir', required=True,
-                        default='scores/',
-                        help='<Required> Output directory to store downloaded files')
-    parser.add_argument('-c', '--pgsc_calc', dest='pgsc_calc',
-                        help='<Optional> Provide information about downloading scoring files via pgsc_calc')
-    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
-                        help='<Optional> Extra logging information')
+    parser = argparse.ArgumentParser(
+        description=_description_text(),
+        epilog=_epilog_text(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-i", "--pgs", nargs="+", dest="pgs", help="PGS Catalog ID(s) (e.g. PGS000001)"
+    )
+    parser.add_argument(
+        "-t",
+        "--efo",
+        dest="efo",
+        nargs="+",
+        help="Traits described by an EFO term(s) (e.g. EFO_0004611)",
+    )
+    parser.add_argument(
+        "-e",
+        "--efo_direct",
+        dest="efo_include_children",
+        action="store_false",
+        help="<Optional> Return only PGS tagged with exact EFO term "
+             "(e.g. no PGS for child/descendant terms in the ontology)",
+    )
+    parser.add_argument(
+        "-p",
+        "--pgp",
+        dest="pgp",
+        help="PGP publication ID(s) (e.g. PGP000007)",
+        nargs="+",
+    )
+    parser.add_argument(
+        "-b",
+        "--build",
+        dest="build",
+        choices=["GRCh37", "GRCh38"],
+        help="Download Harmonized Scores with Positions in Genome build: GRCh37 or GRCh38",
+    )
+    parser.add_argument(
+        "-o",
+        "--outdir",
+        dest="outdir",
+        required=True,
+        default="scores/",
+        help="<Required> Output directory to store downloaded files",
+    )
+    parser.add_argument(
+        "-w",
+        "--overwrite",
+        dest="overwrite_existing_file",
+        action="store_true",
+        help="<Optional> Overwrite existing Scoring File if a new version is available for download on the FTP",
+    )
+    parser.add_argument(
+        "-c",
+        "--pgsc_calc",
+        dest="pgsc_calc",
+        help="<Optional> Provide information about downloading scoring files via pgsc_calc",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        action="store_true",
+        help="<Optional> Extra logging information",
+    )
     return parser.parse_args(args)
 
 

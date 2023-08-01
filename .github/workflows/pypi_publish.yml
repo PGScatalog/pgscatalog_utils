@@ -1,0 +1,50 @@
+name: Publishes a package to pypi
+
+on:
+  release:
+    types: [published]
+
+env:
+  # test or prod
+  PYPI_ENV: ${{ vars.PYPI_ENV }}
+
+jobs:
+  pypi_publish:
+    name: build and publish pypi package
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup python
+        id: setup-python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.3.2
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Build project
+        run: poetry build --no-interaction
+
+      - name: Set up test pypi repository
+        if: ${{ env.PYPI_ENV == 'test' }}
+        run: |
+          poetry config repositories.test-pypi https://test.pypi.org/legacy/
+        
+      - name: Publish to test pypi repository
+        if: ${{ env.PYPI_ENV == 'test' }}        
+        run: poetry publish -u __token__ -p ${{ secrets.TEST_PYPI_TOKEN }} -r test-pypi
+        
+      - name: Publish to production pypi repository
+        if: ${{ env.PYPI_ENV == 'prod' }}        
+        run: poetry publish -u __token__ -p ${{ secrets.PYPI_TOKEN }}
+        

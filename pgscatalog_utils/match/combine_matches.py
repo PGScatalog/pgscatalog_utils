@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 def combine_matches():
     args = _parse_args()
+    if (args.combined is False) and (args.split is False):
+        logger.warning("No output format specified, writing to combined scoring file")
+        args.combined = True
+
     config.set_logging_level(args.verbose)
     config.setup_polars_threads(args.n_threads)
     config.setup_tmpdir(args.outdir, combine=True)
@@ -58,11 +62,16 @@ def _parse_args(args=None):
                         help='<Required> List of match files')
     parser.add_argument('--min_overlap', dest='min_overlap', required=True,
                         type=float, help='<Required> Minimum proportion of variants to match before error')
+    parser.add_argument('-IDs', '--filter_IDs', dest='filter',
+                        help='<Optional> Path to file containing list of variant IDs that can be included in the final scorefile.'
+                             '[useful for limiting scoring files to variants present in multiple datasets]')
     parser = add_match_args(parser) # params for labelling matches
     parser.add_argument('--outdir', dest='outdir', required=True,
                         help='<Required> Output directory')
     parser.add_argument('--split', dest='split', default=False, action='store_true',
-                        help='<Optional> Split scorefile per chromosome?')
+                        help='<Optional> Write scorefiles split per chromosome?')
+    parser.add_argument('--combined', dest='combined', default=False, action='store_true',
+                        help='<Optional> Write scorefiles in combined format?')
     parser.add_argument('-n', dest='n_threads', default=1, help='<Optional> n threads for matching', type=int)
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')

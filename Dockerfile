@@ -5,8 +5,6 @@ FROM python:3.10 as builder
 
 ARG ENV
 
-RUN apt-get update && apt-get install -y sqlite3
-
 WORKDIR /app
 
 RUN pip install poetry
@@ -21,7 +19,9 @@ COPY . .
 
 RUN poetry build && /venv/bin/pip install dist/*.whl
 
-FROM builder as final
+FROM python:3.10.9-slim-bullseye
+
+RUN apt-get update && apt-get install -y procps && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /venv /venv
 

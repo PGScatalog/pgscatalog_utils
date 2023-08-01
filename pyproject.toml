@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pgscatalog_utils"
-version = "0.3.1"
+version = "0.4.0"
 description = "Utilities for working with PGS Catalog API and scoring files"
 homepage = "https://github.com/PGScatalog/pgscatalog_utils"
 authors = ["Benjamin Wingfield <bwingfield@ebi.ac.uk>", "Samuel Lambert <sl925@medschl.cam.ac.uk>", "Laurent Gil <lg10@sanger.ac.uk>"]
@@ -14,6 +14,9 @@ match_variants = "pgscatalog_utils.match.match_variants:match_variants"
 combine_matches = "pgscatalog_utils.match.combine_matches:combine_matches"
 aggregate_scores = "pgscatalog_utils.aggregate.aggregate_scores:aggregate_scores"
 validate_scorefiles = "pgscatalog_utils.validate.validate_scorefile:validate_scorefile"
+relabel_ids = "pgscatalog_utils.relabel.relabel_ids:relabel_ids"
+ancestry_analysis = "pgscatalog_utils.ancestry.ancestry_analysis:ancestry_analysis"
+samplesheet_to_json = "pgscatalog_utils.samplesheet.check:check_samplesheet"
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -23,16 +26,18 @@ pandas-schema = "^0.3.6"
 pyliftover = "^0.4"
 requests = "^2.28.1"
 jq = "^1.2.2"
-polars = "^0.14.9"
+polars = "^0.15.0"
 zstandard = "^0.18.0"
 pgzip = "^0.3.2"
+scikit-learn = "^1.2.1"
 
-[tool.poetry.dev-dependencies]
-pytest = "^7.1.2"
-pytest-cov = "^3.0.0"
-pysqlar = "^0.1.2"
+[tool.poetry.group.dev.dependencies]
+jupyter = "^1.0.0"
 memory-profiler = "^0.60.0"
-matplotlib = "^3.6.0"
+pytest = "^7.2.2"
+pytest-cov = "^4.0.0"
+matplotlib = "^3.7.1"
+seaborn = "^0.12.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

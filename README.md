@@ -1,6 +1,7 @@
 # PGS Catalog utilities
 
 [![CI](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml/badge.svg)](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml)
+[![DOI](https://zenodo.org/badge/513521373.svg)](https://zenodo.org/badge/latestdoi/513521373)
 
 This repository is a collection of useful tools for downloading and working with scoring files from the
 PGS Catalog. This is mostly used internally by the PGS Catalog Calculator ([`PGScatalog/pgsc_calc`](https://github.com/PGScatalog/pgsc_calc)); however, other users may find some of these tools helpful.
@@ -12,6 +13,9 @@ PGS Catalog. This is mostly used internally by the PGS Catalog Calculator ([`PGS
 in 'long' format
 * `match_variants`: Match target variants (bim or pvar files) against the output
 of `combine_scorefile` to produce scoring files for plink 2
+* `ancestry_analysis` : use genetic PCA loadings to compare samples to population reference panels, and report 
+* PGS adjusted for these axes of genetic ancestry. The PCs will likely have been generated with
+* [FRAPOSA (pgs catalog version)](https://github.com/PGScatalog/fraposa_pgsc)
 * `validate_scorefiles`: Check/validate that the scoring files and harmonized scoring files match the PGS Catalog scoring file formats.
 
 ## Installation

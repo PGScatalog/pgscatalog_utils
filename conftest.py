@@ -1,12 +1,14 @@
 import glob
+import importlib.resources
 import os
+import pathlib
+import shutil
 from unittest.mock import patch
 
 import pandas as pd
 import polars as pl
 import pytest
 import requests as req
-from pysqlar import SQLiteArchive
 
 from pgscatalog_utils.download.download_scorefile import download_scorefile
 from pgscatalog_utils.match.preprocess import complement_valid_alleles
@@ -93,26 +95,12 @@ def combined_scorefile(scorefiles, tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def db(tmp_path_factory):
-    database = _get_timeout(
-        'https://gitlab.ebi.ac.uk/nebfield/test-datasets/-/raw/master/pgsc_calc/reference_data/pgsc_calc_ref.sqlar')
-    db_path = tmp_path_factory.mktemp('database') / 'db.sqlar'
-    if not database:
-        pytest.skip("Couldn't get file from remote host")
-    else:
-        with open(db_path, 'wb') as f:
-            f.write(database.content)
-        return str(db_path.resolve())
-
-
-@pytest.fixture(scope="session")
-def chain_files(db, tmp_path_factory):
+def chain_files(tmp_path_factory):
     chain_dir = tmp_path_factory.mktemp('chain_dir')
 
-    with SQLiteArchive(db, 'ro') as ar:
-        ar.extract("hg38ToHg19.over.chain.gz", path=chain_dir)
-        ar.extract("hg19ToHg38.over.chain.gz", path=chain_dir)
-
+    shutil.copy2("tests/data/hg19ToHg38.over.chain.gz", chain_dir)
+    shutil.copy2("tests/data/hg38ToHg19.over.chain.gz", chain_dir)
+    
     return str(chain_dir.resolve())
 
 

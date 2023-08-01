@@ -5,6 +5,7 @@ on:
     types: [published]
 
 env:
+  SINGULARITY_VERSION: "3.8.3"
   REGISTRY_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   REGISTRY_TOKEN: ${{ secrets.DOCKER_TOKEN }}
   DOCKER_REGISTRY_LOGIN: "dockerhub.ebi.ac.uk"
@@ -16,49 +17,72 @@ jobs:
   build_docker_release:
     name: build docker release image
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
-          
+
     steps:
       - name: Check out pipeline code
         uses: actions/checkout@v3
-          
-      - name: Build new docker image
-        run: docker build --no-cache . -t "${DOCKER_REGISTRY}/pgscatalog_utils:latest"
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm64
 
-      - name: Push Docker image 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: downcase GITHUB_REPOSITORY
         run: |
-          echo "$REGISTRY_TOKEN" | docker login "$DOCKER_REGISTRY_LOGIN" -u "$REGISTRY_USERNAME" --password-stdin
-          docker tag "${DOCKER_REGISTRY}/pgscatalog_utils:latest" "${DOCKER_REGISTRY}/pgscatalog_utils:amd64-${{ github.event.release.tag_name }}"
-          docker push "${DOCKER_REGISTRY}/pgscatalog_utils:amd64-${{ github.event.release.tag_name }}"
+          echo "REPO=$(echo $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')" >> ${GITHUB_ENV}
+
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          platforms: "linux/amd64,linux/arm64"
+          tags: ghcr.io/${{ env.REPO }}:${{ github.event.release.tag_name }}
 
   build_singularity_release:
     needs: build_docker_release
     name: build singularity release image
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'pgscatalog/pgscatalog_utils' }}
-
+    
     steps:
       - name: Check out pipeline code
         uses: actions/checkout@v3
-        
+
       - name: Cache singularity setup
         id: cache-singularity
         uses: actions/cache@v3
         with:
-          path: /opt/hostedtoolcache/singularity/
-          key: ${{ runner.os }}-singularity
-        
+          path: /opt/hostedtoolcache/singularity/${{ env.SINGULARITY_VERSION }}/x64
+          key: ${{ runner.os }}-singularity-${{ env.SINGULARITY_VERSION }}
+
       - name: Set up Singularity
         uses: eWaterCycle/setup-singularity@v7
-        if: steps.cache-singularity.outputs.cache-hit != 'true'        
+        if: steps.cache-singularity.outputs.cache-hit != 'true'
         with:
-          singularity-version: 3.8.3        
+          singularity-version: ${{ env.SINGULARITY_VERSION }}
+
+      - name: Add singularity to path
+        if: steps.cache-singularity.outputs.cache-hit == 'true'
+        run: |
+          echo "/opt/hostedtoolcache/singularity/${{ env.SINGULARITY_VERSION }}/x64/bin" >> $GITHUB_PATH
+
+      - name: downcase GITHUB_REPOSITORY
+        run: |
+          echo "REPO=$(echo $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')" >> ${GITHUB_ENV}
 
       - name: Build singularity image
-        run: singularity build img.sif "docker://${DOCKER_REGISTRY}/pgscatalog_utils:amd64-${{ github.event.release.tag_name }}"
+        run: singularity build img.sif "docker://ghcr.io/${{ env.REPO }}:${{ github.event.release.tag_name }}"
 
       - name: Push singularity image
         run: |
-          echo "$REGISTRY_TOKEN" | singularity remote login -u "$REGISTRY_USERNAME" --password-stdin "$SINGULARITY_REGISTRY_LOGIN"
-          singularity push img.sif "${SINGULARITY_REGISTRY}/pgscatalog_utils:amd64-${{ github.event.release.tag_name }}"
-          
+          echo "${{ secrets.GITHUB_TOKEN }}" | singularity remote login -u "$GITHUB_ACTOR" --password-stdin oras://ghcr.io
+          singularity push img.sif "oras://ghcr.io/${{ env.REPO }}:${{ github.event.release.tag_name }}-singularity"

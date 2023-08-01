@@ -66,13 +66,11 @@ jobs:
         if: steps.cache-singularity.outputs.cache-hit != 'true'
         with:
           singularity-version: ${{ env.SINGULARITY_VERSION }}
-
+          
       - name: Add singularity to path
         if: steps.cache-singularity.outputs.cache-hit == 'true'
         run: |
           echo "/opt/hostedtoolcache/singularity/${{ env.SINGULARITY_VERSION }}/x64/bin" >> $GITHUB_PATH
-          path: /opt/hostedtoolcache/singularity/
-          key: ${{ runner.os }}-singularity     
 
       - name: Build singularity image
         run: singularity build img.sif "docker://${DOCKER_REGISTRY}/pgscatalog_utils:dev"

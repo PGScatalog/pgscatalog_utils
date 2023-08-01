@@ -92,7 +92,9 @@ def ancestry_analysis():
                 df_pgs[colorder].to_csv(outf, sep='\t', header=False)
 
     # Write results of PCA & population similarity
-    final_df.drop(scorecols, axis=1).to_csv(os.path.join(dout, f"{args.d_target}_popsimilarity.txt.gz"), sep='\t')
+    loc_popsim_out = os.path.join(dout, f"{args.d_target}_popsimilarity.txt.gz")
+    logger.debug('Writing PCA and popsim results to: {}'.format(loc_popsim_out))
+    final_df.drop(scorecols, axis=1).to_csv(loc_popsim_out, sep='\t')
     logger.info("Finished ancestry analysis")
 
 

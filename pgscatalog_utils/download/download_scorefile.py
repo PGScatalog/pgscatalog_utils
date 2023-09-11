@@ -1,16 +1,15 @@
 import argparse
 import logging
-import os
 import pathlib
 import textwrap
 import typing
 
+from pgscatalog_utils import __version__ as version
 from pgscatalog_utils import config
-from pgscatalog_utils.download.CatalogCategory import CatalogCategory
 from pgscatalog_utils.download.Catalog import CatalogQuery, CatalogResult
+from pgscatalog_utils.download.CatalogCategory import CatalogCategory
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 from pgscatalog_utils.download.ScoringFileDownloader import ScoringFileDownloader
-
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,11 @@ def download_scorefile() -> None:
 
     if args.pgsc_calc:
         config.PGSC_CALC_VERSION = args.pgsc_calc
-        logger.info(f"Setting user agent to {config.PGSC_CALC_VERSION} for PGS Catalog API queries")
+        logger.info(
+            f"Setting user agent to {config.PGSC_CALC_VERSION} for PGS Catalog API queries")
+    else:
+        config.PGSC_CALC_VERSION = f"pgscatalog_utils/{version}"
+        logger.warn(f"No user agent set, defaulting to {config.PGSC_CALC_VERSION}")
 
     config.OUTDIR = pathlib.Path(args.outdir).resolve()
     logger.info(f"Download directory: {config.OUTDIR}")
@@ -60,19 +63,19 @@ def download_scorefile() -> None:
         else:
             logger.debug("--trait set, querying traits")
         for term in args.efo:
-            results.append(CatalogQuery(CatalogCategory.TRAIT, term, include_children=inc_child,
-                                    pgsc_calc_version=config.PGSC_CALC_VERSION).get())
+            results.append(CatalogQuery(CatalogCategory.TRAIT, term,
+                                        include_children=inc_child).get())
 
     if args.pgp:
         logger.debug("--pgp set, querying publications")
         for term in args.pgp:
-            results.append(CatalogQuery(CatalogCategory.PUBLICATION, term, pgsc_calc_version=config.PGSC_CALC_VERSION).get())
+            results.append(CatalogQuery(CatalogCategory.PUBLICATION, term).get())
 
     if args.pgs:
         logger.debug("--id set, querying scores")
         results.append(
-            CatalogQuery(CatalogCategory.SCORE, args.pgs,
-                         pgsc_calc_version=config.PGSC_CALC_VERSION).get())  # pgs_lst: a list containing up to three flat lists
+            CatalogQuery(CatalogCategory.SCORE,
+                         args.pgs).get())  # pgs_lst: a list containing up to three flat lists
 
     flat_results = [element for sublist in results for element in sublist]
 

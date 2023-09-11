@@ -1,5 +1,4 @@
 import logging
-import os
 import pathlib
 import time
 import urllib.parse
@@ -25,7 +24,7 @@ def download_file(url: str, local_path: str, overwrite: bool, ftp_fallback: bool
     attempt: int = 0
 
     while attempt < config.MAX_RETRIES:
-        response: requests.Response = requests.get(url)
+        response: requests.Response = requests.get(url, headers=config.headers())
         match response.status_code:
             case 200:
                 with open(config.OUTDIR.joinpath(local_path), "wb") as f:
@@ -69,3 +68,4 @@ def _ftp_fallback_download(url: str, local_path: str) -> None:
             else:
                 logger.critical(f"Download failed: {e}")
                 raise Exception
+

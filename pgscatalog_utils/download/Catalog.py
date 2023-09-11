@@ -6,7 +6,6 @@ from functools import reduce
 
 import requests
 
-from pgscatalog_utils import __version__ as pgscatalog_utils_version
 from pgscatalog_utils import config
 from pgscatalog_utils.download.CatalogCategory import CatalogCategory
 from pgscatalog_utils.download.ScoringFile import ScoringFile
@@ -69,8 +68,8 @@ class CatalogResult:
             case CatalogCategory.TRAIT | CatalogCategory.PUBLICATION:
                 # publications and traits have to query Catalog API again to grab score data
                 results: list[CatalogResult] = CatalogQuery(CatalogCategory.SCORE,
-                                                            accession=list(self.pgs_ids),
-                                                            pgsc_calc_version=config.PGSC_CALC_VERSION).get()
+                                                            accession=list(
+                                                                self.pgs_ids)).get()
                 for result in results:
                     for pgs in result.response.get("results"):
                         urls[pgs["id"]] = ScoringFile.from_result(pgs)
@@ -84,12 +83,9 @@ class CatalogQuery:
     """
     category: CatalogCategory
     accession: typing.Union[str, list[str]]
-    pgsc_calc_version: typing.Union[str, None]
     include_children: bool = False
     _rest_url_root: str = "https://www.pgscatalog.org/rest"
     _max_retries: int = 5
-    _version: str = pgscatalog_utils_version
-    _user_agent: dict[str: str] = field(init=False)
 
     def _resolve_query_url(self) -> typing.Union[str, list[str]]:
         child_flag: int = int(self.include_children)
@@ -109,16 +105,8 @@ class CatalogQuery:
             case CatalogCategory.PUBLICATION, str():
                 return f"{self._rest_url_root}/publication/{self.accession}"
             case _:
-                raise Exception(f"Invalid CatalogCategory and accession type: {self.category}, type({self.accession})")
-
-    def __post_init__(self):
-        ua: str
-        if self.pgsc_calc_version:
-            ua = pgscatalog_utils_version
-        else:
-            ua = f"pgscatalog_utils/{self._version}"
-
-        self._user_agent = {"User-Agent": ua}
+                raise Exception(
+                    f"Invalid CatalogCategory and accession type: {self.category}, type({self.accession})")
 
     def _query_api(self, url: str):
         wait: int = 10
@@ -128,7 +116,7 @@ class CatalogQuery:
         while retry < self._max_retries:
             try:
                 logger.info(f"Querying {url}")
-                r: requests.models.Response = requests.get(url, headers=self._user_agent)
+                r: requests.models.Response = requests.get(url, headers=config.headers())
                 r.raise_for_status()
                 results_json = r.json()
                 break

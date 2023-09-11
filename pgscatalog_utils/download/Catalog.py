@@ -9,6 +9,7 @@ import requests
 from pgscatalog_utils import config
 from pgscatalog_utils.download.CatalogCategory import CatalogCategory
 from pgscatalog_utils.download.ScoringFile import ScoringFile
+from pgscatalog_utils.download.download_file import get_with_user_agent
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +117,7 @@ class CatalogQuery:
         while retry < self._max_retries:
             try:
                 logger.info(f"Querying {url}")
-                r: requests.models.Response = requests.get(url, headers=config.headers())
+                r: requests.models.Response = get_with_user_agent(url)
                 r.raise_for_status()
                 results_json = r.json()
                 break

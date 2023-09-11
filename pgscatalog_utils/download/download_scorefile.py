@@ -47,7 +47,7 @@ def download_scorefile() -> None:
             f"Setting user agent to {config.PGSC_CALC_VERSION} for PGS Catalog API queries")
     else:
         config.PGSC_CALC_VERSION = f"pgscatalog_utils/{version}"
-        logger.warn(f"No user agent set, defaulting to {config.PGSC_CALC_VERSION}")
+        logger.warning(f"No user agent set, defaulting to {config.PGSC_CALC_VERSION}")
 
     config.OUTDIR = pathlib.Path(args.outdir).resolve()
     logger.info(f"Download directory: {config.OUTDIR}")

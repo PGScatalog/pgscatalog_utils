@@ -20,6 +20,16 @@ DOWNLOAD_WAIT_TIME: int = 30
 logger = logging.getLogger(__name__)
 
 
+def headers() -> dict[str, str]:
+    if PGSC_CALC_VERSION is None:
+        raise Exception("Missing User-Agent when querying PGS Catalog")
+    else:
+        logger.info(f"User-Agent header: {PGSC_CALC_VERSION}")
+
+    header = {"User-Agent": PGSC_CALC_VERSION}
+    return header
+
+
 def setup_tmpdir(outdir, combine=False):
     if combine:
         work_dir = "work_combine"

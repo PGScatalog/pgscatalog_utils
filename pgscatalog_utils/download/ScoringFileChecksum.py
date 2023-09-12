@@ -15,7 +15,7 @@ def _generate_md5_checksum(filename: str, blocksize=4096) -> typing.Union[str, N
     """ Returns MD5 checksum for the given file. """
     md5 = hashlib.md5()
     try:
-        file = open(filename, 'rb')
+        file = open(config.OUTDIR.joinpath(filename), 'rb')
         with file:
             for block in iter(lambda: file.read(blocksize), b""):
                 md5.update(block)

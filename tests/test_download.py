@@ -1,10 +1,27 @@
 import gzip
+import logging
 import os
 from unittest.mock import patch
 
 from pgscatalog_utils.download.Catalog import CatalogQuery, CatalogResult
 from pgscatalog_utils.download.CatalogCategory import CatalogCategory
 from pgscatalog_utils.download.download_scorefile import download_scorefile
+
+
+def test_checksum_validation(tmp_path, caplog):
+    out_dir = str(tmp_path.resolve())
+    pgs_id = 'PGS000001'
+    args: list[str] = ['download_scorefiles', '-i', pgs_id, '-b', 'GRCh38', '-o',
+                       out_dir, '-v']
+
+    with patch('sys.argv', args):
+        caplog.set_level(logging.INFO)
+        # Test download
+        download_scorefile()
+        hm_score_filename = f'{pgs_id}_hmPOS_GRCh38.txt.gz'
+        assert hm_score_filename in os.listdir(out_dir)
+        # make sure validation passed
+        assert "Checksum matches" in  [x.message for x in caplog.records]
 
 
 def test_download_scorefile_author(tmp_path):
@@ -92,13 +109,11 @@ def test_download_trait(tmp_path):
 
 def test_query_publication():
     # publications are relatively static
-    query: list[CatalogResult] = CatalogQuery(CatalogCategory.PUBLICATION, accession="PGP000001",
-                                              pgsc_calc_version=None).get()
+    query: list[CatalogResult] = CatalogQuery(CatalogCategory.PUBLICATION, accession="PGP000001").get()
     assert not query[0].pgs_ids.difference({'PGS000001', 'PGS000002', 'PGS000003'})
 
 
 def test_query_trait():
     # new scores may be added to traits in the future
-    query: list[CatalogResult] = CatalogQuery(CatalogCategory.TRAIT, accession="EFO_0004329",
-                                              pgsc_calc_version=None).get()
+    query: list[CatalogResult] = CatalogQuery(CatalogCategory.TRAIT, accession="EFO_0004329").get()
     assert not {'PGS001901', 'PGS002115'}.difference(query[0].pgs_ids)

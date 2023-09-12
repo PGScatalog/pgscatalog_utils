@@ -33,7 +33,7 @@ def test_fail_combine(scorefiles, tmp_path_factory):
 
 @pytest.fixture
 def _n_variants(pgs_accessions):
-    result = CatalogQuery(CatalogCategory.SCORE, accession=pgs_accessions, pgsc_calc_version=None).get()[0]
+    result = CatalogQuery(CatalogCategory.SCORE, accession=pgs_accessions).get()[0]
     json = result.response
     n: list[int] = jq.compile("[.results][][].variants_number").input(json).all()
     return sum(n)

@@ -1,5 +1,4 @@
 import logging
-import os
 import pathlib
 import time
 import urllib.parse
@@ -11,6 +10,10 @@ import requests
 from pgscatalog_utils import config
 
 logger = logging.getLogger(__name__)
+
+
+def get_with_user_agent(url: str) -> requests.Response:
+    return requests.get(url, headers=config.headers())
 
 
 def download_file(url: str, local_path: str, overwrite: bool, ftp_fallback: bool) -> None:
@@ -25,7 +28,7 @@ def download_file(url: str, local_path: str, overwrite: bool, ftp_fallback: bool
     attempt: int = 0
 
     while attempt < config.MAX_RETRIES:
-        response: requests.Response = requests.get(url)
+        response: requests.Response = get_with_user_agent(url)
         match response.status_code:
             case 200:
                 with open(config.OUTDIR.joinpath(local_path), "wb") as f:
@@ -69,3 +72,4 @@ def _ftp_fallback_download(url: str, local_path: str) -> None:
             else:
                 logger.critical(f"Download failed: {e}")
                 raise Exception
+

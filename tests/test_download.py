@@ -92,13 +92,11 @@ def test_download_trait(tmp_path):
 
 def test_query_publication():
     # publications are relatively static
-    query: list[CatalogResult] = CatalogQuery(CatalogCategory.PUBLICATION, accession="PGP000001",
-                                              pgsc_calc_version=None).get()
+    query: list[CatalogResult] = CatalogQuery(CatalogCategory.PUBLICATION, accession="PGP000001").get()
     assert not query[0].pgs_ids.difference({'PGS000001', 'PGS000002', 'PGS000003'})
 
 
 def test_query_trait():
     # new scores may be added to traits in the future
-    query: list[CatalogResult] = CatalogQuery(CatalogCategory.TRAIT, accession="EFO_0004329",
-                                              pgsc_calc_version=None).get()
+    query: list[CatalogResult] = CatalogQuery(CatalogCategory.TRAIT, accession="EFO_0004329").get()
     assert not {'PGS001901', 'PGS002115'}.difference(query[0].pgs_ids)

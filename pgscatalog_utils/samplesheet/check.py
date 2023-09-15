@@ -240,6 +240,15 @@ def _check_reserved_names(df: pd.DataFrame):
         logger.critical("Samplesets must not be named 'reference', please rename in the sample sheet")
         raise Exception
 
+    # Check whether reference contains reserved tokens from nextflow channels
+    badnames = [x for x in df['sampleset'] if ('.' in x or '_' in x)]
+    if len(badnames) > 0:
+        logger.critical("Samplesets must not contain any reserved characters ( '_' , '.'), "
+                        "please rename the following samples in the sample sheet: {}".format(badnames))
+        raise Exception
+
+
+
 
 def _check_one_sampleset(df: pd.DataFrame):
     samplesets = set(df['sampleset'].to_list())

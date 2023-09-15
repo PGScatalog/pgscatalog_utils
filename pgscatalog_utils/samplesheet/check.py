@@ -248,8 +248,6 @@ def _check_reserved_names(df: pd.DataFrame):
         raise Exception
 
 
-
-
 def _check_one_sampleset(df: pd.DataFrame):
     samplesets = set(df['sampleset'].to_list())
     if len(samplesets) > 1:

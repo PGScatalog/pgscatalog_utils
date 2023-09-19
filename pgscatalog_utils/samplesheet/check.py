@@ -200,6 +200,7 @@ def _resolve_paths(path_list: list[str], filetype: str) -> list[str]:
         if path.startswith("https://") | path.startswith("s3://"):
             logger.info("Remote path detected, skipping resolve")
             resolved_list.append(str(path))
+            continue
         elif path.startswith("http://"):
             logger.critical("HTTP download is insecure! Did you mean https:// ?")
             raise Exception("Insecure path detected")

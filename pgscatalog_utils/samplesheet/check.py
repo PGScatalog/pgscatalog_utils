@@ -197,37 +197,36 @@ def _resolve_paths(path_list: list[str], filetype: str) -> list[str]:
             f"Input file {path} is symlinked, resolving to absolute path {path.resolve()}")
 
     for path in path_list:
-        match path:
-            case p if path.startswith("https://") | path.startswith("s3://"):
-                logger.info("Remote path detected, skipping resolve")
-                resolved_list.append(str(path))
-            case "http://":
-                logger.critical("HTTP download is insecure! Did you mean https:// ?")
-                raise Exception("Insecure path detected")
-            case _:
-                p: Path = Path(path)
-                if not p.is_absolute():
-                    logger.warning(
-                        "Relative path detected in samplesheet. Set absolute paths to silence this warning.")
-                    logger.warning(
-                        "Assuming input samplesheet is a symlinked file in a nextflow working directory")
-                    logger.warning(
-                        "Following symlink and attempting to resolve path relative to input file")
-                    logger.warning(
-                        f"Resolving paths relative to: {base_dir}")
-                    resolved = _resolve_filetypes(path=str(base_dir.joinpath(path)),
-                                                  filetype=filetype)
-                else:
-                    logger.info("Absolute path detected")
-                    resolved = _resolve_filetypes(filetype=filetype, path=str(p))
+        if path.startswith("https://") | path.startswith("s3://"):
+            logger.info("Remote path detected, skipping resolve")
+            resolved_list.append(str(path))
+        elif path.startswith("http://"):
+            logger.critical("HTTP download is insecure! Did you mean https:// ?")
+            raise Exception("Insecure path detected")
+        else:
+            p: Path = Path(path)
+            if not p.is_absolute():
+                logger.warning(
+                    "Relative path detected in samplesheet. Set absolute paths to silence this warning.")
+                logger.warning(
+                    "Assuming input samplesheet is a symlinked file in a nextflow working directory")
+                logger.warning(
+                    "Following symlink and attempting to resolve path relative to input file")
+                logger.warning(
+                    f"Resolving paths relative to: {base_dir}")
+                resolved = _resolve_filetypes(path=str(base_dir.joinpath(path)),
+                                              filetype=filetype)
+            else:
+                logger.info("Absolute path detected")
+                resolved = _resolve_filetypes(filetype=filetype, path=str(p))
 
-                if resolved.exists():
-                    logger.info(f"{resolved} exists")
-                    resolved_list.append(str(resolved))
-                else:
-                    logger.critical(
-                        f"{resolved} doesn't exist, please check samplesheet path_prefix and try again")
-                    raise FileNotFoundError
+            if resolved.exists():
+                logger.info(f"{resolved} exists")
+                resolved_list.append(str(resolved))
+            else:
+                logger.critical(
+                    f"{resolved} doesn't exist, please check samplesheet path_prefix and try again")
+                raise FileNotFoundError
 
     return resolved_list
 

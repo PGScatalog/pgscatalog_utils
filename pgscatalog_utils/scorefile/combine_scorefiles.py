@@ -16,6 +16,10 @@ def combine_scorefiles():
     logger = logging.getLogger(__name__)
     set_logging_level(args.verbose)
 
+    if pathlib.Path(args.outfile).exists():
+        logger.critical(f"Output file {args.outfile} already exists")
+        raise Exception
+    
     paths: list[str] = list(set(args.scorefiles))  # unique paths only
     logger.debug(f"Input scorefiles: {paths}")
 
@@ -61,7 +65,7 @@ def _parse_args(args=None) -> argparse.Namespace:
     parser.add_argument('-s', '--scorefiles', dest='scorefiles', nargs='+',
                         help='<Required> Scorefile path (wildcard * is OK)',
                         required=True)
-    parser.add_argument( '--threads', dest='threads',
+    parser.add_argument('--threads', dest='threads',
                         help='Number of threads to use',
                         default=1, type=int)
     parser.add_argument('--liftover', dest='liftover',

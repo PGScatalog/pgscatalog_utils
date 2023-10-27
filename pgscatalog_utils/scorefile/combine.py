@@ -1,11 +1,13 @@
 import logging
+import multiprocessing
 
 from pgscatalog_utils.scorefile.effect_type import set_effect_type
 from pgscatalog_utils.scorefile.effect_weight import melt_effect_weights
 from pgscatalog_utils.scorefile.genome_build import build2GRC
 from pgscatalog_utils.scorefile.harmonised import remap_harmonised
 from pgscatalog_utils.scorefile.liftover import liftover
-from pgscatalog_utils.scorefile.log import make_log
+from pgscatalog_utils.scorefile.log import worker_configurer
+from pgscatalog_utils.scorefile.score_log import make_log
 from pgscatalog_utils.scorefile.qc import quality_control
 from pgscatalog_utils.scorefile.read import load_scorefile
 from pgscatalog_utils.scorefile.write import write_scorefile
@@ -13,7 +15,13 @@ from pgscatalog_utils.scorefile.write import write_scorefile
 logger = logging.getLogger(__name__)
 
 
-def combine(scorefile_path, args, output_file_lock) -> dict:
+def combine(scorefile_path, args, output_file_lock, log_queue) -> dict:
+    global logger
+    # configure logging
+    worker_configurer(log_queue)
+    name = multiprocessing.current_process().name
+    logger.debug(f"{name} started")
+
     # Read scorefile df and header
     h, score = load_scorefile(scorefile_path)
 

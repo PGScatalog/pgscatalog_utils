@@ -1,34 +1,45 @@
 import argparse
 import json
 import logging
+import logging.handlers
 import multiprocessing
 import pathlib
 import sys
 import textwrap
 
-from pgscatalog_utils.config import set_logging_level
 from pgscatalog_utils.scorefile.combine import combine
+from pgscatalog_utils.scorefile.log import listener_process, listener_configurer, \
+    log_format
 
 
 def combine_scorefiles():
     args = _parse_args()
 
+    # set up centralised logging for workers
+    m = multiprocessing.Manager()
+    queue = m.Queue(maxsize=-1)  # infinite queue size
+    listener = multiprocessing.Process(target=listener_process,
+                                       args=(queue, listener_configurer))
+    listener.start()
+
+    # set up logging for main process
     logger = logging.getLogger(__name__)
-    set_logging_level(args.verbose)
+    logging.basicConfig(level=logging.DEBUG,
+                        format=log_format())
+    logger.debug("Starting combine scorefiles")
 
     if pathlib.Path(args.outfile).exists():
         logger.critical(f"Output file {args.outfile} already exists")
-        raise Exception
-    
+        raise FileNotFoundError
+
     paths: list[str] = list(set(args.scorefiles))  # unique paths only
     logger.debug(f"Input scorefiles: {paths}")
 
-    # Score header logs - init
     score_logs = []
     logger.debug(f"Setting up multiprocessing pool with {args.threads} workers")
     with multiprocessing.Pool(processes=args.threads) as pool:
         lock = multiprocessing.Manager().Lock()
-        args_list = [(path, args, lock) for path in paths]
+        args_list = [(path, args, lock, queue) for path in paths]
 
         score_logs.append(pool.starmap(combine, args_list))
 
@@ -36,6 +47,8 @@ def combine_scorefiles():
         json.dump(score_logs, f, indent=4)
 
     logger.debug("Finished :)")
+    queue.put_nowait(None)
+    listener.join()
 
 
 def _description_text() -> str:

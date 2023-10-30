@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 from pgscatalog_utils.scorefile.header import ScoringFileHeader, auto_open
 from pgscatalog_utils.scorefile.qc import drop_hla, check_effect_weight, \
-    assign_other_allele
+    assign_other_allele, assign_effect_type, remap_harmonised
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -55,15 +55,15 @@ class ScoringFile:
         start_line, cols = get_columns(path)
 
         # generate variants (a list of dicts, one for each variants)
+        logger.info(f"Lazily reading variants from {path}")
         variants = ScoringFile.read_variants(path=path, start_line=start_line,
                                              fields=cols, name=name)
 
         # note: these generator expressions aren't doing a bunch of iterations
         # it's just a data processing pipeline
-        variants = remap_harmonised(variants)
-
-        # quality control
+        variants = remap_harmonised(variants, harmonised)
         variants = drop_hla(variants)
+        variants = assign_effect_type(variants)
         variants = check_effect_weight(variants)
         variants = assign_other_allele(variants)
 
@@ -77,7 +77,6 @@ class ScoringFile:
     def read_variants(path, fields, start_line, name: str):
         open_function = auto_open(path)
         with open_function(path, 'rt') as f:
-            logger.info(f"Generating variants from {path}")
             csv_reader = csv.reader(f, delimiter='\t')
             for i, row in enumerate(csv_reader):
                 if i > start_line:
@@ -96,8 +95,7 @@ class ScoringFile:
 
         with open_function(out_path, 'wt') as f:
             fieldnames = ["name", "chr_name", "chr_position", "effect_allele",
-                          "other_allele",
-                          "effect_weight"]
+                          "other_allele", "effect_weight", "effect_type"]
             writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t')
             writer.writeheader()
 
@@ -105,7 +103,7 @@ class ScoringFile:
             chunk_size = 10000
             chunk = []
             for scoring_file in scoring_files:
-                logger.info(f"Writing variants from scoring file {scoring_file}")
+                logger.info(f"Writing {scoring_file.name} variants")
                 for variant in scoring_file.variants:
                     chunk.append(variant)
                     if len(chunk) == chunk_size:
@@ -114,23 +112,6 @@ class ScoringFile:
                 # handle last chunk
                 if chunk:
                     writer.writerows(chunk)
-
-
-def remap_harmonised(variants):
-    logger.info("Using harmonised data if available")
-    for variant in variants:
-        # _always_ use harmonised information, even if missing
-        if 'hm_chr' in variant:
-            variant['chr_name'] = variant['hm_chr']
-
-        if 'hm_pos' in variant:
-            variant['chr_position'] = variant['hm_pos']
-
-        if 'hm_inferOtherAllele' in variant and variant.get('other_allele') is None:
-            logger.warning("Replacing missing other_allele with inferred other allele")
-            variant['other_allele'] = variant['hm_inferOtherAllele']
-
-        yield {k: v for k, v in variant.items() if not k.startswith("hm")}
 
 
 def get_columns(path) -> tuple[int, list[str]]:

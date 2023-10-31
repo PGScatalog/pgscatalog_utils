@@ -1,3 +1,4 @@
+import functools
 import gzip
 import pathlib
 from dataclasses import dataclass
@@ -83,8 +84,8 @@ def auto_open(filepath):
             gzipped = False
 
     if gzipped and Config.threads > 1:
-        return gzip.open
+        return functools.partial(pgzip.open, thread=Config.threads)
     elif gzipped:
-        return pgzip.open
+        return gzip.open
     elif not gzipped:
         return open

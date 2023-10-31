@@ -26,15 +26,15 @@ def write_combined(scoring_files: list[ScoringFile], out_path: str):
         open_function = open
 
     with open_function(out_path, mode='wt') as f:
-        fieldnames = ["name", "chr_name", "chr_position", "effect_allele",
-                      "other_allele", "effect_weight", "effect_type"]
+        fieldnames = ["chr_name", "chr_position", "effect_allele",
+                      "other_allele", "effect_weight", "effect_type", "accession", "row_nr"]
         writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t',
                                 extrasaction='ignore')
         writer.writeheader()
 
         # write out in batches for compression efficiency and speed
         for scoring_file in scoring_files:
-            logger.info(f"Writing {scoring_file.name} variants")
+            logger.info(f"Writing {scoring_file.accession} variants")
             while True:
                 batch = list(islice(scoring_file.variants, Config.batch_size))
                 if not batch:

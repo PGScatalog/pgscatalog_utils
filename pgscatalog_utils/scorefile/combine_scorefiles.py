@@ -27,7 +27,7 @@ def combine_scorefiles():
     sfs = [ScoringFile.from_path(x) for x in paths]
 
     target_build = GenomeBuild.from_string(args.target_build)
-    bad_builds = [x.name for x in sfs if x.genome_build != target_build]
+    bad_builds = [x.accession for x in sfs if x.genome_build != target_build]
     for bad_file in bad_builds:
         logger.critical(f"{bad_file} doesn't match {target_build}, can't combine")
         raise Exception

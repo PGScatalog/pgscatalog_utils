@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ScoringFile:
     path: pathlib.Path
-    name: str
+    accession: str
     header: typing.Union[ScoringFileHeader, None]
     genome_build: typing.Union[GenomeBuild, None]
     harmonised: bool
@@ -40,8 +40,8 @@ class ScoringFile:
     @classmethod
     def from_path(cls, path: pathlib.Path):
         header = ScoringFileHeader.from_path(path)
+        name = os.path.basename(path).split('.')[0]
         if header:
-            name = header.pgs_id
             if header.HmPOS_build:
                 harmonised = True
                 genome_build = header.HmPOS_build
@@ -51,7 +51,6 @@ class ScoringFile:
         else:
             harmonised = False
             genome_build = None
-            name = os.path.basename(path).split('.')[0]
 
         start_line, cols = get_columns(path)
 
@@ -68,12 +67,12 @@ class ScoringFile:
                    harmonised=harmonised,
                    fields=cols,
                    variants=variants,
-                   name=name)
+                   accession=name)
 
     @staticmethod
     def read_variants(path, fields, start_line, name: str):
         open_function = auto_open(path)
-        with open_function(path, 'rt') as f:
+        with open_function(path, mode='rt') as f:
             for _ in range(start_line + 1):
                 # skip header
                 next(f)
@@ -85,16 +84,16 @@ class ScoringFile:
 
                 csv_reader = csv.reader(batch, delimiter='\t')
                 for i, row in enumerate(csv_reader):
-                    variant = dict(zip(fields, row)) | {'name': name}
+                    variant = dict(zip(fields, row)) | {'accession': name, "row_nr": i }
                     keys = ["chr_name", "chr_position", "effect_allele", "other_allele",
                             "effect_weight", "hm_chr", "hm_pos", "hm_inferOtherAllele",
-                            "name", "is_dominant", "is_recessive"]
+                            "is_dominant", "is_recessive", "accession", "row_nr"]
                     yield {k: variant[k] for k in keys if k in variant}
 
 
 def get_columns(path) -> tuple[int, list[str]]:
     open_function = auto_open(path)
-    with open_function(path, 'rt') as f:
+    with open_function(path, mode='rt') as f:
         for i, line in enumerate(f):
             if line.startswith('#'):
                 continue

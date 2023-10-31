@@ -6,7 +6,9 @@ import time
 
 from pgscatalog_utils.config import set_logging_level
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
+from pgscatalog_utils.scorefile.config import Config
 from pgscatalog_utils.scorefile.scoringfile import ScoringFile
+from pgscatalog_utils.scorefile.write import write_combined
 
 
 def combine_scorefiles():
@@ -14,6 +16,9 @@ def combine_scorefiles():
 
     logger = logging.getLogger(__name__)
     set_logging_level(args.verbose)
+
+    Config.threads = args.threads
+    Config.batch_size = 20000
 
     paths: list[str] = list(set(args.scorefiles))  # unique paths only
     logger.debug(f"Input scorefiles: {paths}")
@@ -29,7 +34,8 @@ def combine_scorefiles():
     else:
         logger.info(f"All builds match target build {target_build}")
 
-    ScoringFile.write_combined(sfs, args.outfile)
+    write_combined(sfs, args.outfile)
+
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"Elapsed time: {elapsed_time} seconds")
@@ -75,6 +81,8 @@ def _parse_args(args=None) -> argparse.Namespace:
     parser.add_argument('-m', '--min_lift', dest='min_lift',
                         help='<Optional> If liftover, minimum proportion of variants lifted over',
                         required="--liftover" in sys.argv, default=0.95, type=float)
+    parser.add_argument('--threads', dest='threads', required=False,
+                        default=1, type=int)
     parser.add_argument('--drop_missing', dest='drop_missing', action='store_true',
                         help='<Optional> Drop variants with missing information (chr/pos) and '
                              'non-standard alleles (e.g. HLA=P/N) from the output file.')

@@ -3,8 +3,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def quality_control(variants, harmonised):
+    variants = remap_harmonised(variants, harmonised)
+    variants = drop_hla(variants)
+    variants = assign_effect_type(variants)
+    variants = check_effect_weight(variants)
+    variants = assign_other_allele(variants)
+    return variants
+
+
 def drop_hla(variants):
-    logger.info("Checking for HLA alleles")
     for variant in variants:
         if variant['effect_allele'] != 'P' or variant['effect_allele'] != 'N':
             yield variant
@@ -13,7 +21,6 @@ def drop_hla(variants):
 
 
 def check_effect_weight(variants):
-    logger.info("Checking effect weights")
     for variant in variants:
         try:
             variant['effect_weight'] = float(variant['effect_weight'])
@@ -30,7 +37,6 @@ def assign_other_allele(variants):
         yield variant
 
 def assign_effect_type(variants):
-    logger.info("Assigning effect types")
     for variant in variants:
         if 'is_recessive' not in variant and 'is_dominant' not in variant:
             variant['effect_type'] = 'additive'
@@ -45,18 +51,10 @@ def assign_effect_type(variants):
                 logger.critical(f"Bad effect type setting: {variant}")
                 raise Exception
 
-            variant.pop('is_recessive')
-            variant.pop('is_dominant')
-
         yield variant
 
 
 def remap_harmonised(variants, harmonised: bool):
-    if harmonised:
-        logger.info("Using harmonised data fields")
-    else:
-        logger.info("Harmonised data fields not available")
-
     for variant in variants:
         if harmonised:
             variant['chr_name'] = variant['hm_chr']
@@ -66,6 +64,6 @@ def remap_harmonised(variants, harmonised: bool):
                 logger.debug("Replacing missing other_allele with inferred other allele")
                 variant['other_allele'] = variant['hm_inferOtherAllele']
 
-            yield {k: v for k, v in variant.items() if not k.startswith("hm")}
+            yield variant
         else:
             yield variant

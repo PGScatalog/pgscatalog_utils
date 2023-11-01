@@ -45,7 +45,7 @@ def liftover(
             n += 1
 
         if (n_lifted / n) < Config.min_lift:
-            logger.error(f"Liftover failed")
+            logger.error("Liftover failed")
             raise Exception
         else:
             logger.info("Liftover successful")

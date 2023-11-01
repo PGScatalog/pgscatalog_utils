@@ -29,7 +29,7 @@ class ScoringFileHeader:
         if self.HmPOS_build:
             self.HmPOS_build = GenomeBuild.from_string(self.HmPOS_build)
 
-        if self.format_version != '2.0':
+        if self.format_version != "2.0":
             raise Exception("Only support v2 format")
 
     @classmethod
@@ -40,9 +40,9 @@ class ScoringFileHeader:
         header_dict = {k: raw_header[k] for k in raw_header.keys() & keep_keys}
         # ... so we can unpack the dict into a dataclass
 
-        if len(header_dict) > 1 and 'HmPOS_build' not in header_dict:
+        if len(header_dict) > 1 and "HmPOS_build" not in header_dict:
             # working with pgs catalog formatted header but unharmonised data
-            header_dict['HmPOS_build'] = None
+            header_dict["HmPOS_build"] = None
 
         if header_dict:
             return ScoringFileHeader(**header_dict)
@@ -54,7 +54,7 @@ class ScoringFileHeader:
 def raw_header_to_dict(header):
     d = {}
     for item in header:
-        key, value = item.split('=')
+        key, value = item.split("=")
         d[key[1:]] = value  # drop # character from key
     return d
 
@@ -62,14 +62,14 @@ def raw_header_to_dict(header):
 def read_header(path: pathlib.Path):
     """Parses the header of a PGS Catalog format scorefile into a dictionary"""
     open_function = auto_open(path)
-    with open_function(path, 'rt') as f:
+    with open_function(path, "rt") as f:
         yield from _gen_header_lines(f)
 
 
 def _gen_header_lines(f):
     for line in f:
-        if line.startswith('#'):
-            if '=' in line:
+        if line.startswith("#"):
+            if "=" in line:
                 yield line.strip()
         else:
             # stop reading lines
@@ -77,8 +77,8 @@ def _gen_header_lines(f):
 
 
 def auto_open(filepath):
-    with open(filepath, 'rb') as test_f:
-        if test_f.read(2) == b'\x1f\x8b':
+    with open(filepath, "rb") as test_f:
+        if test_f.read(2) == b"\x1f\x8b":
             gzipped = True
         else:
             gzipped = False

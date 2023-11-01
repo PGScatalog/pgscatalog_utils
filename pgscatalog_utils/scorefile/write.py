@@ -19,17 +19,27 @@ def write_combined(scoring_files: list[ScoringFile], out_path: str):
         open_function = functools.partial(gzip.open, compresslevel=6)
     elif Config.threads > 1:
         logger.info("Writing with pgzip (fast)")
-        open_function = functools.partial(pgzip.open, compresslevel=6,
-                                          thread=Config.threads, blocksize=2 * 10 ** 8)
+        open_function = functools.partial(
+            pgzip.open, compresslevel=6, thread=Config.threads, blocksize=2 * 10**8
+        )
     else:
         logger.info("Writing text file (fast)")
         open_function = open
 
-    with open_function(out_path, mode='wt') as f:
-        fieldnames = ["chr_name", "chr_position", "effect_allele",
-                      "other_allele", "effect_weight", "effect_type", "accession", "row_nr"]
-        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t',
-                                extrasaction='ignore')
+    with open_function(out_path, mode="wt") as f:
+        fieldnames = [
+            "chr_name",
+            "chr_position",
+            "effect_allele",
+            "other_allele",
+            "effect_weight",
+            "effect_type",
+            "accession",
+            "row_nr",
+        ]
+        writer = csv.DictWriter(
+            f, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore"
+        )
         writer.writeheader()
 
         # write out in batches for compression efficiency and speed

@@ -29,10 +29,11 @@ class ScoringFile:
     def __post_init__(self):
         if self.header.HmPOS_build:
             logger.info(
-                f"{self.path} harmonised data detected: {self.header.HmPOS_build}")
+                f"{self.path} harmonised data detected: {self.header.HmPOS_build}"
+            )
             self.genome_build = self.header.HmPOS_build
 
-        mandatory_columns = {'chr_name', 'effect_allele', 'effect_weight'}
+        mandatory_columns = {"chr_name", "effect_allele", "effect_weight"}
         if not mandatory_columns.issubset(self.fields) not in self.fields:
             err_msg = f"{self.path} missing fields"
             raise Exception(err_msg)
@@ -40,7 +41,7 @@ class ScoringFile:
     @classmethod
     def from_path(cls, path: pathlib.Path):
         header = ScoringFileHeader.from_path(path)
-        name = os.path.basename(path).split('.')[0]
+        name = os.path.basename(path).split(".")[0]
         if header:
             if header.HmPOS_build:
                 harmonised = True
@@ -56,24 +57,29 @@ class ScoringFile:
 
         # generate variants (a list of dicts, one for each variants)
         logger.info(f"Lazily reading variants from {path}")
-        variants = ScoringFile.read_variants(path=path, start_line=start_line,
-                                             fields=cols, name=name)
+        variants = ScoringFile.read_variants(
+            path=path, start_line=start_line, fields=cols, name=name
+        )
 
         # note: these generator expressions aren't doing a bunch of iterations
         # it's just a data processing pipeline
-        variants = quality_control(variants, harmonised)
+        variants = quality_control(variants, header=header, harmonised=harmonised)
 
-        return cls(path=path, header=header, genome_build=genome_build,
-                   harmonised=harmonised,
-                   fields=cols,
-                   variants=variants,
-                   accession=name)
+        return cls(
+            path=path,
+            header=header,
+            genome_build=genome_build,
+            harmonised=harmonised,
+            fields=cols,
+            variants=variants,
+            accession=name,
+        )
 
     @staticmethod
     def read_variants(path, fields, start_line, name: str):
         open_function = auto_open(path)
-        with open_function(path, mode='rt') as f:
-            row_nr = 0 # row_nr
+        with open_function(path, mode="rt") as f:
+            row_nr = 0  # row_nr
             for _ in range(start_line + 1):
                 # skip header
                 next(f)
@@ -83,20 +89,34 @@ class ScoringFile:
                 if not batch:
                     break
 
-                csv_reader = csv.reader(batch, delimiter='\t')
+                csv_reader = csv.reader(batch, delimiter="\t")
                 for row in csv_reader:
-                    variant = dict(zip(fields, row)) | {'accession': name, "row_nr": row_nr }
-                    keys = ["chr_name", "chr_position", "effect_allele", "other_allele",
-                            "effect_weight", "hm_chr", "hm_pos", "hm_inferOtherAllele",
-                            "is_dominant", "is_recessive", "accession", "row_nr"]
+                    variant = dict(zip(fields, row)) | {
+                        "accession": name,
+                        "row_nr": row_nr,
+                    }
+                    keys = [
+                        "chr_name",
+                        "chr_position",
+                        "effect_allele",
+                        "other_allele",
+                        "effect_weight",
+                        "hm_chr",
+                        "hm_pos",
+                        "hm_inferOtherAllele",
+                        "is_dominant",
+                        "is_recessive",
+                        "accession",
+                        "row_nr",
+                    ]
                     yield {k: variant[k] for k in keys if k in variant}
                     row_nr += 1
 
 
 def get_columns(path) -> tuple[int, list[str]]:
     open_function = auto_open(path)
-    with open_function(path, mode='rt') as f:
+    with open_function(path, mode="rt") as f:
         for i, line in enumerate(f):
-            if line.startswith('#'):
+            if line.startswith("#"):
                 continue
-            return i, line.strip().split('\t')
+            return i, line.strip().split("\t")

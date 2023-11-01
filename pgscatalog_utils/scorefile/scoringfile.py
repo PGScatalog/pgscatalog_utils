@@ -73,6 +73,7 @@ class ScoringFile:
     def read_variants(path, fields, start_line, name: str):
         open_function = auto_open(path)
         with open_function(path, mode='rt') as f:
+            row_nr = 0 # row_nr
             for _ in range(start_line + 1):
                 # skip header
                 next(f)
@@ -83,12 +84,13 @@ class ScoringFile:
                     break
 
                 csv_reader = csv.reader(batch, delimiter='\t')
-                for i, row in enumerate(csv_reader):
-                    variant = dict(zip(fields, row)) | {'accession': name, "row_nr": i }
+                for row in csv_reader:
+                    variant = dict(zip(fields, row)) | {'accession': name, "row_nr": row_nr }
                     keys = ["chr_name", "chr_position", "effect_allele", "other_allele",
                             "effect_weight", "hm_chr", "hm_pos", "hm_inferOtherAllele",
                             "is_dominant", "is_recessive", "accession", "row_nr"]
                     yield {k: variant[k] for k in keys if k in variant}
+                    row_nr += 1
 
 
 def get_columns(path) -> tuple[int, list[str]]:

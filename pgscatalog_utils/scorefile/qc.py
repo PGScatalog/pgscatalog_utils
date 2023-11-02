@@ -8,7 +8,7 @@ from pgscatalog_utils.scorefile.liftover import liftover
 logger = logging.getLogger(__name__)
 
 
-def quality_control(variants, header: ScoringFileHeader, harmonised: bool):
+def quality_control(variants, header: ScoringFileHeader, harmonised: bool, wide: bool):
     variants = remap_harmonised(variants, harmonised)
 
     if Config.drop_missing:
@@ -17,6 +17,13 @@ def quality_control(variants, header: ScoringFileHeader, harmonised: bool):
     variants = assign_effect_type(variants)
     variants = check_effect_weight(variants)
     variants = assign_other_allele(variants)
+
+    if wide:
+        # wide data must be sorted because:
+        # - check_duplicates requires sorted input
+        # - output would be unsorted, which looks a little bit messy
+        variants = (x for x in sorted(variants, key=lambda x: x["accession"]))
+
     variants = check_duplicates(variants)
 
     if Config.liftover:

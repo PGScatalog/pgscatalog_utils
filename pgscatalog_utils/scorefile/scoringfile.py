@@ -54,16 +54,18 @@ class ScoringFile:
             genome_build = None
 
         start_line, cols = get_columns(path)
+        is_wide = detect_wide(cols)
 
-        # generate variants (a list of dicts, one for each variants)
         logger.info(f"Lazily reading variants from {path}")
         variants = ScoringFile.read_variants(
-            path=path, start_line=start_line, fields=cols, name=name
+            path=path, start_line=start_line, fields=cols, name=name, is_wide=is_wide
         )
 
         # note: these generator expressions aren't doing a bunch of iterations
         # it's just a data processing pipeline
-        variants = quality_control(variants, header=header, harmonised=harmonised)
+        variants = quality_control(
+            variants, header=header, harmonised=harmonised, wide=is_wide
+        )
 
         return cls(
             path=path,
@@ -76,10 +78,10 @@ class ScoringFile:
         )
 
     @staticmethod
-    def read_variants(path, fields, start_line, name: str):
+    def read_variants(path, fields, start_line, name: str, is_wide: bool):
         open_function = auto_open(path)
+        row_nr = 0
         with open_function(path, mode="rt") as f:
-            row_nr = 0  # row_nr
             for _ in range(start_line + 1):
                 # skip header
                 next(f)
@@ -90,27 +92,46 @@ class ScoringFile:
                     break
 
                 csv_reader = csv.reader(batch, delimiter="\t")
-                for row in csv_reader:
-                    variant = dict(zip(fields, row)) | {
-                        "accession": name,
-                        "row_nr": row_nr,
-                    }
-                    keys = [
-                        "chr_name",
-                        "chr_position",
-                        "effect_allele",
-                        "other_allele",
-                        "effect_weight",
-                        "hm_chr",
-                        "hm_pos",
-                        "hm_inferOtherAllele",
-                        "is_dominant",
-                        "is_recessive",
-                        "accession",
-                        "row_nr",
-                    ]
-                    yield {k: variant[k] for k in keys if k in variant}
-                    row_nr += 1
+                yield from read_rows(csv_reader, fields, name, row_nr, is_wide)
+
+
+def read_rows(csv_reader, fields: list[str], name: str, row_nr: int, wide: bool):
+    for row in csv_reader:
+        variant = dict(zip(fields, row))
+
+        if wide:
+            ew_col_idxs: list[int] = [
+                i for i, x in enumerate(["effect_weight_" in x for x in fields]) if x
+            ]
+            for i, weight_name in zip(ew_col_idxs, [fields[i] for i in ew_col_idxs]):
+                keys = ["chr_name", "chr_position", "effect_allele", "other_allele"]
+                yield {k: variant[k] for k in keys if k in variant} | {
+                    "accession": weight_name,
+                    "row_nr": row_nr,
+                    "effect_weight": variant[weight_name],
+                }
+        else:
+            keys = [
+                "chr_name",
+                "chr_position",
+                "effect_allele",
+                "other_allele",
+                "effect_weight",
+                "hm_chr",
+                "hm_pos",
+                "hm_inferOtherAllele",
+                "is_dominant",
+                "is_recessive",
+                "accession",
+                "row_nr",
+            ]
+
+            yield {k: variant[k] for k in keys if k in variant} | {
+                "accession": name,
+                "row_nr": row_nr,
+            }
+
+        row_nr += 1
 
 
 def get_columns(path) -> tuple[int, list[str]]:
@@ -119,4 +140,22 @@ def get_columns(path) -> tuple[int, list[str]]:
         for i, line in enumerate(f):
             if line.startswith("#"):
                 continue
-            return i, line.strip().split("\t")
+            line_no, cols = i, line.strip().split("\t")
+            if len(set(cols)) != len(cols):
+                logger.critical(f"Duplicated column names: {cols}")
+                raise ValueError
+
+            return line_no, cols
+
+
+def detect_wide(cols: list[str]) -> bool:
+    """
+    Check columns to see if multiple effect weights are present. Multiple effect weights must be present in the form:
+    effect_weight_suffix1
+    effect_weight_suffix2
+    """
+    if any(["effect_weight_" in x for x in cols]):
+        logger.info("Wide scoring file detected with multiple effect weights")
+        return True
+    else:
+        return False

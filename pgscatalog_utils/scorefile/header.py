@@ -24,31 +24,30 @@ class ScoringFileHeader:
     citation: str
 
     def __post_init__(self):
-        self.variants_number = int(self.variants_number)
+        if self.variants_number:
+            self.variants_number = int(self.variants_number)
+
         self.genome_build = GenomeBuild.from_string(self.genome_build)
         if self.HmPOS_build:
             self.HmPOS_build = GenomeBuild.from_string(self.HmPOS_build)
 
-        if self.format_version != "2.0":
-            raise Exception("Only support v2 format")
-
     @classmethod
     def from_path(cls, path: pathlib.Path):
         raw_header: dict = raw_header_to_dict(read_header(path))
-        # only keep keys needed by class (intersect)
+        # only keep keys needed by class but support partial headers with None values
         keep_keys = ScoringFileHeader.__annotations__.keys()
-        header_dict = {k: raw_header[k] for k in raw_header.keys() & keep_keys}
+        header_dict = {k: raw_header.get(k) for k in keep_keys}
         # ... so we can unpack the dict into a dataclass
 
-        if len(header_dict) > 1 and "HmPOS_build" not in header_dict:
+        if "HmPOS_build" not in header_dict:
             # working with pgs catalog formatted header but unharmonised data
             header_dict["HmPOS_build"] = None
 
-        if header_dict:
+        if not all([v is None for _, v in header_dict.items()]):
             return ScoringFileHeader(**header_dict)
         else:
             # no header available
-            return None
+            raise Exception("No header detected in scoring file")
 
 
 def raw_header_to_dict(header):

@@ -13,15 +13,17 @@ from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 class ScoringFileHeader:
     pgs_id: str
     pgp_id: str
-    trait_efo: str
-    trait_reported: str
-    trait_mapped: str
     pgs_name: str
     genome_build: GenomeBuild
-    HmPOS_build: GenomeBuild
     variants_number: int
-    format_version: str
+    trait_reported: str
+    trait_efo: str
+    trait_mapped: str
+    weight_type: str
     citation: str
+    HmPOS_build: GenomeBuild
+    HmPOS_date: str
+    format_version: str
 
     def __post_init__(self):
         if self.variants_number:

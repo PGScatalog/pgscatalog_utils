@@ -42,6 +42,7 @@ def write_combined(scoring_files: list[ScoringFile], out_path: str):
         )
         writer.writeheader()
 
+        line_counts = {}
         # write out in batches for compression efficiency and speed
         for scoring_file in scoring_files:
             logger.info(f"Writing {scoring_file.accession} variants")
@@ -49,4 +50,8 @@ def write_combined(scoring_files: list[ScoringFile], out_path: str):
                 batch = list(islice(scoring_file.variants, Config.batch_size))
                 if not batch:
                     break
+                # calculate max row_nr now because it's when we finally generate variants
+                line_counts[scoring_file.accession] = max(x["row_nr"] for x in batch)
                 writer.writerows(batch)
+
+        return line_counts

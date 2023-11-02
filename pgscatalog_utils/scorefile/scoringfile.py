@@ -77,10 +77,36 @@ class ScoringFile:
             accession=name,
         )
 
+    def generate_log(self, line_count: int):
+        log = {
+            key: str(value) if value is not None else None
+            for key, value in self.header.__dict__.items()
+        }
+
+        if log["variants_number"] is None:
+            # custom scoring files might not have this information
+            log["variants_number"] = line_count
+
+        # multiple terms may be separated with a pipe
+        if log["trait_mapped"]:
+            log["trait_mapped"] = log["trait_mapped"].split("|")
+
+        if log["trait_efo"]:
+            log["trait_efo"] = log["trait_efo"].split("|")
+
+        log["columns"] = self.fields
+        log["use_liftover"] = Config.liftover
+        log["use_harmonised"] = self.harmonised
+
+        return {self.accession: log}
+
     @staticmethod
     def read_variants(path, fields, start_line, name: str, is_wide: bool):
         open_function = auto_open(path)
-        row_nr = 0
+        # row_nr and cum_batch are equivalent but
+        row_nr = 0  # important to increment in sub-generator for each line
+        cum_batch = 0  # sums batches in this function
+
         with open_function(path, mode="rt") as f:
             for _ in range(start_line + 1):
                 # skip header
@@ -88,6 +114,7 @@ class ScoringFile:
 
             while True:
                 batch = list(islice(f, Config.batch_size))
+                cum_batch += len(batch)
                 if not batch:
                     break
 

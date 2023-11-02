@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import sys
 import textwrap
@@ -44,7 +45,15 @@ def combine_scorefiles():
     else:
         logger.info(f"All builds match target build {target_build}")
 
-    write_combined(sfs, args.outfile)
+    line_counts: dict[str, int] = write_combined(sfs, args.outfile)
+    # provide line counts when making the scoring files
+    log = []
+    for (k, v), sf in zip(line_counts.items(), sfs):
+        log.append(sf.generate_log(v))
+
+    with open(args.logfile, "w") as f:
+        logger.info(f"Writing log to {f.name}")
+        json.dump(log, f, indent=4)
 
     end_time = time.time()
     elapsed_time = end_time - start_time

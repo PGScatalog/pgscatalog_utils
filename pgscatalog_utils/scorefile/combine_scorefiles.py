@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import pathlib
 import sys
 import textwrap
 import time
@@ -51,7 +52,8 @@ def combine_scorefiles():
     for (k, v), sf in zip(line_counts.items(), sfs):
         log.append(sf.generate_log(v))
 
-    with open(args.logfile, "w") as f:
+    log_out_path = pathlib.Path(args.outfile).parent / args.logfile
+    with open(log_out_path, "w") as f:
         logger.info(f"Writing log to {f.name}")
         json.dump(log, f, indent=4)
 

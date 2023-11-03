@@ -117,14 +117,12 @@ def assign_effect_type(variants):
     for variant in variants:
         if "is_recessive" not in variant and "is_dominant" not in variant:
             variant["effect_type"] = "additive"
-
-        if "is_recessive" in variant or "is_dominant" in variant:
-            logger.info("Recessive or dominant variant detected")
-            if variant["is_recessive"]:
+        else:
+            if variant["is_recessive"] == "TRUE":
                 variant["effect_type"] = "recessive"
-            elif variant["is_dominant"]:
+            elif variant["is_dominant"] == "TRUE":
                 variant["effect_type"] = "dominant"
-            elif variant["is_recessive"] and variant["is_dominant"]:
+            elif variant["is_recessive"] == "TRUE" and variant["is_dominant"] == "TRUE":
                 logger.critical(f"Bad effect type setting: {variant}")
                 raise Exception
 

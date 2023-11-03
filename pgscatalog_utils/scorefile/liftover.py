@@ -20,13 +20,15 @@ def liftover(
         skip_lo = False
 
     if skip_lo:
+        logger.info("Skipping liftover")
         for variant in variants:
             yield variant
     else:
+        logger.info("Starting liftover")
         if current_build == GenomeBuild.GRCh37 and target_build == GenomeBuild.GRCh38:
             lo: pyliftover.LiftOver = Config.lo["hg19hg38"]
         elif current_build == GenomeBuild.GRCh38 and target_build == GenomeBuild.GRCh37:
-            lo: pyliftover.LiftOver = Config.lo["hg19hg38"]
+            lo: pyliftover.LiftOver = Config.lo["hg38hg19"]
         else:
             raise Exception("Can't get pyliftover object")
 
@@ -40,12 +42,16 @@ def liftover(
             if lifted:
                 variant["chr_name"] = lifted[0][0][3:].split("_")[0]
                 variant["chr_position"] = lifted[0][1] + 1  # reverse 0 indexing
+                variant["lifted"] = True
+                yield variant
                 n_lifted += 1
-            yield variant
+            else:
+                variant["lifted"] = False
+                yield variant
             n += 1
 
         if (n_lifted / n) < Config.min_lift:
-            logger.error("Liftover failed")
+            logger.error("Liftover failed for variant {variant}")
             raise Exception
         else:
             logger.info("Liftover successful")

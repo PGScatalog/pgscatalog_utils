@@ -85,7 +85,7 @@ class ScoringFile:
 
         if log["variants_number"] is None:
             # custom scoring files might not have this information
-            log["variants_number"] = line_count
+            log["variants_number"] = line_count + 1  # (0 indexed)
 
         # multiple terms may be separated with a pipe
         if log["trait_mapped"]:

@@ -77,7 +77,7 @@ class ScoringFile:
             accession=name,
         )
 
-    def generate_log(self, line_count: int):
+    def generate_log(self, counted: typing.Counter):
         log = {
             key: str(value) if value is not None else None
             for key, value in self.header.__dict__.items()
@@ -85,7 +85,15 @@ class ScoringFile:
 
         if log["variants_number"] is None:
             # custom scoring files might not have this information
-            log["variants_number"] = line_count + 1  # (0 indexed)
+            log["variants_number"] = counted["n_variants"] + 1  # (0 indexed)
+
+        if (
+            int(log["variants_number"]) != counted["n_variants"]
+            and not Config.drop_missing
+        ):
+            raise Exception(
+                f"Mismatch between variants_number and counted output {self.accession}"
+            )
 
         # multiple terms may be separated with a pipe
         if log["trait_mapped"]:
@@ -97,6 +105,7 @@ class ScoringFile:
         log["columns"] = self.fields
         log["use_liftover"] = Config.liftover
         log["use_harmonised"] = self.harmonised
+        log["sources"] = [k for k, v in counted.items() if k != "n_variants"]
 
         return {self.accession: log}
 
@@ -147,6 +156,7 @@ def read_rows(csv_reader, fields: list[str], name: str, row_nr: int, wide: bool)
                 "hm_chr",
                 "hm_pos",
                 "hm_inferOtherAllele",
+                "hm_source",
                 "is_dominant",
                 "is_recessive",
                 "accession",

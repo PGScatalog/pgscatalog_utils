@@ -4,7 +4,6 @@ import logging
 import pathlib
 import sys
 import textwrap
-import time
 
 from pgscatalog_utils.config import set_logging_level
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
@@ -34,7 +33,6 @@ def combine_scorefiles():
     paths: list[str] = list(set(args.scorefiles))  # unique paths only
     logger.debug(f"Input scorefiles: {paths}")
 
-    start_time = time.time()
     sfs = [ScoringFile.from_path(x) for x in paths]
 
     target_build = GenomeBuild.from_string(args.target_build)
@@ -46,20 +44,16 @@ def combine_scorefiles():
     else:
         logger.info(f"All builds match target build {target_build}")
 
-    line_counts: dict[str, int] = write_combined(sfs, args.outfile)
     # provide line counts when making the scoring files
-    log = []
-    for (k, v), sf in zip(line_counts.items(), sfs):
-        log.append(sf.generate_log(v))
+    logs: dict[str, int] = write_combined(sfs, args.outfile)
+    json_log = []
+    for (k, v), sf in zip(logs.items(), sfs):
+        json_log.append(sf.generate_log(v))
 
     log_out_path = pathlib.Path(args.outfile).parent / args.logfile
     with open(log_out_path, "w") as f:
         logger.info(f"Writing log to {f.name}")
-        json.dump(log, f, indent=4)
-
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Elapsed time: {elapsed_time} seconds")
+        json.dump(json_log, f, indent=4)
 
 
 def _description_text() -> str:

@@ -2,6 +2,10 @@ import csv
 import functools
 import gzip
 import logging
+import os
+import sqlite3
+import typing
+from collections import Counter
 from itertools import islice
 
 import pgzip
@@ -12,22 +16,10 @@ from pgscatalog_utils.scorefile.scoringfile import ScoringFile
 logger = logging.getLogger(__name__)
 
 
-def write_combined(scoring_files: list[ScoringFile], out_path: str):
-    # compresslevel can be really slow, default is 9
-    if out_path.endswith("gz") and Config.threads == 1:
-        logger.info("Writing with gzip (slow)")
-        open_function = functools.partial(gzip.open, compresslevel=6)
-    elif Config.threads > 1:
-        logger.info("Writing with pgzip (fast)")
-        open_function = functools.partial(
-            pgzip.open, compresslevel=6, thread=Config.threads, blocksize=2 * 10**8
-        )
-    else:
-        logger.info("Writing text file (fast)")
-        open_function = open
-
-    with open_function(out_path, mode="wt") as f:
-        fieldnames = [
+class DataWriter:
+    def __init__(self, filename):
+        self.filename = filename
+        self.fieldnames = [
             "chr_name",
             "chr_position",
             "effect_allele",
@@ -37,21 +29,93 @@ def write_combined(scoring_files: list[ScoringFile], out_path: str):
             "accession",
             "row_nr",
         ]
-        writer = csv.DictWriter(
-            f, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore"
+
+    def write(self, batch):
+        pass
+
+
+class TextFileWriter(DataWriter):
+    def __init__(self, compress, filename):
+        super().__init__(filename)
+        self.compress = compress
+
+    def write(self, batch):
+        if self.compress and Config.threads == 1:
+            logger.info("Writing with gzip (slow)")
+            open_function = functools.partial(gzip.open, compresslevel=6)
+        elif self.compress and Config.threads > 1:
+            logger.info("Writing with pgzip (fast)")
+            open_function = functools.partial(
+                pgzip.open, compresslevel=6, thread=Config.threads, blocksize=2 * 10**8
+            )
+        else:
+            logger.info("Writing text file (fast)")
+            open_function = open
+
+        mode = "at" if os.path.exists(self.filename) else "wt"
+        with open_function(self.filename, mode) as f:
+            writer = csv.DictWriter(
+                f, fieldnames=self.fieldnames, delimiter="\t", extrasaction="ignore"
+            )
+            if mode == "w":
+                writer.writeheader()
+            writer.writerows(batch)
+
+
+class SqliteWriter(DataWriter):
+    def __init__(self, filename):
+        super().__init__(filename)
+
+    def write(self, batch):
+        conn = sqlite3.connect(self.filename)
+        cursor = conn.cursor()
+        placeholders = ", ".join("?" for _ in self.fieldnames)
+
+        values = [
+            tuple(row[key] for key in self.fieldnames if key in row) for row in batch
+        ]
+
+        cursor.execute(
+            f"CREATE TABLE IF NOT EXISTS variants ({', '.join(self.fieldnames)})"
         )
-        writer.writeheader()
+        cursor.executemany(f"INSERT INTO variants VALUES ({placeholders})", values)
+        conn.commit()
+        conn.close()
 
-        line_counts = {}
-        # write out in batches for compression efficiency and speed
-        for scoring_file in scoring_files:
-            logger.info(f"Writing {scoring_file.accession} variants")
-            while True:
-                batch = list(islice(scoring_file.variants, Config.batch_size))
-                if not batch:
-                    break
-                # calculate max row_nr now because it's when we finally generate variants
-                line_counts[scoring_file.accession] = max(x["row_nr"] for x in batch)
-                writer.writerows(batch)
 
-        return line_counts
+def write_combined(
+    scoring_files: list[ScoringFile], out_path: str
+) -> dict[str : typing.Counter]:
+    # compresslevel can be really slow, default is 9
+    if out_path.endswith("gz"):
+        writer = TextFileWriter(compress=True, filename=out_path)
+    elif out_path.endswith("txt"):
+        writer = TextFileWriter(compress=False, filename=out_path)
+    elif out_path.endswith(".sqlite"):
+        writer = SqliteWriter(filename=out_path)
+    else:
+        raise Exception("Can't configure writer, please check out_path")
+
+    counts = []
+    log = {}
+    for scoring_file in scoring_files:
+        logger.info(f"Writing {scoring_file.accession} variants")
+        while True:
+            batch = list(islice(scoring_file.variants, Config.batch_size))
+            if not batch:
+                break
+            writer.write(batch=batch)
+            counts = calculate_log(batch, counts)
+
+        log[scoring_file.accession] = sum(counts, Counter())
+        counts = []
+
+    return log
+
+
+def calculate_log(batch, log: list[Counter]) -> list[Counter]:
+    # these statistics can only be generated while iterating through variants
+    n_variants = Counter("n_variants" for item in batch)
+    hm_source = Counter(item["hm_source"] for item in batch if "hm_source" in item)
+    log.extend([n_variants, hm_source])
+    return log

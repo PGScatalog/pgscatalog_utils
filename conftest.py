@@ -25,7 +25,7 @@ def pgs_accessions():
 @pytest.fixture(scope="session")
 def mini_score_path(tmp_path_factory):
     path = importlib.resources.files(combine) / "PGS001229_22.txt"
-    return path
+    return str(path)
 
 
 @pytest.fixture(scope="session")

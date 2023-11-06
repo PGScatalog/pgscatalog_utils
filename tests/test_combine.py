@@ -1,3 +1,4 @@
+import csv
 import importlib.resources
 import json
 from unittest.mock import patch
@@ -47,17 +48,16 @@ def test_effect_type_combine(effect_type_path, tmp_path, combine_output_header):
     with patch("sys.argv", args):
         combine_scorefiles()
 
-    n = -1  # skip header line
     with open(out_path) as f:
-        for i, line in enumerate(f):
-            if i == 0:
-                cols = line.strip().split("\t")
+        n = 0
+        for line in csv.DictReader(f, delimiter="\t"):
+            cols = list(line.keys())
 
-            if i == 1:
-                assert line.strip().split("\t")[-3] == "dominant"
+            if int(line["row_nr"]) == 0:
+                assert line["effect_type"] == "dominant"
 
-            if i == 2:
-                assert line.strip().split("\t")[-3] == "recessive"
+            if int(line["row_nr"]) == 1:
+                assert line["effect_type"] == "recessive"
 
             n += 1
 
@@ -130,6 +130,7 @@ def combine_output_header():
         "other_allele",
         "effect_weight",
         "effect_type",
+        "is_duplicated",
         "accession",
         "row_nr",
     ]

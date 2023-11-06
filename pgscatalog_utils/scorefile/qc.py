@@ -19,9 +19,7 @@ def quality_control(variants, header: ScoringFileHeader, harmonised: bool, wide:
     variants = assign_other_allele(variants)
 
     if wide:
-        # wide data must be sorted because:
-        # - check_duplicates requires sorted input
-        # - output would be unsorted, which looks a little bit messy
+        # wide data must be sorted because check_duplicates requires sorted input
         variants = (x for x in sorted(variants, key=lambda x: x["accession"]))
 
     variants = check_duplicates(variants)
@@ -89,10 +87,10 @@ def check_effect_weight(variants):
     for variant in variants:
         try:
             variant["effect_weight"] = float(variant["effect_weight"])
+            yield variant
         except ValueError:
             logger.critical(f"{variant} has bad effect weight")
             raise ValueError
-        yield variant
 
 
 def assign_other_allele(variants):
@@ -115,17 +113,16 @@ def assign_other_allele(variants):
 
 def assign_effect_type(variants):
     for variant in variants:
-        if "is_recessive" not in variant and "is_dominant" not in variant:
-            variant["effect_type"] = "additive"
-        else:
-            if variant["is_recessive"] == "TRUE":
-                variant["effect_type"] = "recessive"
-            elif variant["is_dominant"] == "TRUE":
+        match (variant.get("is_recessive"), variant.get("is_dominant")):
+            case (None, None) | ("FALSE", "FALSE"):
+                variant["effect_type"] = "additive"
+            case ("FALSE", "TRUE"):
                 variant["effect_type"] = "dominant"
-            elif variant["is_recessive"] == "TRUE" and variant["is_dominant"] == "TRUE":
+            case ("TRUE", "FALSE"):
+                variant["effect_type"] = "recessive"
+            case _:
                 logger.critical(f"Bad effect type setting: {variant}")
                 raise Exception
-
         yield variant
 
 

@@ -8,37 +8,25 @@ from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
 from tests.data import combine
 
 
-def test_pgscatalog_combine(pgscatalog_path, tmp_path_factory, combine_output_header):
-    out_path = tmp_path_factory.mktemp("scores") / "combined.txt"
+def test_pgscatalog_combine(pgscatalog_path, tmp_path, combine_output_header):
+    out_path = tmp_path / "combined.txt"
     args: list[str] = (
         ["combine_scorefiles", "-t", "GRCh37", "-s"]
         + [str(pgscatalog_path)]
         + ["-o", str(out_path.resolve())]
     )
-    with patch("sys.argv", args):
-        combine_scorefiles()
 
-    with open(out_path) as f:
-        for i, line in enumerate(f):
-            if i == 0:
-                cols = line.strip().split("\t")
-            else:
-                break
-        assert not set(cols).difference(set(combine_output_header))
-
-    with open(out_path.parent / "log_combined.json") as f:
-        header = json.load(f)[0]
-        assert header["PGS001229_22"]["pgs_id"] == "PGS001229"
-        assert header["PGS001229_22"]["pgs_name"] == "GBE_INI50"
-        assert header["PGS001229_22"]["trait_mapped"] == ["body height"]
-        assert header["PGS001229_22"]["trait_efo"] == ["EFO_0004339"]
-        assert header["PGS001229_22"]["genome_build"] == "GRCh37"
-        assert not header["PGS001229_22"]["use_harmonised"]
+    # this mismatch occurs because header is from original PGS (~50,000)
+    # but variants are only from chr22 (~850)
+    with pytest.raises(Exception) as e:
+        with patch("sys.argv", args):
+            combine_scorefiles()
+            assert "Mismatch between variants_number and counted output" in str(e.value)
 
 
-def test_effect_type_combine(effect_type_path, tmp_path_factory, combine_output_header):
+def test_effect_type_combine(effect_type_path, tmp_path, combine_output_header):
     # these genomes are in build GRCh37, so combining with -t GRCh38 will raise an exception
-    out_path = tmp_path_factory.mktemp("scores") / "combined.txt"
+    out_path = tmp_path / "combined.txt"
     args: list[str] = (
         ["combine_scorefiles", "-t", "GRCh37", "-s"]
         + [str(effect_type_path)]
@@ -74,9 +62,9 @@ def test_effect_type_combine(effect_type_path, tmp_path_factory, combine_output_
         assert not header["scorefile_dominant_and_recessive"]["use_harmonised"]
 
 
-def test_custom_combine(custom_score_path, tmp_path_factory, combine_output_header):
+def test_custom_combine(custom_score_path, tmp_path, combine_output_header):
     # these genomes are in build GRCh37, so combining with -t GRCh38 will raise an exception
-    out_path = tmp_path_factory.mktemp("scores") / "combined.txt"
+    out_path = tmp_path / "combined.txt"
     args: list[str] = (
         ["combine_scorefiles", "-t", "GRCh37", "-s"]
         + [str(custom_score_path)]
@@ -92,8 +80,8 @@ def test_custom_combine(custom_score_path, tmp_path_factory, combine_output_head
         for i, line in enumerate(f):
             if i == 0:
                 cols = line.strip().split("\t")
+                assert not set(cols).difference(set(combine_output_header))
             n += 1
-        assert not set(cols).difference(set(combine_output_header))
 
     with open(out_path.parent / "log_combined.json") as f:
         header = json.load(f)[0]

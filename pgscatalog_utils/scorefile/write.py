@@ -57,7 +57,7 @@ class TextFileWriter(DataWriter):
             writer = csv.DictWriter(
                 f, fieldnames=self.fieldnames, delimiter="\t", extrasaction="ignore"
             )
-            if mode == "w":
+            if mode == "wt":
                 writer.writeheader()
             writer.writerows(batch)
 

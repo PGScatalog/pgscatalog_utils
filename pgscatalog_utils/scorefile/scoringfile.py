@@ -6,9 +6,8 @@ import typing
 from dataclasses import dataclass
 from itertools import islice
 
-from pgscatalog_utils.scorefile.config import Config
-
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
+from pgscatalog_utils.scorefile.config import Config
 from pgscatalog_utils.scorefile.header import ScoringFileHeader, auto_open
 from pgscatalog_utils.scorefile.qc import quality_control
 
@@ -85,7 +84,7 @@ class ScoringFile:
 
         if log["variants_number"] is None:
             # custom scoring files might not have this information
-            log["variants_number"] = counted["n_variants"] + 1  # (0 indexed)
+            log["variants_number"] = counted["n_variants"]
 
         if (
             int(log["variants_number"]) != counted["n_variants"]
@@ -169,6 +168,11 @@ def read_rows(csv_reader, fields: list[str], name: str, row_nr: int, wide: bool)
             }
 
         row_nr += 1
+
+
+def parse_dict(variants):
+    # TODO: use best data types when parsing lines
+    pass
 
 
 def get_columns(path) -> tuple[int, list[str]]:

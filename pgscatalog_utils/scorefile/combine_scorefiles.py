@@ -30,6 +30,9 @@ def combine_scorefiles():
         Config.chain_dir = args.chain_dir
         Config.lo = create_liftover()
 
+    if pathlib.Path(args.outfile).exists():
+        raise FileExistsError(f"{args.outfile}")
+
     paths: list[str] = list(set(args.scorefiles))  # unique paths only
     logger.debug(f"Input scorefiles: {paths}")
 

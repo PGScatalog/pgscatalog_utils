@@ -86,7 +86,7 @@ def drop_hla(variants):
 def check_effect_weight(variants):
     for variant in variants:
         try:
-            variant["effect_weight"] = float(variant["effect_weight"])
+            float(variant["effect_weight"])
             yield variant
         except ValueError:
             logger.critical(f"{variant} has bad effect weight")

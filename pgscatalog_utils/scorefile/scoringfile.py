@@ -111,9 +111,7 @@ class ScoringFile:
     @staticmethod
     def read_variants(path, fields, start_line, name: str, is_wide: bool):
         open_function = auto_open(path)
-        # row_nr and cum_batch are equivalent but
-        row_nr = 0  # important to increment in sub-generator for each line
-        cum_batch = 0  # sums batches in this function
+        row_nr = 0
 
         with open_function(path, mode="rt") as f:
             for _ in range(start_line + 1):
@@ -122,15 +120,16 @@ class ScoringFile:
 
             while True:
                 batch = list(islice(f, Config.batch_size))
-                cum_batch += len(batch)
                 if not batch:
                     break
 
                 csv_reader = csv.reader(batch, delimiter="\t")
-                yield from read_rows(csv_reader, fields, name, row_nr, is_wide)
+                yield from read_rows(csv_reader, fields, name, is_wide, row_nr)
+                # this is important for row_nr resets for each batch
+                row_nr += len(batch)
 
 
-def read_rows(csv_reader, fields: list[str], name: str, row_nr: int, wide: bool):
+def read_rows(csv_reader, fields: list[str], name: str, wide: bool, row_nr: int):
     for row in csv_reader:
         variant = dict(zip(fields, row))
 

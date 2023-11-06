@@ -26,9 +26,11 @@ class DataWriter:
             "other_allele",
             "effect_weight",
             "effect_type",
+            "is_duplicated",
             "accession",
             "row_nr",
         ]
+        logger.info(f"Output filename: {filename}")
 
     def write(self, batch):
         pass
@@ -39,23 +41,27 @@ class TextFileWriter(DataWriter):
         super().__init__(filename)
         self.compress = compress
 
-    def write(self, batch):
         if self.compress and Config.threads == 1:
-            logger.info("Writing with gzip (slow)")
-            open_function = functools.partial(gzip.open, compresslevel=6)
+            logger.info("Writing with gzip")
+            self.open_function = functools.partial(gzip.open, compresslevel=6)
         elif self.compress and Config.threads > 1:
-            logger.info("Writing with pgzip (fast)")
-            open_function = functools.partial(
+            logger.info("Writing with pgzip")
+            self.open_function = functools.partial(
                 pgzip.open, compresslevel=6, thread=Config.threads, blocksize=2 * 10**8
             )
         else:
-            logger.info("Writing text file (fast)")
-            open_function = open
+            logger.info("Writing text file")
+            self.open_function = open
 
+    def write(self, batch):
         mode = "at" if os.path.exists(self.filename) else "wt"
-        with open_function(self.filename, mode) as f:
+        with self.open_function(self.filename, mode) as f:
             writer = csv.DictWriter(
-                f, fieldnames=self.fieldnames, delimiter="\t", extrasaction="ignore"
+                f,
+                fieldnames=self.fieldnames,
+                delimiter="\t",
+                extrasaction="ignore",
+                lineterminator="\n",
             )
             if mode == "wt":
                 writer.writeheader()

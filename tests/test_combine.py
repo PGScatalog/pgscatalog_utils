@@ -16,12 +16,24 @@ def test_pgscatalog_combine(pgscatalog_path, tmp_path, combine_output_header):
         + ["-o", str(out_path.resolve())]
     )
 
-    # this mismatch occurs because header is from original PGS (~50,000)
-    # but variants are only from chr22 (~850)
-    with pytest.raises(Exception) as e:
-        with patch("sys.argv", args):
-            combine_scorefiles()
-            assert "Mismatch between variants_number and counted output" in str(e.value)
+    with patch("sys.argv", args):
+        combine_scorefiles()
+
+    n = -1  # skip header line
+    with open(out_path) as f:
+        for i, line in enumerate(f):
+            if i == 0:
+                cols = line.strip().split("\t")
+                assert not set(cols).difference(set(combine_output_header))
+            n += 1
+
+    with open(out_path.parent / "log_combined.json") as f:
+        header = json.load(f)[0]
+        assert header["PGS001229_22"]["pgs_id"] == "PGS001229"
+        assert header["PGS001229_22"]["pgs_name"] == "GBE_INI50"
+        assert header["PGS001229_22"]["genome_build"] == "GRCh37"
+        assert int(header["PGS001229_22"]["variants_number"]) == n
+        assert not header["PGS001229_22"]["use_harmonised"]
 
 
 def test_effect_type_combine(effect_type_path, tmp_path, combine_output_header):

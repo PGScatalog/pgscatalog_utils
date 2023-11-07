@@ -1,10 +1,6 @@
-import functools
 import gzip
 import pathlib
 from dataclasses import dataclass
-
-from pgscatalog_utils.scorefile.config import Config
-from pgzip import pgzip
 
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 
@@ -80,13 +76,6 @@ def _gen_header_lines(f):
 def auto_open(filepath):
     with open(filepath, "rb") as test_f:
         if test_f.read(2) == b"\x1f\x8b":
-            gzipped = True
+            return gzip.open
         else:
-            gzipped = False
-
-    if gzipped and Config.threads > 1:
-        return functools.partial(pgzip.open, thread=Config.threads)
-    elif gzipped:
-        return gzip.open
-    elif not gzipped:
-        return open
+            return open

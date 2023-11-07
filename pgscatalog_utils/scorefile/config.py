@@ -7,7 +7,6 @@ from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 
 @dataclass
 class Config:
-    threads: int
     drop_missing: bool
     liftover: bool
     lo: pyliftover.liftover

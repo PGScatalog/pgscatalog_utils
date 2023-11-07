@@ -8,8 +8,6 @@ import typing
 from collections import Counter
 from itertools import islice
 
-import pgzip
-
 from pgscatalog_utils.scorefile.config import Config
 from pgscatalog_utils.scorefile.scoringfile import ScoringFile
 
@@ -41,14 +39,9 @@ class TextFileWriter(DataWriter):
         super().__init__(filename)
         self.compress = compress
 
-        if self.compress and Config.threads == 1:
+        if self.compress:
             logger.info("Writing with gzip")
             self.open_function = functools.partial(gzip.open, compresslevel=6)
-        elif self.compress and Config.threads > 1:
-            logger.info("Writing with pgzip")
-            self.open_function = functools.partial(
-                pgzip.open, compresslevel=6, thread=Config.threads, blocksize=2 * 10**8
-            )
         else:
             logger.info("Writing text file")
             self.open_function = open

@@ -19,7 +19,6 @@ def combine_scorefiles():
     logger = logging.getLogger(__name__)
     set_logging_level(args.verbose)
 
-    Config.threads = args.threads
     Config.batch_size = 20000
     Config.drop_missing = args.drop_missing
     Config.target_build = GenomeBuild.from_string(args.target_build)
@@ -125,9 +124,6 @@ def _parse_args(args=None) -> argparse.Namespace:
         help="<Optional> If liftover, minimum proportion of variants lifted over",
         default=0.95,
         type=float,
-    )
-    parser.add_argument(
-        "--threads", dest="threads", required=False, default=1, type=int
     )
     parser.add_argument(
         "--drop_missing",

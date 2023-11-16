@@ -35,14 +35,14 @@ class ScoreVariant(collections.UserDict):
     """
 
     mandatory_fields: tuple[str] = (
-        "chr_name",
-        "chr_position",
         "effect_allele",
         "effect_weight",
         "accession",
         "row_nr",
     )
     optional_fields: tuple[str] = (
+        "chr_name",
+        "chr_position",
         "rsID",
         "other_allele",
         "hm_chr",
@@ -63,6 +63,20 @@ class ScoreVariant(collections.UserDict):
         for field in self.mandatory_fields:
             if field not in self.data:
                 raise ValueError(f"Mandatory field '{field}' is missing.")
+
+        # note on coordinates / rsID not being mandatory
+        # ----------------------------------------------
+        # according to PGS Catalog scoring file standards:
+        #   - rsID is mandatory if genomic coordinates are missing
+        #   - genomic coordinates are mandatory if rsIDs are missing
+        # however I want to keep __init__ as simple (and fast) as possible
+        # millions of ScoreVariants may be instantiated
+        # so don't check, just initialise to None if missing
+
+        # practically speaking:
+        # 1) harmonised files may be missing coordinates, but have hm columns which we then use
+        # 2) we loudly warn about variants that are missing coordinates
+        # 3) custom scorefiles are expected to supply coordinates
 
         # set most optional fields to None...
         for field in self.optional_fields:

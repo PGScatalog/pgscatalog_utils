@@ -2,6 +2,7 @@ import logging
 import typing
 
 from pgscatalog_utils.scorefile.config import Config
+from pgscatalog_utils.scorefile.effecttype import EffectType
 from pgscatalog_utils.scorefile.header import ScoringFileHeader
 from pgscatalog_utils.scorefile.liftover import liftover
 
@@ -9,7 +10,23 @@ logger = logging.getLogger(__name__)
 
 
 def quality_control(variants, header: ScoringFileHeader, harmonised: bool, wide: bool):
+    # order is important for:
+    # 1. liftover non-harmonised data (quite rare), failed lifts get None'd
+    # 2. remap harmonised data, failed harmonisations get None'd
+    # 3. check and optionally drop bad variants
+    # where a bad variant has None in a mandatory ScoreVariant field
+    # then continue with other QC
+
+    if Config.liftover:
+        variants = liftover(
+            variants,
+            harmonised=harmonised,
+            current_build=header.genome_build,
+            target_build=Config.target_build,
+        )
+
     variants = remap_harmonised(variants, harmonised)
+    variants = check_bad_variant(variants)
 
     if Config.drop_missing:
         variants = drop_hla(variants)
@@ -23,14 +40,6 @@ def quality_control(variants, header: ScoringFileHeader, harmonised: bool, wide:
         variants = (x for x in sorted(variants, key=lambda x: x["accession"]))
 
     variants = check_duplicates(variants)
-
-    if Config.liftover:
-        variants = liftover(
-            variants,
-            harmonised=harmonised,
-            current_build=header.genome_build,
-            target_build=Config.target_build,
-        )
 
     return variants
 
@@ -75,10 +84,12 @@ def check_duplicates(variants):
 def drop_hla(variants):
     n_dropped = 0
     for variant in variants:
-        if variant["effect_allele"] != "P" or variant["effect_allele"] != "N":
-            yield variant
-        else:
-            n_dropped += 1
+        match variant:
+            case {"effect_allele": "P"} | {"effect_allele": "N"}:
+                n_dropped += 1
+                continue
+            case _:
+                yield variant
 
     logger.warning(f"{n_dropped} HLA alleles detected and dropped")
 
@@ -96,12 +107,8 @@ def check_effect_weight(variants):
 def assign_other_allele(variants):
     n_dropped = 0
     for variant in variants:
-        if "other_allele" in variant:
-            if "/" in variant["other_allele"]:
-                # drop multiple other alleles
-                n_dropped += 1
-                variant["other_allele"] = None
-        else:
+        if "/" in variant["other_allele"]:
+            n_dropped += 1
             variant["other_allele"] = None
 
         yield variant
@@ -115,11 +122,11 @@ def assign_effect_type(variants):
     for variant in variants:
         match (variant.get("is_recessive"), variant.get("is_dominant")):
             case (None, None) | ("FALSE", "FALSE"):
-                variant["effect_type"] = "additive"
+                pass  # default value is additive
             case ("FALSE", "TRUE"):
-                variant["effect_type"] = "dominant"
+                variant["effect_type"] = EffectType.DOMINANT
             case ("TRUE", "FALSE"):
-                variant["effect_type"] = "recessive"
+                variant["effect_type"] = EffectType.RECESSIVE
             case _:
                 logger.critical(f"Bad effect type setting: {variant}")
                 raise Exception
@@ -127,37 +134,33 @@ def assign_effect_type(variants):
 
 
 def remap_harmonised(variants, harmonised: bool):
-    n_bad = 0
     if harmonised:
         for variant in variants:
-            if variant["hm_chr"]:
-                variant["chr_name"] = variant["hm_chr"]
-
-            if variant["hm_pos"]:
-                variant["chr_position"] = variant["hm_pos"]
-
-            if "hm_inferOtherAllele" in variant and variant.get("other_allele") is None:
+            # using the harmonised field in the header to make sure we don't accidentally overwrite
+            # positions with empty data (e.g. in an unharmonised file)
+            # if harmonisation has failed we _always_ want to use that information
+            variant["chr_name"] = variant["hm_chr"]
+            variant["chr_position"] = variant["hm_pos"]
+            if variant["other_allele"] is None:
                 variant["other_allele"] = variant["hm_inferOtherAllele"]
-
-            if (
-                "chr_name" in variant
-                and "chr_position" in variant
-                and "effect_weight" in variant
-            ):
-                yield variant
-            elif Config.drop_missing:
-                continue
-                # (don't yield anything, filtering out missing variants)
-            else:
-                # assume a bad harmonisation with no genomic coordinates
-                # these will get labelled as duplicates eventually (probably)
-                variant["chr_name"] = None
-                variant["chr_position"] = None
-                yield variant
-                n_bad += 1
+            yield variant
     else:
         for variant in variants:
+            # can't remap, so don't try
             yield variant
 
+
+def check_bad_variant(variants):
+    n_bad = 0
+    for variant in variants:
+        match variant:
+            case {"chr_name": None} | {"chr_position": None} | {"effect_allele": None}:
+                # (effect weight checked separately)
+                n_bad += 1
+                if not Config.drop_missing:
+                    yield variant
+            case _:
+                yield variant
+
     if n_bad > 1:
-        logger.warning(f"{n_bad} variants failed harmonisation")
+        logger.warning(f"{n_bad} bad variants")

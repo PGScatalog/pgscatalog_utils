@@ -10,6 +10,7 @@ from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 from pgscatalog_utils.scorefile.config import Config
 from pgscatalog_utils.scorefile.header import ScoringFileHeader, auto_open
 from pgscatalog_utils.scorefile.qc import quality_control
+from pgscatalog_utils.scorefile.scorevariant import ScoreVariant
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -129,7 +130,9 @@ class ScoringFile:
                 row_nr += len(batch)
 
 
-def read_rows(csv_reader, fields: list[str], name: str, wide: bool, row_nr: int):
+def read_rows(
+    csv_reader, fields: list[str], name: str, wide: bool, row_nr: int
+) -> typing.Generator[ScoreVariant, None, None]:
     for row in csv_reader:
         variant = dict(zip(fields, row))
 
@@ -138,40 +141,18 @@ def read_rows(csv_reader, fields: list[str], name: str, wide: bool, row_nr: int)
                 i for i, x in enumerate(["effect_weight_" in x for x in fields]) if x
             ]
             for i, weight_name in zip(ew_col_idxs, [fields[i] for i in ew_col_idxs]):
-                keys = ["chr_name", "chr_position", "effect_allele", "other_allele"]
-                yield {k: variant[k] for k in keys if k in variant} | {
-                    "accession": weight_name,
-                    "row_nr": row_nr,
-                    "effect_weight": variant[weight_name],
-                }
+                yield ScoreVariant(
+                    **variant,
+                    **{
+                        "accession": weight_name,
+                        "row_nr": row_nr,
+                        "effect_weight": variant[weight_name],
+                    },
+                )
         else:
-            keys = [
-                "chr_name",
-                "chr_position",
-                "effect_allele",
-                "other_allele",
-                "effect_weight",
-                "hm_chr",
-                "hm_pos",
-                "hm_inferOtherAllele",
-                "hm_source",
-                "is_dominant",
-                "is_recessive",
-                "accession",
-                "row_nr",
-            ]
-
-            yield {k: variant[k] for k in keys if k in variant} | {
-                "accession": name,
-                "row_nr": row_nr,
-            }
+            yield ScoreVariant(**variant, **{"accession": name, "row_nr": row_nr})
 
         row_nr += 1
-
-
-def parse_dict(variants):
-    # TODO: use best data types when parsing lines
-    pass
 
 
 def get_columns(path) -> tuple[int, list[str]]:

@@ -46,6 +46,8 @@ def liftover(
                 yield variant
                 n_lifted += 1
             else:
+                variant["chr_name"] = None
+                variant["chr_position"] = None
                 variant["lifted"] = False
                 yield variant
             n += 1

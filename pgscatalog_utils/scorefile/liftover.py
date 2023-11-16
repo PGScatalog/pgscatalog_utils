@@ -1,17 +1,22 @@
 import logging
 import os
+import typing
 
 import pyliftover
 
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 from pgscatalog_utils.scorefile.config import Config
+from pgscatalog_utils.scorefile.scorevariant import ScoreVariant
 
 logger = logging.getLogger(__name__)
 
 
 def liftover(
-    variants, harmonised: bool, current_build: GenomeBuild, target_build: GenomeBuild
-):
+    variants: typing.Generator[ScoreVariant, None, None],
+    harmonised: bool,
+    current_build: GenomeBuild,
+    target_build: GenomeBuild,
+) -> typing.Generator[ScoreVariant, None, None]:
     if harmonised:
         skip_lo = True
     elif target_build == current_build:

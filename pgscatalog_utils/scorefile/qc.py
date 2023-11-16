@@ -5,11 +5,17 @@ from pgscatalog_utils.scorefile.config import Config
 from pgscatalog_utils.scorefile.effecttype import EffectType
 from pgscatalog_utils.scorefile.header import ScoringFileHeader
 from pgscatalog_utils.scorefile.liftover import liftover
+from pgscatalog_utils.scorefile.scorevariant import ScoreVariant
 
 logger = logging.getLogger(__name__)
 
 
-def quality_control(variants, header: ScoringFileHeader, harmonised: bool, wide: bool):
+def quality_control(
+    variants: typing.Generator[ScoreVariant, None, None],
+    header: ScoringFileHeader,
+    harmonised: bool,
+    wide: bool,
+) -> typing.Generator[ScoreVariant, None, None]:
     # order is important for:
     # 1. liftover non-harmonised data (quite rare), failed lifts get None'd
     # 2. remap harmonised data, failed harmonisations get None'd
@@ -44,7 +50,9 @@ def quality_control(variants, header: ScoringFileHeader, harmonised: bool, wide:
     return variants
 
 
-def check_duplicates(variants):
+def check_duplicates(
+    variants: typing.Generator[ScoreVariant, None, None]
+) -> typing.Generator[ScoreVariant, None, None]:
     seen_ids: dict = {}
     current_accession: typing.Union[str, None] = None
     n_duplicates: int = 0
@@ -81,7 +89,9 @@ def check_duplicates(variants):
         )
 
 
-def drop_hla(variants):
+def drop_hla(
+    variants: typing.Generator[ScoreVariant, None, None]
+) -> typing.Generator[ScoreVariant, None, None]:
     n_dropped = 0
     for variant in variants:
         match variant:
@@ -94,7 +104,9 @@ def drop_hla(variants):
     logger.warning(f"{n_dropped} HLA alleles detected and dropped")
 
 
-def check_effect_weight(variants):
+def check_effect_weight(
+    variants: typing.Generator[ScoreVariant, None, None]
+) -> typing.Generator[ScoreVariant, None, None]:
     for variant in variants:
         try:
             float(variant["effect_weight"])
@@ -104,7 +116,9 @@ def check_effect_weight(variants):
             raise ValueError
 
 
-def assign_other_allele(variants):
+def assign_other_allele(
+    variants: typing.Generator[ScoreVariant, None, None]
+) -> typing.Generator[ScoreVariant, None, None]:
     n_dropped = 0
     for variant in variants:
         if "/" in variant["other_allele"]:
@@ -118,11 +132,13 @@ def assign_other_allele(variants):
         logger.warning("Other allele for these variants is set to missing")
 
 
-def assign_effect_type(variants):
+def assign_effect_type(
+    variants: typing.Generator[ScoreVariant, None, None]
+) -> typing.Generator[ScoreVariant, None, None]:
     for variant in variants:
         match (variant.get("is_recessive"), variant.get("is_dominant")):
             case (None, None) | ("FALSE", "FALSE"):
-                pass  # default value is additive
+                pass  # default value is additive, pass to break match and yield
             case ("FALSE", "TRUE"):
                 variant["effect_type"] = EffectType.DOMINANT
             case ("TRUE", "FALSE"):
@@ -133,7 +149,9 @@ def assign_effect_type(variants):
         yield variant
 
 
-def remap_harmonised(variants, harmonised: bool):
+def remap_harmonised(
+    variants: typing.Generator[ScoreVariant, None, None], harmonised: bool
+) -> typing.Generator[ScoreVariant, None, None]:
     if harmonised:
         for variant in variants:
             # using the harmonised field in the header to make sure we don't accidentally overwrite
@@ -150,7 +168,9 @@ def remap_harmonised(variants, harmonised: bool):
             yield variant
 
 
-def check_bad_variant(variants):
+def check_bad_variant(
+    variants: typing.Generator[ScoreVariant, None, None]
+) -> typing.Generator[ScoreVariant, None, None]:
     n_bad = 0
     for variant in variants:
         match variant:

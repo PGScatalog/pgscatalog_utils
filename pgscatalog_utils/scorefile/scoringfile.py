@@ -12,7 +12,6 @@ from pgscatalog_utils.scorefile.header import ScoringFileHeader, auto_open
 from pgscatalog_utils.scorefile.qc import quality_control
 from pgscatalog_utils.scorefile.scorevariant import ScoreVariant
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -24,7 +23,7 @@ class ScoringFile:
     genome_build: typing.Union[GenomeBuild, None]
     harmonised: bool
     fields: list[str]
-    variants: typing.Generator
+    variants: typing.Generator[ScoreVariant, None, None]
 
     def __post_init__(self):
         if self.header.HmPOS_build:
@@ -57,13 +56,15 @@ class ScoringFile:
         is_wide = detect_wide(cols)
 
         logger.info(f"Lazily reading variants from {path}")
-        variants = ScoringFile.read_variants(
+        variants: typing.Generator[
+            ScoreVariant, None, None
+        ] = ScoringFile.read_variants(
             path=path, start_line=start_line, fields=cols, name=name, is_wide=is_wide
         )
 
-        # note: these generator expressions aren't doing a bunch of iterations
+        # note: the qc generators aren't doing a bunch of nested iterations
         # it's just a data processing pipeline
-        variants = quality_control(
+        variants: typing.Generator[ScoreVariant, None, None] = quality_control(
             variants, header=header, harmonised=harmonised, wide=is_wide
         )
 
@@ -110,7 +111,9 @@ class ScoringFile:
         return {self.accession: log}
 
     @staticmethod
-    def read_variants(path, fields, start_line, name: str, is_wide: bool):
+    def read_variants(
+        path, fields, start_line, name: str, is_wide: bool
+    ) -> typing.Generator[ScoreVariant, None, None]:
         open_function = auto_open(path)
         row_nr = 0
 
@@ -126,7 +129,7 @@ class ScoringFile:
 
                 csv_reader = csv.reader(batch, delimiter="\t")
                 yield from read_rows(csv_reader, fields, name, is_wide, row_nr)
-                # this is important for row_nr resets for each batch
+                # this is important because row_nr resets for each batch
                 row_nr += len(batch)
 
 

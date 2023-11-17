@@ -16,10 +16,12 @@ def get_with_user_agent(url: str) -> requests.Response:
     return requests.get(url, headers=config.headers())
 
 
-def download_file(url: str, local_path: str, overwrite: bool, ftp_fallback: bool) -> None:
+def download_file(url: str, local_path: str, overwrite: bool,
+                  ftp_fallback: bool) -> None:
     if config.OUTDIR.joinpath(local_path).exists():
         if not overwrite:
-            logger.warning(f"{config.OUTDIR.joinpath(local_path)} exists and overwrite is false, skipping download")
+            logger.warning(
+                f"{config.OUTDIR.joinpath(local_path)} exists and overwrite is false, skipping download")
             return
         elif overwrite:
             logger.warning(f"Overwriting {config.OUTDIR.joinpath(local_path)}")
@@ -28,18 +30,24 @@ def download_file(url: str, local_path: str, overwrite: bool, ftp_fallback: bool
     attempt: int = 0
 
     while attempt < config.MAX_RETRIES:
-        response: requests.Response = get_with_user_agent(url)
-        match response.status_code:
-            case 200:
-                with open(config.OUTDIR.joinpath(local_path), "wb") as f:
-                    f.write(response.content)
-                logger.info("HTTPS download complete")
-                attempt = 0
-                break
-            case _:
-                logger.warning(f"HTTP status {response.status_code} at download attempt {attempt}")
-                attempt += 1
-                time.sleep(5)
+        try:
+            response: requests.Response = get_with_user_agent(url)
+            match response.status_code:
+                case 200:
+                    with open(config.OUTDIR.joinpath(local_path), "wb") as f:
+                        f.write(response.content)
+                    logger.info("HTTPS download complete")
+                    break
+                case _:
+                    logger.warning(
+                        f"HTTP status {response.status_code} at download attempt {attempt}")
+                    attempt += 1
+                    time.sleep(5)
+        except requests.RequestException as e:
+            logger.warning(f"Connection error: {e}")
+            attempt += 1
+            time.sleep(5)
+            logger.warning(f"Retrying download {attempt=} of {config.MAX_RETRIES}")
 
     if attempt > config.MAX_RETRIES:
         if ftp_fallback:
@@ -67,9 +75,9 @@ def _ftp_fallback_download(url: str, local_path: str) -> None:
         except Exception as e:
             if "421" in str(e):
                 retries += 1
-                logger.debug(f"FTP server is busy. Waiting and retrying. Retry {retries} of {config.MAX_RETRIES}")
+                logger.debug(
+                    f"FTP server is busy. Waiting and retrying. Retry {retries} of {config.MAX_RETRIES}")
                 time.sleep(config.DOWNLOAD_WAIT_TIME)
             else:
                 logger.critical(f"Download failed: {e}")
                 raise Exception
-

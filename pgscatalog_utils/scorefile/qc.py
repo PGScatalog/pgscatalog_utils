@@ -3,7 +3,7 @@ import typing
 
 from pgscatalog_utils.scorefile.config import Config
 from pgscatalog_utils.scorefile.effecttype import EffectType
-from pgscatalog_utils.scorefile.header import ScoringFileHeader
+from pgscatalog_utils.scorefile.scoringfileheader import ScoringFileHeader
 from pgscatalog_utils.scorefile.liftover import liftover
 from pgscatalog_utils.scorefile.scorevariant import ScoreVariant
 

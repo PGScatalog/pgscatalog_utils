@@ -45,7 +45,7 @@ class ScoringFileHeader:
             return ScoringFileHeader(**header_dict)
         else:
             # no header available
-            raise Exception("No header detected in scoring file")
+            raise Exception(f"No header detected in scoring file {path=}")
 
 
 def raw_header_to_dict(header):

@@ -8,7 +8,7 @@ from itertools import islice
 
 from pgscatalog_utils.download.GenomeBuild import GenomeBuild
 from pgscatalog_utils.scorefile.config import Config
-from pgscatalog_utils.scorefile.header import ScoringFileHeader, auto_open
+from pgscatalog_utils.scorefile.scoringfileheader import ScoringFileHeader, auto_open
 from pgscatalog_utils.scorefile.qc import quality_control
 from pgscatalog_utils.scorefile.scorevariant import ScoreVariant
 

@@ -91,9 +91,10 @@ class ScoringFile:
         if (
             int(log["variants_number"]) != counted["n_variants"]
             and not Config.drop_missing
+            and counted.get("complex", 0) == 0
         ):
             raise Exception(
-                f"Mismatch between variants_number and counted output {self.accession}"
+                f"Mismatch between header ({log['variants_number']}) and counted output ({counted['n_variants']}) for {self.accession}"
             )
 
         # multiple terms may be separated with a pipe

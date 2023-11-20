@@ -1,6 +1,8 @@
 import logging
 import typing
 
+from pgscatalog_utils.scorefile.effectallele import EffectAllele
+
 from pgscatalog_utils.scorefile.config import Config
 from pgscatalog_utils.scorefile.effecttype import EffectType
 from pgscatalog_utils.scorefile.scoringfileheader import ScoringFileHeader
@@ -22,6 +24,7 @@ def quality_control(
     # 3. check and optionally drop bad variants
     # where a bad variant has None in a mandatory ScoreVariant field
     # then continue with other QC
+    logger.info(f"Starting quality control checks for {header.pgs_id=}")
 
     if Config.liftover:
         variants = liftover(
@@ -40,6 +43,7 @@ def quality_control(
     variants = assign_effect_type(variants)
     variants = check_effect_weight(variants)
     variants = assign_other_allele(variants)
+    variants = check_effect_allele(variants)
 
     if wide:
         # wide data must be sorted because check_duplicates requires sorted input
@@ -184,3 +188,17 @@ def check_bad_variant(
 
     if n_bad > 1:
         logger.warning(f"{n_bad} bad variants")
+
+
+def check_effect_allele(
+    variants: typing.Generator[ScoreVariant, None, None]
+) -> typing.Generator[ScoreVariant, None, None]:
+    n_bad = 0
+    for variant in variants:
+        if not EffectAllele.is_valid(variant["effect_allele"]):
+            n_bad += 1
+
+        yield variant
+
+    if n_bad > 1:
+        logger.warning(f"{n_bad} variants have invalid effect alleles (not ACTG)")

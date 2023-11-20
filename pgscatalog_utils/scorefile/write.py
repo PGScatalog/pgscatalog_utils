@@ -9,6 +9,8 @@ from collections import Counter
 from itertools import islice
 
 from pgscatalog_utils.scorefile.config import Config
+from pgscatalog_utils.scorefile.effectallele import EffectAllele
+from pgscatalog_utils.scorefile.scorevariant import ScoreVariant
 from pgscatalog_utils.scorefile.scoringfile import ScoringFile
 
 logger = logging.getLogger(__name__)
@@ -112,9 +114,29 @@ def write_combined(
     return log
 
 
-def calculate_log(batch, log: list[Counter]) -> list[Counter]:
+def calculate_log(batch: list[ScoreVariant], log: list[Counter]) -> list[Counter]:
     # these statistics can only be generated while iterating through variants
     n_variants = Counter("n_variants" for item in batch)
+    complex_scorefile = Counter(detect_complex(batch))
     hm_source = Counter(item["hm_source"] for item in batch if "hm_source" in item)
-    log.extend([n_variants, hm_source])
+    log.extend([n_variants + hm_source + complex_scorefile])
     return log
+
+
+def detect_complex(batch: list[ScoreVariant]) -> typing.Generator[str, None, None]:
+    """Some older scoring files in the PGS Catalog are complicated
+    We agreed to skip some checks on these odd files and just reproduce them faithfully
+    They often require bespoke set up to support interaction terms, etc
+    """
+    complex_keys = {"is_haplotype", "is_diplotype", "is_interaction"}
+
+    for key in complex_keys:
+        for variant in batch:
+            if not EffectAllele.is_valid(variant["effect_allele"]):
+                yield "complex"
+
+            if variant.get(key, False) == "True":
+                # explicitly check string value with == because
+                # a scoring file with a column with all false values is valid
+                # (i.e. don't just check key presence)
+                yield "complex"

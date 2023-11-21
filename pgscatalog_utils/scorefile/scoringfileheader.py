@@ -1,4 +1,5 @@
 import gzip
+import inspect
 import pathlib
 from dataclasses import dataclass
 
@@ -33,7 +34,7 @@ class ScoringFileHeader:
     def from_path(cls, path: pathlib.Path):
         raw_header: dict = raw_header_to_dict(read_header(path))
         # only keep keys needed by class but support partial headers with None values
-        keep_keys = ScoringFileHeader.__annotations__.keys()
+        keep_keys = inspect.get_annotations(ScoringFileHeader).keys()
         header_dict = {k: raw_header.get(k) for k in keep_keys}
         # ... so we can unpack the dict into a dataclass
 

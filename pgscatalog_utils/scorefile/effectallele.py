@@ -1,8 +1,3 @@
-import logging
-
-logger = logging.getLogger(__name__)
-
-
 class EffectAllele:
     # (class attribute, so shared)
     _valid_bases = frozenset({"A", "C", "T", "G"})

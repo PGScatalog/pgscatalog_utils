@@ -24,8 +24,6 @@ def quality_control(
     # 3. check and optionally drop bad variants
     # where a bad variant has None in a mandatory ScoreVariant field
     # then continue with other QC
-    logger.info(f"Starting quality control checks for {header.pgs_id=}")
-
     if Config.liftover:
         variants = liftover(
             variants,
@@ -44,6 +42,7 @@ def quality_control(
     variants = check_effect_weight(variants)
     variants = assign_other_allele(variants)
     variants = check_effect_allele(variants)
+    variants = detect_complex(variants)
 
     if wide:
         # wide data must be sorted because check_duplicates requires sorted input
@@ -202,3 +201,25 @@ def check_effect_allele(
 
     if n_bad > 1:
         logger.warning(f"{n_bad} variants have invalid effect alleles (not ACTG)")
+
+
+def detect_complex(
+    variants: typing.Generator[ScoreVariant, None, None]
+) -> typing.Generator[ScoreVariant, None, None]:
+    """Some older scoring files in the PGS Catalog are complicated.
+    They often require bespoke set up to support interaction terms, etc
+    """
+    complex_keys = {"is_haplotype", "is_diplotype", "is_interaction"}
+    is_complex = False
+
+    for variant in variants:
+        if not is_complex:
+            is_complex = any(key in variant for key in complex_keys)
+
+        yield variant
+
+    if is_complex:
+        logger.warning("Complex scoring file detected")
+        logger.warning(
+            "Complex files are difficult to calculate properly and may require manual intervention"
+        )

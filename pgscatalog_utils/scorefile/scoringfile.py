@@ -91,10 +91,12 @@ class ScoringFile:
         if (
             int(log["variants_number"]) != counted["n_variants"]
             and not Config.drop_missing
-            and counted.get("complex", 0) == 0
         ):
-            raise Exception(
-                f"Mismatch between header ({log['variants_number']}) and counted output ({counted['n_variants']}) for {self.accession}"
+            logger.warning(
+                f"Mismatch between header ({log['variants_number']}) and output row count ({counted['n_variants']}) for {self.accession}"
+            )
+            logger.warning(
+                "This can happen with older scoring files in the PGS Catalog (e.g. PGS000028)"
             )
 
         # multiple terms may be separated with a pipe

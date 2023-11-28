@@ -65,7 +65,7 @@ def _check_duplicate_vars(matches: pl.LazyFrame):
                 "Please double check your genomes for duplicates and try again")
             raise ValueError
         case _:
-            logger.info("No duplicate variants found")
+            logger.info("Scoring files are valid (no duplicate variants found)")
 
 
 def _parse_args(args=None):

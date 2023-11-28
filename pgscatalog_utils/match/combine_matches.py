@@ -23,9 +23,12 @@ def combine_matches():
     config.OUTDIR = args.outdir
 
     with pl.StringCache():
-        scorefile = read_scorefile(path=args.scorefile, chrom=None)  # chrom=None to read all variants
+        scorefile = read_scorefile(path=args.scorefile,
+                                   chrom=None)  # chrom=None to read all variants
         logger.debug("Reading matches")
-        matches = pl.concat([pl.scan_ipc(x, memory_map=False, rechunk=False) for x in args.matches], rechunk=False)
+        matches = pl.concat(
+            [pl.scan_ipc(x, memory_map=False, rechunk=False) for x in args.matches],
+            rechunk=False)
 
         logger.debug("Labelling match candidates")
         params: dict[str, bool] = make_params_dict(args)
@@ -49,7 +52,20 @@ def _check_duplicate_vars(matches: pl.LazyFrame):
                                  .collect()
                                  .get_column('count')
                                  .to_list())
-    assert max_occurrence == [1], "Duplicate IDs in final matches"
+
+    match n := max_occurrence[0]:
+        case None:
+            logger.critical("No variant matches found")
+            logger.critical(
+                "Did you set the correct genome build? Did you impute your genomes?")
+            raise ValueError
+        case _ if n > 1:
+            logger.critical("Duplicate IDs in final matches")
+            logger.critical(
+                "Please double check your genomes for duplicates and try again")
+            raise ValueError
+        case _:
+            logger.info("Scoring files are valid (no duplicate variants found)")
 
 
 def _parse_args(args=None):
@@ -61,18 +77,21 @@ def _parse_args(args=None):
     parser.add_argument('-m', '--matches', dest='matches', required=True, nargs='+',
                         help='<Required> List of match files')
     parser.add_argument('--min_overlap', dest='min_overlap', required=True,
-                        type=float, help='<Required> Minimum proportion of variants to match before error')
+                        type=float,
+                        help='<Required> Minimum proportion of variants to match before error')
     parser.add_argument('-IDs', '--filter_IDs', dest='filter',
                         help='<Optional> Path to file containing list of variant IDs that can be included in the final scorefile.'
                              '[useful for limiting scoring files to variants present in multiple datasets]')
-    parser = add_match_args(parser) # params for labelling matches
+    parser = add_match_args(parser)  # params for labelling matches
     parser.add_argument('--outdir', dest='outdir', required=True,
                         help='<Required> Output directory')
     parser.add_argument('--split', dest='split', default=False, action='store_true',
                         help='<Optional> Write scorefiles split per chromosome?')
-    parser.add_argument('--combined', dest='combined', default=False, action='store_true',
+    parser.add_argument('--combined', dest='combined', default=False,
+                        action='store_true',
                         help='<Optional> Write scorefiles in combined format?')
-    parser.add_argument('-n', dest='n_threads', default=1, help='<Optional> n threads for matching', type=int)
+    parser.add_argument('-n', dest='n_threads', default=1,
+                        help='<Optional> n threads for matching', type=int)
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         help='<Optional> Extra logging information')
     return parser.parse_args(args)

@@ -18,7 +18,7 @@ def read_pcs(loc_pcs: list[str],dataset: str, loc_related_ids=None, nPCs=None):
 
     for i, path in enumerate(loc_pcs):
         logger.debug("Reading PCA projection: {}".format(path))
-        df = pd.read_csv(path, sep='\t', converters={"IID": str})
+        df = pd.read_csv(path, sep='\t', converters={"IID": str}, header=0)
         df['sampleset'] = dataset
         df.set_index(['sampleset', 'IID'], inplace=True)
 
@@ -79,7 +79,7 @@ def read_pgs(loc_aggscore, onlySUM: bool):
     :return:
     """
     logger.debug('Reading aggregated score data: {}'.format(loc_aggscore))
-    df = pd.read_csv(loc_aggscore, sep='\t', index_col=['sampleset', 'IID'], converters={"IID": str})
+    df = pd.read_csv(loc_aggscore, sep='\t', index_col=['sampleset', 'IID'], converters={"IID": str}, header=0)
     if onlySUM:
         df = df[[x for x in df.columns if x.endswith('_SUM')]]
         rn = [x.rstrip('_SUM') for x in df.columns]

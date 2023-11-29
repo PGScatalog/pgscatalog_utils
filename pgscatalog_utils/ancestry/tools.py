@@ -35,8 +35,20 @@ def choose_pval_threshold(args):
     return set_threshold
 
 
-def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFrame, ref_train_col=None, n_pcs=4, method='RandomForest',
-                     covariance_method='EmpiricalCovariance', p_threshold=None):
+def get_covariance_method(method_name):
+    match method_name:
+        case 'MinCovDet':
+            covariance_model = MinCovDet()
+        case 'EmpiricalCovariance':
+            covariance_model = EmpiricalCovariance()
+        case _:
+            assert False, "Invalid covariance method"
+
+    return covariance_model
+
+
+def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataFrame, ref_train_col=None, n_pcs=4,
+                     method='RandomForest', covariance_method='EmpiricalCovariance', p_threshold=None):
     """
     Function to compare target sample ancestry to a reference panel with PCA data
     :param ref_df: reference dataset
@@ -52,7 +64,7 @@ def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataF
     # Check that datasets have the correct columns
     assert method in comparison_method_threshold.keys(), 'comparison method parameter must be Mahalanobis or RF'
     if method == 'Mahalanobis':
-        assert covariance_method in _mahalanobis_methods, 'ovariance estimation method must be MinCovDet or EmpiricalCovariance'
+        assert covariance_method in _mahalanobis_methods, 'covariance estimation method must be MinCovDet or EmpiricalCovariance'
 
     cols_pcs = ['PC{}'.format(x + 1) for x in range(0, n_pcs)]
     assert all([col in ref_df.columns for col in cols_pcs]), \
@@ -73,14 +85,27 @@ def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataF
     else:
         ref_train_df = ref_df
 
-    # Check if PCs only capture target/reference stratification
+    # Check outlier-ness of target with regard to the reference PCA space
     compare_info = {}
-    for col_pc in cols_pcs:
-        mwu_pc = mannwhitneyu(ref_train_df[col_pc], target_df[col_pc])
-        compare_info[col_pc] = {'U': mwu_pc.statistic, 'pvalue': mwu_pc.pvalue}
-        if mwu_pc.pvalue < 1e-4:
-            logger.warning("{} *may* be capturing target/reference stratification (Mann-Whitney p-value={}), "
-                           "use visual inspection of PC plot to confirm".format(col_pc, mwu_pc.pvalue))
+    pop = 'ALL'
+    ref_covariance_model = get_covariance_method(covariance_method)
+    ref_covariance_fit = ref_covariance_model.fit(ref_train_df[cols_pcs])
+    colname_dist = 'Mahalanobis_dist_{}'.format(pop)
+    colname_pval = 'Mahalanobis_P_{}'.format(pop)
+    target_df[colname_dist] = ref_covariance_fit.mahalanobis(target_df[cols_pcs])
+    target_df[colname_pval] = chi2.sf(target_df[colname_dist], n_pcs - 1)
+    compare_info['Mahalanobis_P_ALL'] = dict(target_df[colname_pval].describe())
+    logger.info('Mahalanobis Probability Distribution (train: all reference samples): {}'.format(
+        compare_info['Mahalanobis_P_ALL']))
+
+    ## Check if PCs only capture target/reference stratification
+    if target_df.shape[0] >= 20:
+        for col_pc in cols_pcs:
+            mwu_pc = mannwhitneyu(ref_train_df[col_pc], target_df[col_pc])
+            compare_info[col_pc] = {'U': mwu_pc.statistic, 'pvalue': mwu_pc.pvalue}
+            if mwu_pc.pvalue < 1e-4:
+                logger.warning("{} *may* be capturing target/reference stratification (Mann-Whitney p-value={}), "
+                               "use visual inspection of PC plot to confirm".format(col_pc, mwu_pc.pvalue))
 
     # Run Ancestry Assignment methods
     if method == 'Mahalanobis':
@@ -93,13 +118,7 @@ def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataF
             colname_dist = 'Mahalanobis_dist_{}'.format(pop)
             colname_pval = 'Mahalanobis_P_{}'.format(pop)
 
-            match covariance_method:
-                case 'MinCovDet':
-                    covariance_model = MinCovDet()
-                case 'EmpiricalCovariance':
-                    covariance_model = EmpiricalCovariance()
-                case _:
-                    assert False, "Invalid covariance method"
+            covariance_model = get_covariance_method(covariance_method)
 
             covariance_fit = covariance_model.fit(ref_train_df.loc[ref_train_df[ref_pop_col] == pop, cols_pcs])
 
@@ -378,6 +397,7 @@ def nLL_mu_and_var(theta, df, c_score, l_predictors):
     x = df[c_score]
     return sum(np.log(np.sqrt(f_var(df[l_predictors], theta_var))) +
                (1/2)*(x - f_mu(df[l_predictors], theta_mu))**2/f_var(df[l_predictors], theta_var))
+
 
 def grdnt_mu_and_var(theta, df, c_score, l_predictors):
     """Gradient used to optimize the nLL_mu_and_var fit function.

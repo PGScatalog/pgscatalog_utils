@@ -27,8 +27,12 @@ def _parse_args(args=None) -> argparse.Namespace:
 def _truncate_chrom(chrom):
     try:
         return str(int(chrom))  # truncate numeric chromosomes 22.0 -> 22
-    except ValueError:  # it's OK if chrom is a string e.g. MT / X / Y
-        return chrom
+    except ValueError:
+        if "chr" in chrom:
+            logger.critical("Please remove chr prefix from samplesheet chromosome column e.g. chr1 -> 1, chrX -> X")
+            raise ValueError("chr prefix detected")
+        else:
+            return chrom # it's OK if chrom is a string e.g. MT / X / Y
     except TypeError:  # also OK if chrom is missing entirely
         return None
 

@@ -226,7 +226,11 @@ def _resolve_paths(path_list: list[str], filetype: str) -> list[str]:
                 resolved_list.append(str(resolved))
             else:
                 logger.critical(
-                    f"{resolved} doesn't exist, please check samplesheet path_prefix and try again")
+                    f"{resolved} doesn't exist, please check samplesheet path_prefix and try again"
+                )
+                logger.critical(
+                    "If you're 100% sure this file exists and you're confused by this error, please check https://pgsc-calc.readthedocs.io/en/latest/how-to/mount.html"
+                )
                 raise FileNotFoundError
 
     return resolved_list

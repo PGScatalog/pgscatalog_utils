@@ -48,7 +48,7 @@ def read_pcs(loc_pcs: list[str],dataset: str, loc_related_ids=None, nPCs=None):
     else:
         # if unrelated is all nan -> dtype is float64
         # if unrelated is only true / false -> dtype is bool
-        # if unrelated contains None
+        # if unrelated contains None, dtype stays bool, and pd.concat warning disappears
         proj['Unrelated'] = None
 
     return proj

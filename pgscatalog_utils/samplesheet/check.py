@@ -13,33 +13,38 @@ logger = logging.getLogger(__name__)
 
 
 def _parse_args(args=None) -> argparse.Namespace:
-    d: str = "Convert pgscatalog/pgsc_calc samplesheet file to JSON and check its contents."
+    d: (
+        str
+    ) = "Convert pgscatalog/pgsc_calc samplesheet file to JSON and check its contents."
     e: str = "Example usage: python check.py <FILE_IN> <FILE_OUT>"
 
     parser: argparse.ArgumentParser = argparse.ArgumentParser(description=d, epilog=e)
     parser.add_argument("FILE_IN", help="Input samplesheet file.")
-    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
-                        help='<Optional> Extra logging information')
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        action="store_true",
+        help="<Optional> Extra logging information",
+    )
     parser.add_argument("FILE_OUT", help="Output file.")
     return parser.parse_args(args)
 
 
 def _truncate_chrom(chrom):
-    try:
-        return str(int(chrom))  # truncate numeric chromosomes 22.0 -> 22
-    except ValueError:
-        if "chr" in chrom:
+    match chrom:
+        case _ if chrom.isdigit():
+            return int(chrom)
+        case _ if chrom.startswith("chr"):
             logger.critical("Please remove chr prefix from samplesheet chromosome column e.g. chr1 -> 1, chrX -> X")
             raise ValueError("chr prefix detected")
-        else:
-            return chrom # it's OK if chrom is a string e.g. MT / X / Y
-    except TypeError:  # also OK if chrom is missing entirely
-        return None
+        case _:
+            return chrom
 
 
 def _check_colnames(df: pd.DataFrame):
-    mandatory: list[str] = ['sampleset', 'path_prefix', 'chrom', 'format']
-    optional: list[str] = ['vcf_genotype_field']
+    mandatory: list[str] = ["sampleset", "path_prefix", "chrom", "format"]
+    optional: list[str] = ["vcf_genotype_field"]
 
     if not set(mandatory) == set(df.columns):
         if set(mandatory + optional) == set(df.columns):
@@ -48,14 +53,17 @@ def _check_colnames(df: pd.DataFrame):
         else:
             logger.critical("Samplesheet has invalid header row")
             logger.critical(f"Column names must only include: {mandatory}")
-            [logger.critical(f"Invalid column name: {col}") for col in df if
-             col not in mandatory]
+            [
+                logger.critical(f"Invalid column name: {col}")
+                for col in df
+                if col not in mandatory
+            ]
             raise Exception
 
 
 def _check_unique_paths(df: pd.DataFrame):
-    """ Each row in a samplesheet should have a unique path """
-    duplicated: pd.Series = df['path_prefix'].duplicated()
+    """Each row in a samplesheet should have a unique path"""
+    duplicated: pd.Series = df["path_prefix"].duplicated()
     for idx, duplicate in duplicated.items():
         if duplicate:
             bad_record = df.iloc[:idx]
@@ -63,8 +71,8 @@ def _check_unique_paths(df: pd.DataFrame):
 
 
 def _check_empty_paths(df: pd.DataFrame):
-    """ Paths are mandatory """
-    empty_paths: pd.Series = df['path_prefix'].isnull()
+    """Paths are mandatory"""
+    empty_paths: pd.Series = df["path_prefix"].isnull()
     for idx, empty in empty_paths.items():
         if empty:
             logger.critical(f"Empty path found in samplesheet:\n {df.iloc[[idx]]}")
@@ -72,8 +80,8 @@ def _check_empty_paths(df: pd.DataFrame):
 
 
 def _read_samplesheet(path: str) -> pd.DataFrame:
-    csv: pd.DataFrame = pd.read_csv(path, sep=',', header=0)
-    csv['chrom'] = csv['chrom'].apply(_truncate_chrom)
+    csv: pd.DataFrame = pd.read_csv(path, sep=",", header=0, converters={"chrom": str})
+    csv["chrom"] = csv["chrom"].apply(_truncate_chrom)
     return csv
 
 
@@ -85,8 +93,8 @@ def _check_paths(df: pd.DataFrame) -> None:
 def _get_chrom_list(df: pd.DataFrame) -> dict[str, list[str | None]]:
     chrom_dict = {}
     for idx, row in df.iterrows():
-        key = row['sampleset']
-        value = row['chrom']
+        key = row["sampleset"]
+        value = row["chrom"]
         try:
             if math.isnan(value):
                 value = None
@@ -101,8 +109,9 @@ def _get_chrom_list(df: pd.DataFrame) -> dict[str, list[str | None]]:
 
 def _check_chrom_duplicates(sampleset: str, chrom_list: dict) -> None:
     seen = set()
-    duplicate_chromosomes: list[str] = [str(x) for x in chrom_list if
-                                        x in seen or seen.add(x)]
+    duplicate_chromosomes: list[str] = [
+        str(x) for x in chrom_list if x in seen or seen.add(x)
+    ]
     if duplicate_chromosomes:
         logger.critical(f"Duplicate chromosomes detected in sampleset {sampleset}")
         logger.critical(f"Duplicate chromosomes: {duplicate_chromosomes}")
@@ -113,11 +122,14 @@ def _check_multiple_missing_chrom(sampleset: str, chrom_list: dict) -> None:
     for chrom in chrom_list:
         if chrom is None and len(chrom_list) != 1:
             logger.critical(
-                f"Sampleset {sampleset} has rows with multiple missing chromosomes")
+                f"Sampleset {sampleset} has rows with multiple missing chromosomes"
+            )
             logger.critical(
-                "If you have file with multiple chromosomes, delete the duplicate rows")
+                "If you have file with multiple chromosomes, delete the duplicate rows"
+            )
             logger.critical(
-                "If your data are split per chromosome, then chromosomes must be set for all rows")
+                "If your data are split per chromosome, then chromosomes must be set for all rows"
+            )
             raise Exception
 
 
@@ -131,39 +143,41 @@ def _check_chrom(df: pd.DataFrame) -> None:
 
 
 def _check_format(df: pd.DataFrame):
-    """ Make sure the file format is a valid choice """
+    """Make sure the file format is a valid choice"""
     for idx, row in df.iterrows():
-        valid_formats: list[str] = ['vcf', 'pfile', 'bfile']
-        if row['format'] not in valid_formats:
+        valid_formats: list[str] = ["vcf", "pfile", "bfile"]
+        if row["format"] not in valid_formats:
             logger.critical(
-                f"Invalid format: {row['format']} must be one of {valid_formats}")
+                f"Invalid format: {row['format']} must be one of {valid_formats}"
+            )
             logger.critical(f"\n{df.iloc[[idx]]}")
             raise Exception
 
 
 def _setup_paths(df: pd.DataFrame) -> pd.DataFrame:
-    """ Add suffix to path prefixes depending on file format / type """
+    """Add suffix to path prefixes depending on file format / type"""
     paths: list[pd.Series] = []
     for idx, row in df.iterrows():
         suffix: list[str]
-        match row['format']:
-            case 'vcf':
+        match row["format"]:
+            case "vcf":
                 logger.info("Setting VCF input")
-                suffix = ['.vcf.gz']
-            case 'bfile':
+                suffix = [".vcf.gz"]
+            case "bfile":
                 logger.info("Setting plink1 binary fileset (bfile) input")
-                suffix = ['.bed', '.bim', '.fam']
-            case 'pfile':
+                suffix = [".bed", ".bim", ".fam"]
+            case "pfile":
                 logger.info("Setting plink2 binary fileset (pfile) input")
-                suffix = ['.pgen', '.pvar', '.psam']
+                suffix = [".pgen", ".pvar", ".psam"]
             case _:
                 raise Exception
 
         resolved_paths: list[str] = _resolve_paths(
-            [row['path_prefix'] + x for x in suffix], row['format'])
+            [row["path_prefix"] + x for x in suffix], row["format"]
+        )
         paths.append(pd.Series(data=[resolved_paths], index=[idx]))
 
-    df['path'] = pd.concat(paths)
+    df["path"] = pd.concat(paths)
     return df
 
 
@@ -171,7 +185,7 @@ def _resolve_compressed_variant_path(path: str) -> pathlib.Path:
     # .bim.zst | .bim -> OK
     # .pvar.zst | .pvar -> OK
     # anything else not OK
-    zstd_ext: str = '.zst'
+    zstd_ext: str = ".zst"
     compressed_path: pathlib.Path = pathlib.Path(path + zstd_ext).resolve()
     uncompressed_path: pathlib.Path = pathlib.Path(path).resolve()
 
@@ -181,13 +195,15 @@ def _resolve_compressed_variant_path(path: str) -> pathlib.Path:
         return compressed_path
     elif uncompressed_path.exists():
         logger.info(
-            f"Couldn't find compressed variant information file, trying {uncompressed_path.name}")
+            f"Couldn't find compressed variant information file, trying {uncompressed_path.name}"
+        )
         return uncompressed_path
     else:
         logger.critical(f"{compressed_path} doesn't exist")
         logger.critical(f"{uncompressed_path} doesn't exist")
         logger.critical(
-            "Couldn't find variant information files, please check samplesheet path_prefix and try again")
+            "Couldn't find variant information files, please check samplesheet path_prefix and try again"
+        )
         raise Exception
 
 
@@ -198,7 +214,8 @@ def _resolve_paths(path_list: list[str], filetype: str) -> list[str]:
     base_dir: Path = Path(Config.input_path).resolve().parent
     if (path := Path(Config.input_path)).is_symlink():
         logger.info(
-            f"Input file {path} is symlinked, resolving to absolute path {path.resolve()}")
+            f"Input file {path} is symlinked, resolving to absolute path {path.resolve()}"
+        )
 
     for path in path_list:
         if path.startswith("https://") | path.startswith("s3://"):
@@ -212,15 +229,18 @@ def _resolve_paths(path_list: list[str], filetype: str) -> list[str]:
             p: Path = Path(path)
             if not p.is_absolute():
                 logger.warning(
-                    "Relative path detected in samplesheet. Set absolute paths to silence this warning.")
+                    "Relative path detected in samplesheet. Set absolute paths to silence this warning."
+                )
                 logger.warning(
-                    "Assuming input samplesheet is a symlinked file in a nextflow working directory")
+                    "Assuming input samplesheet is a symlinked file in a nextflow working directory"
+                )
                 logger.warning(
-                    "Following symlink and attempting to resolve path relative to input file")
-                logger.warning(
-                    f"Resolving paths relative to: {base_dir}")
-                resolved = _resolve_filetypes(path=str(base_dir.joinpath(path)),
-                                              filetype=filetype)
+                    "Following symlink and attempting to resolve path relative to input file"
+                )
+                logger.warning(f"Resolving paths relative to: {base_dir}")
+                resolved = _resolve_filetypes(
+                    path=str(base_dir.joinpath(path)), filetype=filetype
+                )
             else:
                 logger.info("Absolute path detected")
                 resolved = _resolve_filetypes(filetype=filetype, path=str(p))
@@ -242,13 +262,13 @@ def _resolve_paths(path_list: list[str], filetype: str) -> list[str]:
 
 def _resolve_filetypes(filetype: str, path: str) -> Path:
     match filetype:
-        case 'pfile' | 'bfile':
-            if path.endswith('.bim') or path.endswith('.pvar'):
+        case "pfile" | "bfile":
+            if path.endswith(".bim") or path.endswith(".pvar"):
                 resolved = _resolve_compressed_variant_path(path)
             else:
                 # bed / pgen | fam / psam
                 resolved = pathlib.Path(path).resolve()
-        case 'vcf':
+        case "vcf":
             resolved = pathlib.Path(path).resolve()
         case _:
             logger.critical(f"Unsupported filetype {filetype}")
@@ -258,24 +278,25 @@ def _resolve_filetypes(filetype: str, path: str) -> Path:
 
 
 def _check_genotype_field(df: pd.DataFrame) -> pd.DataFrame:
-    df['vcf_import_dosage'] = False  # (dosage off by default)
-    if 'vcf_genotype_field' in df.columns:
+    df["vcf_import_dosage"] = False  # (dosage off by default)
+    if "vcf_genotype_field" in df.columns:
         logger.debug("vcf_genotype_field detected")
         for index, row in df.iterrows():
-            if row['vcf_genotype_field'] not in ['GT', 'DS']:
+            if row["vcf_genotype_field"] not in ["GT", "DS"]:
                 missing: bool  # missing dosage is OK
                 try:
-                    missing = math.isnan(row['vcf_genotype_field'])
+                    missing = math.isnan(row["vcf_genotype_field"])
                 except TypeError:
                     missing = False
 
                 if not missing:
                     logger.critical(
-                        f"Invalid entry in vcf_genotype_field: {row['vcf_genotype_field']}")
+                        f"Invalid entry in vcf_genotype_field: {row['vcf_genotype_field']}"
+                    )
                     logger.critical(f"\n {row}")
                     raise Exception
 
-        df.loc[df['vcf_genotype_field'] == 'DS', 'vcf_import_dosage'] = True
+        df.loc[df["vcf_genotype_field"] == "DS", "vcf_import_dosage"] = True
     else:
         logger.info("no vcf_genotype_field detected")
 
@@ -283,23 +304,26 @@ def _check_genotype_field(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _check_reserved_names(df: pd.DataFrame):
-    if any(df['sampleset'] == 'reference'):
+    if any(df["sampleset"] == "reference"):
         logger.critical(
-            "Samplesets must not be named 'reference', please rename in the sample sheet")
+            "Samplesets must not be named 'reference', please rename in the sample sheet"
+        )
         raise Exception
 
     # Check whether reference contains reserved tokens from nextflow channels
-    badnames = [x for x in df['sampleset'] if ('.' in x or '_' in x)]
+    badnames = [x for x in df["sampleset"] if ("." in x or "_" in x)]
     if len(badnames) > 0:
         logger.critical(
             "Samplesets must not contain any reserved characters ( '_' , '.'), "
             "please rename the following samples in the sample sheet: {}".format(
-                badnames))
+                badnames
+            )
+        )
         raise Exception
 
 
 def _check_one_sampleset(df: pd.DataFrame):
-    samplesets = set(df['sampleset'].to_list())
+    samplesets = set(df["sampleset"].to_list())
     if len(samplesets) > 1:
         logger.critical(f"Multiple samplesets defined in the samplesheet {samplesets}")
         sampleset_error = """ Only one sampleset per samplesheet is supported
@@ -307,7 +331,7 @@ def _check_one_sampleset(df: pd.DataFrame):
         pgsc_calc works best with cohorts
         Individual VCFs should be merged into a multi-sample VCF
         If you want to process multiple cohorts, please run pgsc_calc multiple times with different samplesheets. """
-        [logger.critical(x.strip()) for x in sampleset_error.split('\n')]
+        [logger.critical(x.strip()) for x in sampleset_error.split("\n")]
         raise Exception("Multiple samplesets")
 
 
@@ -338,8 +362,7 @@ def check_samplesheet() -> None:
     df = _check_genotype_field(df)  # dosages
 
     logger.info("Samplesheet checks complete")
-    (df.drop(['path_prefix'], axis=1)
-     .to_json(Config.output_path, orient='records'))
+    (df.drop(["path_prefix"], axis=1).to_json(Config.output_path, orient="records"))
     logger.info(f"JSON file successfully written to {Config.output_path}")
 
 

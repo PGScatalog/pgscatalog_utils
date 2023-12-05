@@ -26,14 +26,25 @@ def ancestry_analysis():
                             loc_related_ids=args.ref_related, nPCs=maxPCs)
     loc_ref_psam = args.psam
     reference_df = extract_ref_psam_cols(loc_ref_psam, args.d_ref, reference_df, keepcols=[args.ref_label])
+    assert reference_df.shape[0] > 100, "Error: too few reference panel samples. This is an arbitrary threshold " \
+                                        "for input QC; however, it is inadvisable to run this analysis with limited " \
+                                        "reference panel diversity as empirical percentiles are calculated."
 
     loc_target_sscores = args.target_pcs
     target_df = read_pcs(loc_pcs=loc_target_sscores, dataset=args.d_target, nPCs=maxPCs)
+    assert target_df.shape[0] >= 1, "Error: NO target samples found in PCs file."
 
     # Load PGS data & merge with PCA data
     pgs = read_pgs(args.scorefile, onlySUM=True)
     scorecols = list(pgs.columns)
+
+    ## There should be perfect target sample overlap
+    assert all([x in pgs.loc['reference'].index for x in reference_df.index.get_level_values(1)]), \
+        "Error: PGS data missing for reference samples with PCA data."
     reference_df = pd.merge(reference_df, pgs, left_index=True, right_index=True)
+
+    assert all([x in pgs.loc[args.d_target].index for x in target_df.index.get_level_values(1)]), \
+        "Error: PGS data missing for reference samples with PCA data."
     target_df = pd.merge(target_df, pgs, left_index=True, right_index=True)
     del pgs  # clear raw PGS from memory
 

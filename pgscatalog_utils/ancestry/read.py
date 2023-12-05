@@ -18,7 +18,7 @@ def read_pcs(loc_pcs: list[str],dataset: str, loc_related_ids=None, nPCs=None):
 
     for i, path in enumerate(loc_pcs):
         logger.debug("Reading PCA projection: {}".format(path))
-        df = pd.read_csv(path, sep='\t')
+        df = pd.read_csv(path, sep='\t', converters={"IID": str}, header=0)
         df['sampleset'] = dataset
         df.set_index(['sampleset', 'IID'], inplace=True)
 
@@ -46,13 +46,16 @@ def read_pcs(loc_pcs: list[str],dataset: str, loc_related_ids=None, nPCs=None):
             IDs_related = [x.strip() for x in infile.readlines()]
         proj.loc[proj.index.get_level_values(level=1).isin(IDs_related), 'Unrelated'] = False
     else:
-        proj['Unrelated'] = np.nan
+        # if unrelated is all nan -> dtype is float64
+        # if unrelated is only true / false -> dtype is bool
+        # if unrelated contains None, dtype stays bool, and pd.concat warning disappears
+        proj['Unrelated'] = None
 
     return proj
 
 
 def extract_ref_psam_cols(loc_psam, dataset: str, df_target, keepcols=['SuperPop', 'Population']):
-    psam = pd.read_csv(loc_psam, sep='\t')
+    psam = pd.read_csv(loc_psam, sep='\t', header=0)
 
     match (psam.columns[0]):
         # handle case of #IID -> IID (happens when #FID is present)
@@ -76,7 +79,7 @@ def read_pgs(loc_aggscore, onlySUM: bool):
     :return:
     """
     logger.debug('Reading aggregated score data: {}'.format(loc_aggscore))
-    df = pd.read_csv(loc_aggscore, sep='\t', index_col=['sampleset', 'IID'])
+    df = pd.read_csv(loc_aggscore, sep='\t', index_col=['sampleset', 'IID'], converters={"IID": str}, header=0)
     if onlySUM:
         df = df[[x for x in df.columns if x.endswith('_SUM')]]
         rn = [x.rstrip('_SUM') for x in df.columns]

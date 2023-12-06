@@ -1,7 +1,6 @@
 import logging
 import typing
 
-from pgscatalog_utils.scorefile.effectallele import EffectAllele
 
 from pgscatalog_utils.scorefile.config import Config
 from pgscatalog_utils.scorefile.effecttype import EffectType
@@ -61,27 +60,25 @@ def check_duplicates(
     n_duplicates: int = 0
     n_variants: int = 0
     for variant in variants:
-        accession: str = variant["accession"]
+        accession: str = variant.accession
 
         if accession != current_accession:
             seen_ids = {}
             current_accession = accession
 
         # None other allele -> empty string
-        id: str = ":".join(
+        variant_id: str = ":".join(
             [
-                str(variant[k] or "")
+                str(getattr(variant, k) or "")
                 for k in ["chr_name", "chr_position", "effect_allele", "other_allele"]
             ]
         )
 
-        if id in seen_ids:
-            variant["is_duplicated"] = True
+        if variant_id in seen_ids:
+            variant.is_duplicated = True
             n_duplicates += 1
-        else:
-            variant["is_duplicated"] = False
 
-        seen_ids[id] = True
+        seen_ids[variant_id] = True
 
         yield variant
         n_variants += 1
@@ -112,7 +109,7 @@ def check_effect_weight(
 ) -> typing.Generator[ScoreVariant, None, None]:
     for variant in variants:
         try:
-            float(variant["effect_weight"])
+            float(variant.effect_weight)
             yield variant
         except ValueError:
             logger.critical(f"{variant} has bad effect weight")
@@ -124,9 +121,9 @@ def assign_other_allele(
 ) -> typing.Generator[ScoreVariant, None, None]:
     n_dropped = 0
     for variant in variants:
-        if "/" in variant["other_allele"]:
+        if "/" in variant.other_allele:
             n_dropped += 1
-            variant["other_allele"] = None
+            variant.other_allele = None
 
         yield variant
 
@@ -139,13 +136,13 @@ def assign_effect_type(
     variants: typing.Generator[ScoreVariant, None, None]
 ) -> typing.Generator[ScoreVariant, None, None]:
     for variant in variants:
-        match (variant.get("is_recessive"), variant.get("is_dominant")):
+        match (variant.is_recessive, variant.is_dominant):
             case (None, None) | ("FALSE", "FALSE"):
                 pass  # default value is additive, pass to break match and yield
             case ("FALSE", "TRUE"):
-                variant["effect_type"] = EffectType.DOMINANT
+                variant.effect_type = EffectType.DOMINANT
             case ("TRUE", "FALSE"):
-                variant["effect_type"] = EffectType.RECESSIVE
+                variant.effect_type = EffectType.RECESSIVE
             case _:
                 logger.critical(f"Bad effect type setting: {variant}")
                 raise Exception
@@ -160,10 +157,10 @@ def remap_harmonised(
             # using the harmonised field in the header to make sure we don't accidentally overwrite
             # positions with empty data (e.g. in an unharmonised file)
             # if harmonisation has failed we _always_ want to use that information
-            variant["chr_name"] = variant["hm_chr"]
-            variant["chr_position"] = variant["hm_pos"]
-            if variant["other_allele"] is None:
-                variant["other_allele"] = variant["hm_inferOtherAllele"]
+            variant.chr_name = variant.hm_chr
+            variant.chr_position = variant.hm_pos
+            if variant.other_allele is None:
+                variant.other_allele = variant.hm_inferOtherAllele
             yield variant
     else:
         for variant in variants:
@@ -177,7 +174,11 @@ def check_bad_variant(
     n_bad = 0
     for variant in variants:
         match variant:
-            case {"chr_name": None} | {"chr_position": None} | {"effect_allele": None}:
+            case (
+                ScoreVariant(chr_name=None)
+                | ScoreVariant(chr_position=None)
+                | ScoreVariant(effect_allele=None)
+            ):
                 # (effect weight checked separately)
                 n_bad += 1
                 if not Config.drop_missing:
@@ -194,7 +195,7 @@ def check_effect_allele(
 ) -> typing.Generator[ScoreVariant, None, None]:
     n_bad = 0
     for variant in variants:
-        if not EffectAllele.is_valid(variant["effect_allele"]):
+        if not variant.effect_allele.is_valid:
             n_bad += 1
 
         yield variant
@@ -209,12 +210,12 @@ def detect_complex(
     """Some older scoring files in the PGS Catalog are complicated.
     They often require bespoke set up to support interaction terms, etc
     """
-    complex_keys = {"is_haplotype", "is_diplotype", "is_interaction"}
     is_complex = False
 
     for variant in variants:
         if not is_complex:
-            is_complex = any(key in variant for key in complex_keys)
+            if variant.is_complex:
+                is_complex = True
 
         yield variant
 

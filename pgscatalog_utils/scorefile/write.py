@@ -50,15 +50,14 @@ class TextFileWriter(DataWriter):
     def write(self, batch):
         mode = "at" if os.path.exists(self.filename) else "wt"
         with self.open_function(self.filename, mode) as f:
-            writer = csv.DictWriter(
+            writer = csv.writer(
                 f,
-                fieldnames=self.fieldnames,
                 delimiter="\t",
-                extrasaction="ignore",
                 lineterminator="\n",
             )
             if mode == "wt":
-                writer.writeheader()
+                writer.writerow(ScoreVariant.output_fields)
+
             writer.writerows(batch)
 
 
@@ -116,6 +115,6 @@ def write_combined(
 def calculate_log(batch: list[ScoreVariant], log: list[Counter]) -> list[Counter]:
     # these statistics can only be generated while iterating through variants
     n_variants = Counter("n_variants" for item in batch)
-    hm_source = Counter(item["hm_source"] for item in batch if "hm_source" in item)
+    hm_source = Counter(getattr(item, "hm_source") for item in batch)
     log.extend([n_variants + hm_source])
     return log

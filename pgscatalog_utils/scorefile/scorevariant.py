@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pgscatalog_utils.scorefile.effectallele import EffectAllele
 from pgscatalog_utils.scorefile.effecttype import EffectType
 
@@ -26,7 +28,6 @@ class ScoreVariant:
         "is_duplicated",
         "effect_type",
     )
-
     complex_fields: tuple[str] = ("is_haplotype", "is_diplotype", "is_interaction")
 
     # column names for output are used by __iter__ and when writing out
@@ -81,30 +82,30 @@ class ScoreVariant:
         # start with mandatory attributes
         self.effect_allele: EffectAllele = EffectAllele(effect_allele)
         self.effect_weight: str = effect_weight
-        self.accession = accession
-        self.row_nr = row_nr
+        self.accession: str = accession
+        self.row_nr: int = int(row_nr)
 
         # now set optional fields
-        self.chr_name = chr_name
-        self.chr_position = chr_position
-        self.rsID = rsID
-        self.other_allele = other_allele
-        self.hm_chr = hm_chr
-        self.hm_pos = hm_pos
-        self.hm_inferOtherAllele = hm_inferOtherAllele
-        self.hm_source = hm_source
-        self.is_dominant = is_dominant
-        self.is_recessive = is_recessive
-        self.hm_rsID = hm_rsID
-        self.hm_match_chr = hm_match_chr
-        self.hm_match_pos = hm_match_pos
-        self.is_duplicated = is_duplicated
-        self.effect_type = effect_type
+        self.chr_name: Optional[str] = chr_name
+        self.chr_position: Optional[str] = chr_position
+        self.rsID: Optional[str] = rsID
+        self.other_allele: Optional[str] = other_allele
+        self.hm_chr: Optional[str] = hm_chr
+        self.hm_pos: Optional[int] = hm_pos
+        self.hm_inferOtherAllele: Optional[str] = hm_inferOtherAllele
+        self.hm_source: Optional[str] = hm_source
+        self.is_dominant: Optional[bool] = is_dominant
+        self.is_recessive: Optional[bool] = is_recessive
+        self.hm_rsID: Optional[str] = hm_rsID
+        self.hm_match_chr: Optional[str] = hm_match_chr
+        self.hm_match_pos: Optional[str] = hm_match_pos
+        self.is_duplicated: Optional[bool] = is_duplicated
+        self.effect_type: EffectType = effect_type
 
         # these fields are important to check if variants are complex
         if any([x in kwargs for x in self.complex_fields]):
             is_complex = True
-        self.is_complex = is_complex
+        self.is_complex: bool = is_complex
 
     def __repr__(self):
         class_name = type(self).__name__
@@ -113,7 +114,11 @@ class ScoreVariant:
         for key in ScoreVariant.__slots__:
             values[key] = getattr(self, key, None)
 
-        return f"{class_name}({values})"
+        # extract str parameter for effect allele
+        values["effect_allele"] = values["effect_allele"].allele
+
+        params = ",".join([f"{k}={repr(v)}" for k, v in values.items()])
+        return f"{class_name}({params})"
 
     def __iter__(self):
         for attr in self.output_fields:

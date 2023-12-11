@@ -31,6 +31,7 @@ zstandard = "^0.18.0"
 pgzip = "^0.3.2"
 scikit-learn = "^1.2.1"
 pre-commit = "^3.5.0"
+pyarrow = "^14.0.1"
 
 [tool.poetry.group.dev.dependencies]
 jupyter = "^1.0.0"

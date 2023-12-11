@@ -19,7 +19,7 @@ def combine_scorefiles():
     logger = logging.getLogger(__name__)
     set_logging_level(args.verbose)
 
-    Config.batch_size = 20000
+    Config.batch_size = 100000
     Config.drop_missing = args.drop_missing
     Config.target_build = GenomeBuild.from_string(args.target_build)
     Config.liftover = args.liftover

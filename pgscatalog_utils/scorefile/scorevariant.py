@@ -87,11 +87,23 @@ class ScoreVariant:
 
         # now set optional fields
         self.chr_name: Optional[str] = chr_name
-        self.chr_position: Optional[str] = chr_position
+
+        # casting to int is important for arrow export
+        try:
+            self.chr_position: Optional[int] = int(chr_position)
+        except (ValueError, TypeError):
+            self.chr_position = None
+
         self.rsID: Optional[str] = rsID
         self.other_allele: Optional[str] = other_allele
         self.hm_chr: Optional[str] = hm_chr
-        self.hm_pos: Optional[int] = hm_pos
+
+        # casting to int is important when harmonised data may replace chr_position
+        try:
+            self.hm_pos: Optional[int] = int(hm_pos)
+        except (ValueError, TypeError):
+            self.hm_pos = None
+
         self.hm_inferOtherAllele: Optional[str] = hm_inferOtherAllele
         self.hm_source: Optional[str] = hm_source
         self.is_dominant: Optional[bool] = is_dominant

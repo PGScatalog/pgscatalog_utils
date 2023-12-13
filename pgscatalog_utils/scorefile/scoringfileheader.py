@@ -21,6 +21,11 @@ class ScoringFileHeader:
     HmPOS_build: GenomeBuild
     HmPOS_date: str
     format_version: str
+    license: str = (
+        "PGS obtained from the Catalog should be cited appropriately, and "
+        "used in accordance with any licensing restrictions set by the authors. See EBI "
+        "Terms of Use (https://www.ebi.ac.uk/about/terms-of-use/) for additional details."
+    )
 
     def __post_init__(self):
         if self.variants_number:
@@ -37,6 +42,11 @@ class ScoringFileHeader:
         keep_keys = inspect.get_annotations(ScoringFileHeader).keys()
         header_dict = {k: raw_header.get(k) for k in keep_keys}
         # ... so we can unpack the dict into a dataclass
+
+        if header_dict.get("license") is None:
+            # missing license data in header means default license
+            # (this may change in the future)
+            header_dict["license"] = cls.license
 
         if "HmPOS_build" not in header_dict:
             # working with pgs catalog formatted header but unharmonised data

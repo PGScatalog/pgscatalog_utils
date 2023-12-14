@@ -10,7 +10,7 @@ complicated things like logging to an external location
 So the plan is to override sys.excepthook, intercept errors defined here, and map them
 to custom exit codes defined below
 """
-
+import sys
 from types import MappingProxyType
 
 
@@ -110,7 +110,17 @@ class ExceptionExitCodeMap:
 
     code_map = MappingProxyType(_mapping)
 
-    def get_exit_code(self, exception_type):
+    def __getitem__(self, exception_type):
         # if an exception can't be found in the map, return an error code (> 0) but default
         # max possible value 255
         return self.code_map.get(exception_type, 255)
+
+
+def handle_uncaught_exception(exctype, value, trace):
+    code_map = ExceptionExitCodeMap()
+    oldHook(exctype, value, trace)
+    if isinstance(value, BasePGSError):
+        sys.exit(code_map[exctype])
+
+
+sys.excepthook, oldHook = handle_uncaught_exception, sys.excepthook

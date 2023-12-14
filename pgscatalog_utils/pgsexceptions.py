@@ -14,12 +14,13 @@ import sys
 from types import MappingProxyType
 
 
-class BasePGSError(Exception):
+class BasePGSException(Exception):
     """The base class from which all PGS errors must inherit.
-    The purpose of this class is to simplify catching PGS exceptions and exiting python with a custom exit code."""
+    The purpose of this class is to simplify finding PGS exceptions and exiting python
+    with a matching custom exit code."""
 
 
-class MatchError(BasePGSError):
+class MatchError(BasePGSException):
     """The base class for errors that are raised during variant matching"""
 
 
@@ -45,7 +46,7 @@ class MatchValueError(MatchError):
     e.g., Multiple chromosomes detected in variant data but data is split per-chromosome"""
 
 
-class CombineError(BasePGSError):
+class CombineError(BasePGSException):
     """The base class for errors that are raised when combining scorefiles"""
 
 
@@ -57,7 +58,7 @@ class ScoreFormatError(CombineError):
     """Raised when there's a problem with a scoring file."""
 
 
-class CatalogError(BasePGSError):
+class CatalogError(BasePGSException):
     """The base class for errors when querying or downloading from the PGS Catalog"""
 
 
@@ -77,7 +78,7 @@ class InvalidAccessionError(CatalogError):
     """Raised when an invalid term is used to query the Catalog"""
 
 
-class SamplesheetError(BasePGSError):
+class SamplesheetError(BasePGSException):
     """The base class for errors related to samplesheet parsing"""
 
 
@@ -119,7 +120,7 @@ class ExceptionExitCodeMap:
 def handle_uncaught_exception(exctype, value, trace):
     code_map = ExceptionExitCodeMap()
     oldHook(exctype, value, trace)
-    if isinstance(value, BasePGSError):
+    if isinstance(value, BasePGSException):
         sys.exit(code_map[exctype])
 
 

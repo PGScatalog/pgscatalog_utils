@@ -23,34 +23,6 @@ class MatchError(BasePGSError):
     """The base class for errors that are raised during variant matching"""
 
 
-class CombineError(BasePGSError):
-    """The base class for errors that are raised when combining scorefiles"""
-
-
-class CatalogError(BasePGSError):
-    """The base class for errors when querying or downloading from the PGS Catalog"""
-
-
-class SamplesheetError(BasePGSError):
-    """The base class for errors related to samplesheet parsing"""
-
-
-class ScoreDownloadError(CatalogError):
-    """Raised when a scoring file can't be downloaded"""
-
-
-class ScoreChecksumError(CatalogError):
-    """Raised when a scoring file fails checksum validation"""
-
-
-class QueryError(CatalogError):
-    """Raised when the Catalog API doesn't return a valid response"""
-
-
-class InvalidAccessionError(CatalogError):
-    """Raised when an invalid term is used to query the Catalog"""
-
-
 class DuplicateMatchError(MatchError):
     """Raised when a matched variant has been duplicated, so that a variant with the same ID
     would be split across two rows in an output scoring file.
@@ -73,12 +45,40 @@ class MatchValueError(MatchError):
     e.g., Multiple chromosomes detected in variant data but data is split per-chromosome"""
 
 
+class CombineError(BasePGSError):
+    """The base class for errors that are raised when combining scorefiles"""
+
+
 class BuildError(CombineError):
     """Raised when there's a problem with a scoring file genome build."""
 
 
 class ScoreFormatError(CombineError):
     """Raised when there's a problem with a scoring file."""
+
+
+class CatalogError(BasePGSError):
+    """The base class for errors when querying or downloading from the PGS Catalog"""
+
+
+class ScoreDownloadError(CatalogError):
+    """Raised when a scoring file can't be downloaded"""
+
+
+class ScoreChecksumError(CatalogError):
+    """Raised when a scoring file fails checksum validation"""
+
+
+class QueryError(CatalogError):
+    """Raised when the Catalog API doesn't return a valid response"""
+
+
+class InvalidAccessionError(CatalogError):
+    """Raised when an invalid term is used to query the Catalog"""
+
+
+class SamplesheetError(BasePGSError):
+    """The base class for errors related to samplesheet parsing"""
 
 
 class GenomesNotFound(SamplesheetError):

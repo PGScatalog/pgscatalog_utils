@@ -195,7 +195,7 @@ def check_effect_allele(
 ) -> typing.Generator[ScoreVariant, None, None]:
     n_bad = 0
     for variant in variants:
-        if not variant.effect_allele.is_valid:
+        if not variant.effect_allele.is_snp:
             n_bad += 1
 
         yield variant

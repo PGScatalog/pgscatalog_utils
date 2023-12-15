@@ -34,9 +34,10 @@ class EffectAllele:
         return self.allele
 
     def _is_snp(self) -> bool:
-        """SNPs are the most common type of effect allele. More complex effect
-        alleles, like HLAs or APOE genes, often require extra work to represent in
-        genomes. Users should be warned about complex effect alleles.
+        """SNPs are the most common type of effect allele in PGS Catalog scoring
+        files. More complex effect alleles, like HLAs or APOE genes, often require
+        extra work to represent in genomes. Users should be warned about complex
+        effect alleles.
         >>> EffectAllele("+")._is_snp()
         False
         >>> EffectAllele("A")._is_snp()

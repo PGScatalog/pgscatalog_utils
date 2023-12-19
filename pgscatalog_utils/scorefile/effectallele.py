@@ -21,11 +21,11 @@ class EffectAllele:
     """
 
     _valid_snp_bases = frozenset({"A", "C", "T", "G"})
-    __slots__ = ("allele", "is_snp")
+    __slots__ = ("_allele", "_is_snp")
 
     def __init__(self, allele):
-        self.allele = str(allele)
-        self.is_snp = self._is_snp()
+        self._allele = str(allele)
+        self._is_snp = None  # computed when accessed
 
     def __repr__(self):
         return f'{type(self).__name__}("{self.allele}")'
@@ -33,14 +33,28 @@ class EffectAllele:
     def __str__(self):
         return self.allele
 
-    def _is_snp(self) -> bool:
+    @property
+    def allele(self):
+        return self._allele
+
+    @allele.setter
+    def allele(self, value):
+        self._allele = str(value)
+        self._is_snp = None  # reset _is_snp when allele is changed
+
+    @property
+    def is_snp(self) -> bool:
         """SNPs are the most common type of effect allele in PGS Catalog scoring
         files. More complex effect alleles, like HLAs or APOE genes, often require
         extra work to represent in genomes. Users should be warned about complex
         effect alleles.
-        >>> EffectAllele("+")._is_snp()
+        >>> ea = EffectAllele("+")
+        >>> ea.is_snp
         False
-        >>> EffectAllele("A")._is_snp()
+        >>> ea.allele = "A"
+        >>> ea.is_snp
         True
         """
-        return not frozenset(self.allele) - self._valid_snp_bases
+        if self._is_snp is None:
+            self._is_snp = not frozenset(self.allele) - self._valid_snp_bases
+        return self._is_snp

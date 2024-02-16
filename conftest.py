@@ -11,6 +11,7 @@ import requests as req
 from pgscatalog_utils.download.download_scorefile import download_scorefile
 from pgscatalog_utils.match.preprocess import complement_valid_alleles
 from pgscatalog_utils.scorefile.combine_scorefiles import combine_scorefiles
+from pgscatalog_utils.scorefile.scorevariant import ScoreVariant
 
 from tests.data import combine
 
@@ -94,17 +95,57 @@ def chain_files(tmp_path_factory):
 
 @pytest.fixture(scope="session")
 def hg38_coords():
-    rs11903757 = {"rsid": "rs11903757", "chr_name": "2", "chr_position": 191722478}
-    rs6061231 = {"rsid": "rs6061231", "chr_name": "20", "chr_position": 62381861}
-    return [rs11903757, rs6061231]
+    rs11903757 = ScoreVariant(
+        **{
+            "rsid": "rs11903757",
+            "chr_name": "2",
+            "chr_position": 191722478,
+            "row_nr": 0,
+            "effect_weight": 1,
+            "accession": "test",
+            "effect_allele": "A",
+        }
+    )
+    rs6061231 = ScoreVariant(
+        **{
+            "rsid": "rs6061231",
+            "chr_name": "20",
+            "chr_position": 62381861,
+            "row_nr": 1,
+            "effect_weight": 1,
+            "accession": "test",
+            "effect_allele": "A",
+        }
+    )
+    return (x for x in [rs11903757, rs6061231])
 
 
 @pytest.fixture(scope="session")
 def hg19_coords():
     # hg38_coords in GRCh37, from dbSNP
-    rs11903757 = {"rsid": "rs11903757", "chr_name": "2", "chr_position": 192587204}
-    rs6061231 = {"rsid": "rs6061231", "chr_name": "20", "chr_position": 60956917}
-    return [rs11903757, rs6061231]
+    rs11903757 = ScoreVariant(
+        **{
+            "rsid": "rs11903757",
+            "chr_name": "2",
+            "chr_position": 192587204,
+            "row_nr": 0,
+            "effect_weight": 1,
+            "accession": "test",
+            "effect_allele": "A",
+        }
+    )
+    rs6061231 = ScoreVariant(
+        **{
+            "rsid": "rs6061231",
+            "chr_name": "20",
+            "chr_position": 60956917,
+            "row_nr": 1,
+            "effect_weight": 1,
+            "accession": "test",
+            "effect_allele": "A",
+        }
+    )
+    return (x for x in [rs11903757, rs6061231])
 
 
 @pytest.fixture(scope="session")

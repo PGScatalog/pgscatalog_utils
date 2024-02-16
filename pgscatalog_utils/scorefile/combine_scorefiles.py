@@ -40,11 +40,11 @@ def combine_scorefiles():
     target_build = GenomeBuild.from_string(args.target_build)
     bad_builds = [x.accession for x in sfs if x.genome_build != target_build]
 
-    for bad_file in bad_builds:
-        logger.critical(f"{bad_file} doesn't match {target_build}, can't combine")
-        raise Exception
-    else:
-        logger.info(f"All builds match target build {target_build}")
+    if not args.liftover:
+        for bad_file in bad_builds:
+            logger.critical(f"{bad_file} doesn't match {target_build}, can't combine")
+        if len(bad_builds) > 0:
+            raise Exception
 
     # provide line counts when making the scoring files
     logs: dict[str, int] = write_combined(sfs, args.outfile)

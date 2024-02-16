@@ -41,19 +41,17 @@ def liftover(
         n = 0
 
         for variant in variants:
-            chrom = "chr" + variant["chr_name"]
-            pos = int(variant["chr_position"]) - 1  # VCF -> 1 based, UCSC -> 0 based
+            chrom = "chr" + variant.chr_name
+            pos = int(variant.chr_position) - 1  # VCF -> 1 based, UCSC -> 0 based
             lifted = lo.convert_coordinate(chrom, pos)
             if lifted:
-                variant["chr_name"] = lifted[0][0][3:].split("_")[0]
-                variant["chr_position"] = lifted[0][1] + 1  # reverse 0 indexing
-                variant["lifted"] = True
+                variant.chr_name = lifted[0][0][3:].split("_")[0]
+                variant.chr_position = lifted[0][1] + 1  # reverse 0 indexing
                 yield variant
                 n_lifted += 1
             else:
-                variant["chr_name"] = None
-                variant["chr_position"] = None
-                variant["lifted"] = False
+                variant.chr_name = None
+                variant.chr_position = None
                 yield variant
             n += 1
 

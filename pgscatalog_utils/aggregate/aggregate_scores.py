@@ -33,7 +33,7 @@ def aggregate(scorefiles: list[str]):
     for i, path in enumerate(scorefiles):
         logger.debug(f"Reading {path}")
         # pandas can automatically detect zst compression, neat!
-        df = (pd.read_table(path)
+        df = (pd.read_table(path, converters={"#IID": str}, header=0)
               .assign(sampleset=path.split('_')[0])
               .set_index(['sampleset', '#IID']))
 

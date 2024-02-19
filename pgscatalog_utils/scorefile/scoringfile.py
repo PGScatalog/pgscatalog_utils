@@ -62,8 +62,8 @@ class ScoringFile:
             path=path, start_line=start_line, fields=cols, name=name, is_wide=is_wide
         )
 
-        # note: the qc generators aren't doing a bunch of nested iterations
-        # it's just a data processing pipeline
+        # the quality_control function normalises a list of variants to have a standard representation
+        # attributes are overwritten using harmonised data, etc.
         variants: typing.Generator[ScoreVariant, None, None] = quality_control(
             variants, header=header, harmonised=harmonised, wide=is_wide
         )

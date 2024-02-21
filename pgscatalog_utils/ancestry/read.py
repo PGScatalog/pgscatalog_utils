@@ -73,11 +73,10 @@ def extract_ref_psam_cols(
     return pd.merge(df_target, psam[keepcols], left_index=True, right_index=True)
 
 
-def read_pgs(loc_aggscore, onlySUM: bool):
+def read_pgs(loc_aggscore):
     """
     Function to read the output of aggreagte_scores
     :param loc_aggscore: path to aggregated scores output
-    :param onlySUM: whether to return only _SUM columns (e.g. not _AVG)
     :return:
     """
     logger.debug("Reading aggregated score data: {}".format(loc_aggscore))
@@ -91,8 +90,4 @@ def read_pgs(loc_aggscore, onlySUM: bool):
     # join column levels ({PGS}_{VALUE})
     df.columns = [f"{j}_{i}" for i, j in df.columns]
 
-    if onlySUM:
-        df = df[[x for x in df.columns if x.endswith("_SUM")]]
-        rn = [x.rstrip("_SUM") for x in df.columns]
-        df.columns = rn
     return df

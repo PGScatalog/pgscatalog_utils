@@ -62,7 +62,7 @@ def aggregate(scorefiles: list[str]):
     dfs = [_melt(x, y) for x, y in zip([sum_df, avg_df], ["SUM", "AVG"])]
     # add melted average back
     combined = pd.concat([dfs[0], dfs[1]["AVG"]], axis=1)
-    return combined[["accession", "SUM", "DENOM", "AVG"]]
+    return combined[["PGS", "SUM", "DENOM", "AVG"]]
 
 
 def _melt(df, value_name):
@@ -72,7 +72,7 @@ def _melt(df, value_name):
         var_name="PGS",
         ignore_index=False,
     )
-    df["accession"] = df["accession"].str.replace(f"_{value_name}", "")
+    df["PGS"] = df["PGS"].str.replace(f"_{value_name}", "")
     return df
 
 

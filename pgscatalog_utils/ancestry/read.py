@@ -75,9 +75,9 @@ def extract_ref_psam_cols(
 
 def read_pgs(loc_aggscore):
     """
-    Function to read the output of aggreagte_scores
+    Function to read the PGS SUM from the output of aggreagte_scores
     :param loc_aggscore: path to aggregated scores output
-    :return:
+    :return: df with PGS SUM indexed by sampleset and IID
     """
     logger.debug("Reading aggregated score data: {}".format(loc_aggscore))
     df = pd.read_csv(
@@ -86,8 +86,8 @@ def read_pgs(loc_aggscore):
         index_col=["sampleset", "IID"],
         converters={"IID": str},
         header=0,
-    ).pivot(columns=["PGS"], values=["SUM", "AVG"])
-    # join column levels ({PGS}_{VALUE})
-    df.columns = [f"{j}_{i}" for i, j in df.columns]
+    ).pivot(columns=["PGS"], values=["SUM"])
+    # rename to PGS only
+    df.columns = [f"{j}" for i, j in df.columns]
 
     return df

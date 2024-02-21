@@ -69,7 +69,7 @@ def _melt(df, value_name):
     df = df.melt(
         id_vars=["DENOM"],
         value_name=value_name,
-        var_name="accession",
+        var_name="PGS",
         ignore_index=False,
     )
     df["accession"] = df["accession"].str.replace(f"_{value_name}", "")

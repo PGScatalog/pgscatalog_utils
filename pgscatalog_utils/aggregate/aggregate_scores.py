@@ -1,5 +1,6 @@
 import argparse
 import logging
+import pathlib
 import textwrap
 
 import pandas as pd
@@ -17,11 +18,11 @@ def aggregate_scores():
     if args.split:
         logger.debug("Splitting aggregated scores by sampleset")
         for sampleset, group in df.groupby("sampleset"):
-            fout = f"{sampleset}_pgs.txt.gz"
+            fout = pathlib.Path(args.outdir) / f"{sampleset}_pgs.txt.gz"
             logger.debug(f"Compressing sampleset {sampleset}, writing to {fout}")
             group.to_csv(fout, sep="\t", compression="gzip")
     else:
-        fout = "aggregated_scores.txt.gz"
+        fout = pathlib.Path(args.outdir) / "aggregated_scores.txt.gz"
         logger.info(f"Compressing all samplesets and writing combined scores to {fout}")
         df.to_csv(fout, sep="\t", compression="gzip")
 

@@ -65,13 +65,11 @@ def test_effect_type_combine(effect_type_path, tmp_path, combine_output_header):
 
     with open(out_path.parent / "log_combined.json") as f:
         header = json.load(f)[0]
-        assert (
-            header["scorefile_dominant_and_recessive"]["pgs_name"]
-            == "PGS001229_22_DominantRecessiveExample"
-        )
-        assert header["scorefile_dominant_and_recessive"]["genome_build"] == "GRCh37"
-        assert header["scorefile_dominant_and_recessive"]["variants_number"] == n
-        assert not header["scorefile_dominant_and_recessive"]["use_harmonised"]
+        assert header["PGS000802_hmPOS_GRCh37"]["pgs_name"] == "CRC_19"
+        assert header["PGS000802_hmPOS_GRCh37"]["genome_build"] is None
+        assert header["PGS000802_hmPOS_GRCh37"]["HmPOS_build"] == "GRCh37"
+        assert int(header["PGS000802_hmPOS_GRCh37"]["variants_number"]) == n
+        assert header["PGS000802_hmPOS_GRCh37"]["use_harmonised"]
 
 
 def test_custom_combine(custom_score_path, tmp_path, combine_output_header):
@@ -111,7 +109,8 @@ def pgscatalog_path(scope="session"):
 
 @pytest.fixture
 def effect_type_path(scope="session"):
-    path = importlib.resources.files(combine) / "scorefile_dominant_and_recessive.txt"
+    # this scoring file contains dominant and recessive alleles
+    path = importlib.resources.files(combine) / "PGS000802_hmPOS_GRCh37.txt"
     return path
 
 

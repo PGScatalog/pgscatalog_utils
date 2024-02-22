@@ -106,8 +106,14 @@ class ScoreVariant:
 
         self.hm_inferOtherAllele: Optional[str] = hm_inferOtherAllele
         self.hm_source: Optional[str] = hm_source
-        self.is_dominant: Optional[bool] = is_dominant
-        self.is_recessive: Optional[bool] = is_recessive
+
+        self.is_dominant: Optional[bool] = (
+            is_dominant == "True" if is_dominant is not None else None
+        )
+        self.is_recessive: Optional[bool] = (
+            is_recessive == "True" if is_recessive is not None else None
+        )
+
         self.hm_rsID: Optional[str] = hm_rsID
         self.hm_match_chr: Optional[str] = hm_match_chr
         self.hm_match_pos: Optional[str] = hm_match_pos

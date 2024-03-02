@@ -61,6 +61,7 @@ def compare_ancestry(ref_df: pd.DataFrame, ref_pop_col: str, target_df: pd.DataF
     :param p_threshold: used to define LowConfidence population assignments
     :return: dataframes for reference (predictions on training set) and target (predicted labels) datasets
     """
+    logger.debug("Starting ancestry comparison")
     # Check that datasets have the correct columns
     assert method in comparison_method_threshold.keys(), 'comparison method parameter must be Mahalanobis or RF'
     if method == 'Mahalanobis':

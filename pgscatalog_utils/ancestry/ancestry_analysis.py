@@ -55,18 +55,15 @@ def ancestry_analysis():
     scorecols = list(pgs.columns)
 
     ## There should be perfect target sample overlap
-    assert all(
-        [
-            x in pgs.loc["reference"].index
-            for x in reference_df.index.get_level_values(1)
-        ]
-    ), "Error: PGS data missing for reference samples with PCA data."
-    reference_df = pd.merge(reference_df, pgs, left_index=True, right_index=True)
+    assert set(reference_df.index.get_level_values(1)).issubset(pgs.loc["reference"].index),\
+        "Error: PGS data missing for reference samples with PCA data."
+    reference_df = reference_df.sort_index()
+    reference_df = pd.concat([reference_df, pgs.loc[reference_df.index]], axis=1)
 
-    assert all(
-        [x in pgs.loc[args.d_target].index for x in target_df.index.get_level_values(1)]
-    ), "Error: PGS data missing for reference samples with PCA data."
-    target_df = pd.merge(target_df, pgs, left_index=True, right_index=True)
+    assert set(target_df.index.get_level_values(1)).issubset(pgs.loc[args.d_target].index), \
+        "Error: PGS data missing for target samples with PCA data."
+    target_df = target_df.sort_index()
+    target_df = pd.concat([target_df, pgs.loc[target_df.index]], axis=1)
     del pgs  # clear raw PGS from memory
 
     # Compare target sample ancestry/PCs to reference panel

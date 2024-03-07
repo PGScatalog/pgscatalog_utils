@@ -137,11 +137,11 @@ def assign_effect_type(
 ) -> typing.Generator[ScoreVariant, None, None]:
     for variant in variants:
         match (variant.is_recessive, variant.is_dominant):
-            case (None, None) | ("FALSE", "FALSE"):
+            case (None, None) | (False, False):
                 pass  # default value is additive, pass to break match and yield
-            case ("FALSE", "TRUE"):
+            case (False, True):
                 variant.effect_type = EffectType.DOMINANT
-            case ("TRUE", "FALSE"):
+            case (True, False):
                 variant.effect_type = EffectType.RECESSIVE
             case _:
                 logger.critical(f"Bad effect type setting: {variant}")

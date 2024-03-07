@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pgscatalog_utils"
-version = "0.5.1"
+version = "0.5.2"
 description = "Utilities for working with PGS Catalog API and scoring files"
 homepage = "https://github.com/PGScatalog/pgscatalog_utils"
 authors = ["Benjamin Wingfield <bwingfield@ebi.ac.uk>", "Samuel Lambert <sl925@medschl.cam.ac.uk>", "Laurent Gil <lg10@sanger.ac.uk>"]

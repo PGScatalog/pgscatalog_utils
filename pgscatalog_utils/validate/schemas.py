@@ -50,7 +50,7 @@ VALID_CHROMOSOMES = ['1', '2', '3', '4', '5', '6', '7', '8',
 VALID_FILE_EXTENSIONS = [".txt", ".txt.gz"]
 
 # For the harmonized files
-VALID_SOURCES = ['ENSEMBL','Author-reported']
+VALID_SOURCES = ['ENSEMBL','Author-reported','liftover','Unknown']
 # VALID_CODES = ['5','4','3','1','0','-1','-4','-5']
 BUILD_LIST = ['GRCh37','GRCh38']
 

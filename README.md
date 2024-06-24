@@ -1,5 +1,13 @@
 # PGS Catalog utilities
 
+
+> [!IMPORTANT]
+> * In June 2024 this repository was archived (made read-only) and the code here deprecated
+> * The code was refactored and migrated to a new set of Python packages contained in the [pygscatalog repository](https://github.com/PGScatalog/pygscatalog)
+> * [The PGS Catalog Calculator v2-beta](https://github.com/PGScatalog/pgsc_calc/releases/tag/v2.0.0-beta) uses these new Python packages
+> * The Python package [pgscatalog-utils](https://pypi.org/project/pgscatalog-utils/) is unaffected by this change, and we will continue to publish updates from the new repository
+> * If you experience problems with our Python tools, please [create issues at the new repository](https://github.com/PGScatalog/pygscatalog/issues/new)
+ 
 [![CI](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml/badge.svg)](https://github.com/PGScatalog/pgscatalog_utils/actions/workflows/main.yml)
 [![DOI](https://zenodo.org/badge/513521373.svg)](https://zenodo.org/badge/latestdoi/513521373)
 
@@ -54,19 +62,13 @@ The `pgscatalog_utils` package is developed as part of the **Polygenic Score (PG
 ([www.PGSCatalog.org](https://www.PGSCatalog.org)) project, a collaboration between the 
 University of Cambridge’s Department of Public Health and Primary Care (Michael Inouye, Samuel Lambert, Laurent Gil) 
 and the European Bioinformatics Institute (Helen Parkinson, Aoife McMahon, Ben Wingfield, Laura Harris).
+If 
+you use the tool we ask you to cite our paper describing software and updated PGS Catalog resource:
 
-A manuscript describing the tool and larger PGS Catalog Calculator pipeline 
-[(`PGSCatalog/pgsc_calc`)](https://github.com/PGScatalog/pgsc_calc) is in preparation. In the meantime 
-if you use these tools we ask you to cite the repo(s) and the paper describing the PGS Catalog resource:
-
-- >PGS Catalog utilities _(in development)_. PGS Catalog
-  Team. [https://github.com/PGScatalog/pgscatalog_utils](https://github.com/PGScatalog/pgscatalog_utils)
-- >PGS Catalog Calculator _(in development)_. PGS Catalog
-  Team. [https://github.com/PGScatalog/pgsc_calc](https://github.com/PGScatalog/pgsc_calc)
-- >Lambert _et al._ (2021) The Polygenic Score Catalog as an open database for
-reproducibility and systematic evaluation.  Nature Genetics. 53:420–425
-doi:[10.1038/s41588-021-00783-5](https://doi.org/10.1038/s41588-021-00783-5).
-
+- >Lambert, Wingfield _et al._ (2024) The Polygenic Score Catalog: new functionality
+  and tools to enable FAIR research.  medRxiv.
+  doi:[10.1101/2024.05.29.24307783](https://doi.org/10.1101/2024.05.29.24307783).
+  
 This work has received funding from EMBL-EBI core funds, the Baker Institute, the University of Cambridge, 
 Health Data Research UK (HDRUK), and the European Union's Horizon 2020 research and innovation programme 
 under grant agreement No 101016775 INTERVENE.
